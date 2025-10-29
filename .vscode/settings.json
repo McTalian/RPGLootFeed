@@ -92,30 +92,18 @@
     "SOUNDKIT",
     "TransmogUtil",
     "RLF_MainLootFrame",
-    "INVTYPE_CLOAK"
+    "INVTYPE_CLOAK",
+    "DressUpItemLink",
+    "LinkUtil",
+    "GenericTraitUI_LoadUI",
+    "ToggleFrame",
+    "GenericTraitFrame",
+    "Item"
   ],
   "wowAPI.luals.frameXML": true,
-  "Lua.workspace.library": [
-    "${addons}/busted/module/library",
-    "${3rd}/luassert/library",
-    "${addons}/luassert/module/library",
-    "~/.vscode-server/extensions/ketho.wow-api-0.21.0/Annotations/Core",
-    "~/.vscode-server/extensions/ketho.wow-api-0.21.0/Annotations/FrameXML"
-  ],
+  "wowAPI.luals.configurationScope": "User",
   "Lua.workspace.userThirdParty": [],
   "Lua.workspace.checkThirdParty": false,
   "Lua.workspace.ignoreSubmodules": true,
-  "Lua.runtime.version": "Lua 5.1",
-  "Lua.runtime.builtin": {
-    "basic": "disable",
-    "debug": "disable",
-    "io": "disable",
-    "math": "disable",
-    "os": "disable",
-    "package": "disable",
-    "string": "disable",
-    "table": "disable",
-    "utf8": "disable"
-  },
   "Lua.type.weakUnionCheck": true
 }
