@@ -25,6 +25,8 @@ function migration:run()
 			G_RLF.db.global.partyLoot.styling.rowBorderTexture = "1 Pixel"
 		end
 	end
+
+	G_RLF.db.global.migrationVersion = version
 end
 
 G_RLF.migrations[version] = migration
