@@ -35,18 +35,16 @@ Thank you for your interest in contributing to this project! Following these gui
 
 ### Python
 
-1. **Install Poetry**  
-   Poetry is used for Python dependency and environment management:
+1. **Install uv**  
+   uv is used for Python dependency and environment management:
 
-   ```bash
-   curl -sSL https://install.python-poetry.org | python3 -
-   ```
+   [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 2. **Install Dependencies**  
    Install project dependencies into a virtual environment:
 
    ```bash
-   poetry install
+   uv sync
    ```
 
 3. **Run Scripts**  

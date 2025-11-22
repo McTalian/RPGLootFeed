@@ -30,20 +30,20 @@ ROCKSBIN := $(HOME)/.luarocks/bin
 
 # Target for running the hardcoded string checker
 hardcode_string_check:
-	@poetry run python .scripts/hardcode_string_check.py
+	@uv run .scripts/hardcode_string_check.py
 
 # Target for running the missing translation checker
 missing_translation_check:
-	@poetry run python .scripts/missing_translation_check.py
+	@uv run .scripts/missing_translation_check.py
 
 organize_translations:
-	@poetry run python .scripts/organize_translations.py
+	@uv run .scripts/organize_translations.py
 
 missing_locale_key_check:
-	@poetry run python .scripts/check_for_missing_locale_keys.py
+	@uv run .scripts/check_for_missing_locale_keys.py
 
 generate_hidden_currencies:
-	@poetry run python .scripts/get_wowhead_hidden_currencies.py RPGLootFeed/Features/Currency/HiddenCurrencies.lua
+	@uv run .scripts/get_wowhead_hidden_currencies.py RPGLootFeed/Features/Currency/HiddenCurrencies.lua
 
 test:
 	@$(ROCKSBIN)/busted RPGLootFeed_spec

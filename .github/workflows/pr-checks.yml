@@ -19,27 +19,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: 3.13
+          enable-cache: true
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.8.5
-
-      - name: Install dependencies
-        run: poetry install
+      - name: Sync uv environment
+        run: uv sync
 
       - name: Run translation check script
-        run: poetry run python .scripts/missing_translation_check.py
+        run: uv run .scripts/missing_translation_check.py
 
       - name: Check for Hard-coded strings
-        run: poetry run python .scripts/hardcode_string_check.py
+        run: uv run .scripts/hardcode_string_check.py
 
       - name: Run missing locale keys script
-        run: poetry run python .scripts/check_for_missing_locale_keys.py
+        run: uv run .scripts/check_for_missing_locale_keys.py
 
   run_tests:
     runs-on: ubuntu-latest

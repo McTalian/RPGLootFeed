@@ -64,4 +64,4 @@ actions:
       triggers:
         - git_hooks: [pre-commit]
 
-      run: poetry run python .scripts/organize_translations.py
+      run: uv run .scripts/organize_translations.py
