@@ -5,7 +5,10 @@
       "@semantic-release/commit-analyzer",
       {
         "preset": "conventionalcommits",
-        "releaseRules": [{ "type": "locale", "release": "patch" }]
+        "releaseRules": [
+          { "type": "locale", "release": "patch" },
+          { "type": "build", "scope": "toc", "release": "patch" }
+        ]
       }
     ],
     [

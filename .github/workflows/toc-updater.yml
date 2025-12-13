@@ -23,11 +23,30 @@ jobs:
           ptr: true
           beta: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install playwright (Chromium)
+        run: npx playwright install chromium --with-deps
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync uv environment
+        run: uv sync
+
+      - name: Check for hidden currencies
+        run: make generate_hidden_currencies
+
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GH_PAT }}
-          title: "build(toc): updates supported interface versions"
+          title: "build(toc): bump toc versions, please submit any bugs!"
           body: |
             ## Requirements
 
@@ -43,6 +62,6 @@ jobs:
 
             ----------------------------------------------------
             _This PR was automatically created to update the supported interface versions in RPGLootFeed.toc._
-          commit-message: "build(RPGLootFeed.toc): updates supported interface versions"
+          commit-message: "build(toc): bump toc versions, please submit any bugs!"
           branch: interface-version
           delete-branch: true
