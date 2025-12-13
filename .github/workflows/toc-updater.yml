@@ -23,14 +23,6 @@ jobs:
           ptr: true
           beta: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-
-      - name: Install playwright (Chromium)
-        run: npx playwright install chromium --with-deps
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -38,6 +30,9 @@ jobs:
 
       - name: Sync uv environment
         run: uv sync
+
+      - name: Install playwright
+        run: uv run playwright install
 
       - name: Check for hidden currencies
         run: make generate_hidden_currencies
