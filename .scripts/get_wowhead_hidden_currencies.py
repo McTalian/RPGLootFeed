@@ -29,6 +29,7 @@ class HiddenCurrency:
 
 
 ignored_currencies = [
+    3278,
     2795,
     2794,
     2793,
