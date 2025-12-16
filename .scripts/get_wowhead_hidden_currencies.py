@@ -47,11 +47,25 @@ ignored_currencies = [
 def get_hidden_currencies() -> Dict[int, HiddenCurrency]:
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.goto("https://www.wowhead.com/currencies/hidden")
+        page = browser.new_page(ignore_https_errors=True)
+        page.goto(
+            "https://www.wowhead.com/currencies/hidden",
+            wait_until="domcontentloaded",
+            timeout=15000,
+        )
 
-        # Wait for the data to be populated in session storage
-        page.wait_for_timeout(2000)  # Adjust timeout as needed
+        # Check if we hit the CDN error page
+        if "error-static-cdn" in page.url:
+            raise RuntimeError(
+                f"Wowhead CDN is blocked. Page redirected to: {page.url}\n"
+                f"The firewall/proxy needs to allow access to Wowhead's CDN domains."
+            )
+
+        # Wait for the specific data we need in session storage
+        page.wait_for_function(
+            "window.sessionStorage.getItem('wh.dataEnv:1.listview.browse') !== null",
+            timeout=10000,
+        )
 
         # Extract the session storage data
         raw_session_data = page.evaluate(
