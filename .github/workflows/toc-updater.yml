@@ -17,11 +17,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Update TOC Interface version
-        uses: Mctalian/wow-toc-updater@v1
+        uses: Mctalian/wow-build-tools/toc/update@v1-beta
         with:
-          flavor: retail
-          ptr: true
-          beta: true
+          args: -a RPGLootFeed -b -p
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
