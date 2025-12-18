@@ -1,4 +1,4 @@
-.PHONY: all_checks hardcode_string_check missing_translation_check organize_translations missing_locale_key_check test test-ci test-file test-pattern test-only local check_untracked_files help
+.PHONY: all_checks hardcode_string_check toc_check toc_update missing_translation_check organize_translations missing_locale_key_check test test-ci test-file test-pattern test-only local check_untracked_files help
 
 all_checks: hardcode_string_check missing_translation_check missing_locale_key_check
 
@@ -92,11 +92,22 @@ check_untracked_files:
 		echo "No untracked files."; \
 	fi
 
-watch: missing_locale_key_check check_untracked_files
+toc_check:
+	@wow-build-tools toc check \
+		-a RPGLootFeed \
+		-x embeds.xml \
+		-b -p
+
+toc_update:
+	@wow-build-tools toc update \
+		-a RPGLootFeed \
+		-b -p
+
+watch: toc_check missing_locale_key_check check_untracked_files
 	@wow-build-tools watch -t RPGLootFeed -r ./.release
 
-dev: missing_locale_key_check check_untracked_files
+dev: toc_check missing_locale_key_check check_untracked_files
 	@wow-build-tools build -d -t RPGLootFeed -r ./.release --skipChangelog
 
-build: missing_locale_key_check check_untracked_files
+build: toc_check missing_locale_key_check check_untracked_files
 	@wow-build-tools build -d -t RPGLootFeed -r ./.release
