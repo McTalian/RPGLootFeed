@@ -76,7 +76,20 @@ function G_RLF:RGBAToHexFormat(r, g, b, a)
 	return "|c" .. alpha .. red .. green .. blue
 end
 
+local function secretSanitization(value, field)
+	if issecretvalue and issecretvalue(value) then
+		return "<" .. field .. " secret, ignored>"
+	end
+
+	return value
+end
+
 local function log(...)
+	local message, _, _, id, content, amount = ...
+	message = secretSanitization(message, "message")
+	id = secretSanitization(id, "id")
+	content = secretSanitization(content, "content")
+	amount = secretSanitization(amount, "amount")
 	local args = { ... }
 	RunNextFrame(function()
 		G_RLF:SendMessage("RLF_LOG", args)
