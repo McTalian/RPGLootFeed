@@ -437,8 +437,8 @@ end
 function Rep:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload)
 	if GetExpansionLevel() >= G_RLF.Expansion.TWW then
 		if not self.companionFactionId or not self.companionFactionName then
-			local companionId = C_DelvesUI.GetCompanionInfoForActivePlayer()
-			self.companionFactionId = C_DelvesUI.GetFactionForCompanion(companionId)
+			-- local companionId = C_DelvesUI.GetCompanionInfoForActivePlayer()
+			self.companionFactionId = C_DelvesUI.GetFactionForCompanion()
 			local factionData = C_Reputation.GetFactionDataByID(self.companionFactionId)
 			if factionData then
 				self.companionFactionName = factionData.name
