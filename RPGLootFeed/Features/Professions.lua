@@ -91,6 +91,11 @@ function Professions:PLAYER_ENTERING_WORLD()
 end
 
 function Professions:CHAT_MSG_SKILL(event, message)
+	if issecretvalue and issecretvalue(message) then
+		G_RLF:LogWarn("(" .. event .. ") Secret value detected, ignoring chat message", "WOWEVENT", self.moduleName, "")
+		return
+	end
+
 	G_RLF:LogInfo(event, "WOWEVENT", self.moduleName, nil, message)
 
 	local skillName, skillLevel = G_RLF:ExtractDynamicsFromPattern(message, segments)

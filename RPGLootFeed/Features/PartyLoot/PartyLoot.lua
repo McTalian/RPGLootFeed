@@ -249,7 +249,18 @@ function PartyLoot:CHAT_MSG_LOOT(eventName, ...)
 	end
 
 	local msg, playerName, _, _, playerName2, _, _, _, _, _, _, guid = ...
+	if issecretvalue and issecretvalue(msg) then
+		G_RLF:LogWarn(
+			"(" .. eventName .. ") Secret value detected, ignoring chat message",
+			"WOWEVENT",
+			self.moduleName,
+			""
+		)
+		return
+	end
+
 	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName .. " " .. msg)
+
 	local raidLoot = msg:match("HlootHistory:")
 	if raidLoot then
 		-- Ignore this message as it's a raid loot message

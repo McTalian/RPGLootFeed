@@ -305,6 +305,16 @@ end
 
 function Currency:CHAT_MSG_CURRENCY(eventName, ...)
 	local msg = ...
+	if issecretvalue and issecretvalue(msg) then
+		G_RLF:LogWarn(
+			"(" .. eventName .. ") Secret value detected, ignoring chat message",
+			"WOWEVENT",
+			self.moduleName,
+			""
+		)
+		return
+	end
+
 	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, nil, msg)
 
 	local currencyId = G_RLF:ExtractCurrencyID(msg)
