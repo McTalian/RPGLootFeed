@@ -449,7 +449,18 @@ function Rep:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload)
 end
 
 function Rep:CHAT_MSG_COMBAT_FACTION_CHANGE(eventName, message)
+	if issecretvalue and issecretvalue(message) then
+		G_RLF:LogWarn(
+			"(" .. eventName .. ") Secret value detected, ignoring chat message",
+			"WOWEVENT",
+			self.moduleName,
+			""
+		)
+		return
+	end
+
 	G_RLF:LogInfo(eventName .. " " .. message, "WOWEVENT", self.moduleName)
+
 	return self:fn(function()
 		local faction, repChange, isDelveCompanion, isAccountWide = self:ParseFactionChangeMessage(message)
 
