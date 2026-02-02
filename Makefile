@@ -96,15 +96,17 @@ toc_check:
 	@wow-build-tools toc check \
 		-a RPGLootFeed \
 		-x embeds.xml \
+		--no-splash \
 		-b -p
 
 toc_update:
 	@wow-build-tools toc update \
 		-a RPGLootFeed \
+		--no-splash \
 		-b -p
 
 watch: toc_check missing_locale_key_check check_untracked_files
-	@wow-build-tools watch -t RPGLootFeed -r ./.release
+	@wow-build-tools build watch -t RPGLootFeed -r ./.release
 
 dev: toc_check missing_locale_key_check check_untracked_files
 	@wow-build-tools build -d -t RPGLootFeed -r ./.release --skipChangelog
