@@ -79,6 +79,10 @@ local function OnClearLog()
 	updateContent()
 end
 
+function Logger:ClearLog()
+	OnClearLog()
+end
+
 local createLoggerFrames
 local createFilterBar
 local createContentBox
@@ -389,6 +393,23 @@ end
 ---@param isNew? boolean
 ---@return nil
 function Logger:addLogEntry(level, message, source, type, id, content, amount, isNew)
+	if issecretvalue then
+		if issecretvalue(message) then
+			message = "<SECRET MESSAGE>"
+		end
+
+		if issecretvalue(id) then
+			id = "<SECRET ID>"
+		end
+
+		if issecretvalue(content) then
+			content = "<SECRET CONTENT>"
+		end
+
+		if issecretvalue(amount) then
+			amount = "<SECRET AMOUNT>"
+		end
+	end
 	---@type LogEntry
 	local entry = {
 		timestamp = date("%Y-%m-%d %H:%M:%S"),

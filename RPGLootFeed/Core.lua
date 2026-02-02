@@ -161,6 +161,10 @@ function RLF:SlashCommand(msg, editBox)
 			---@type RLF_Logger
 			local loggerModule = self:GetModule(G_RLF.SupportModule.Logger) --[[@as RLF_Logger]]
 			loggerModule:Show()
+		elseif msg == "log clear" then
+			---@type RLF_Logger
+			local loggerModule = self:GetModule(G_RLF.SupportModule.Logger) --[[@as RLF_Logger]]
+			loggerModule:ClearLog()
 		elseif msg == "history" and G_RLF.db.global.lootHistory.enabled then
 			---@type RLF_LootDisplayFrame
 			G_RLF.HistoryService:ToggleHistoryFrame()
