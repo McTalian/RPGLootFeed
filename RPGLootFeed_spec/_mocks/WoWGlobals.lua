@@ -4,6 +4,110 @@ local spy = busted.spy
 
 local wowGlobals = {}
 
+--#region:bit
+-- WoW Bitlib mock implementation
+-- Pure Lua implementation of bitwise operations
+local function bnot(a)
+	return bit.bnot(a)
+end
+
+local function band(a1, ...)
+	local result = a1
+	for _, a in ipairs({ ... }) do
+		result = result
+			- (result % (a + 1))
+			+ (result % (a + 1)) * (1 - a % 2)
+			+ math.floor(result / (a + 1)) * math.floor(a / (a + 1)) * 2 * (a + 1)
+	end
+	return result
+end
+
+local function bor(a1, ...)
+	local result = a1
+	for _, a in ipairs({ ... }) do
+		result = bit.bor(result, a)
+	end
+	return result
+end
+
+local function bxor(a1, ...)
+	local result = a1
+	for _, a in ipairs({ ... }) do
+		result = bit.bxor(result, a)
+	end
+	return result
+end
+
+local function lshift(a, n)
+	return a * (2 ^ n)
+end
+
+local function rshift(a, n)
+	return math.floor(a / (2 ^ n))
+end
+
+local function arshift(a, n)
+	return math.floor(a / (2 ^ n))
+end
+
+local function bmod(a, n)
+	return a % n
+end
+
+-- Helper function to implement bitwise AND without bit32
+local function bitwiseAnd(a, b)
+	local result = 0
+	local bitPos = 1
+	while a > 0 or b > 0 do
+		if (a % 2 == 1) and (b % 2 == 1) then
+			result = result + bitPos
+		end
+		a = math.floor(a / 2)
+		b = math.floor(b / 2)
+		bitPos = bitPos * 2
+	end
+	return result
+end
+
+-- Helper function to implement bitwise OR without bit32
+local function bitwiseOr(a, b)
+	local result = 0
+	local bitPos = 1
+	while a > 0 or b > 0 do
+		if (a % 2 == 1) or (b % 2 == 1) then
+			result = result + bitPos
+		end
+		a = math.floor(a / 2)
+		b = math.floor(b / 2)
+		bitPos = bitPos * 2
+	end
+	return result
+end
+
+_G.bit = {
+	bnot = bnot,
+	band = function(a1, ...)
+		local result = a1
+		for _, a in ipairs({ ... }) do
+			result = bitwiseAnd(result, a)
+		end
+		return result
+	end,
+	bor = function(a1, ...)
+		local result = a1
+		for _, a in ipairs({ ... }) do
+			result = bitwiseOr(result, a)
+		end
+		return result
+	end,
+	bxor = bxor,
+	lshift = lshift,
+	rshift = rshift,
+	arshift = arshift,
+	mod = bmod,
+}
+--#endregion
+
 --#region:BossBanner
 ---@diagnostic disable-next-line: missing-fields
 _G.BossBanner = {}

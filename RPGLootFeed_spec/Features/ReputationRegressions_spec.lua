@@ -52,9 +52,19 @@ describe("Reputation Regressions", function()
 						enabled = true,
 						defaultRepColor = { 1, 1, 1, 1 },
 					},
+					warbandFactions = {
+						count = 0,
+						cachedFactionDetailsById = {},
+					},
 				},
 				locale = {
 					factionMap = {},
+				},
+				char = {
+					repFactions = {
+						count = 0,
+						cachedFactionDetailsById = {},
+					},
 				},
 			},
 			L = {},
@@ -67,13 +77,21 @@ describe("Reputation Regressions", function()
 
 		ns.db.locale.factionMap["Рыболовы"] = 12345
 
-		RepModule = assert(loadfile("RPGLootFeed/Features/Reputation.lua"))("TestAddon", ns)
+		RepUtils = assert(loadfile("RPGLootFeed/utils/ReputationHelpers.lua"))("TestAddon", ns)
+		Legacy = assert(loadfile("RPGLootFeed/Features/Reputation/LegacyChatParsingImpl.lua"))("TestAddon", ns)
+		RepModule = assert(loadfile("RPGLootFeed/Features/Reputation/Reputation.lua"))("TestAddon", ns)
 	end)
 
 	it("handles The Anglers in MOP Classic, ruRU", function()
 		local spyElementNew = spy.on(RepModule.Element, "new")
 		_G.FACTION_STANDING_INCREASED_ACH_BONUS =
 			'Отношение фракции "%s" к вам улучшилось на %d (+%.1f дополнительно).'
+
+		-- Mock ParseFactionChangeMessage to return faction name and repChange
+		stub(RepModule, "ParseFactionChangeMessage").returns("Рыболовы", 1100, false, false)
+
+		-- Mock GetLocaleFactionMapData to return the faction ID for "Рыболовы"
+		stub(ns.LegacyRepParsing, "GetLocaleFactionMapData").returns(12345)
 
 		RepModule:OnInitialize()
 		RepModule:PLAYER_ENTERING_WORLD(true, false)
@@ -83,6 +101,20 @@ describe("Reputation Regressions", function()
 			'Отношение фракции "Рыболовы" к вам улучшилось на 1100 (+550.0 дополнительно).'
 		)
 
-		assert.spy(spyElementNew).was.called_with(RepModule.Element, 1100, "Рыболовы", _, _, _, 12345, _, 3)
+		local expectedFactionDetails = {
+			factionId = 12345,
+			name = "Рыболовы",
+			delta = 1100,
+			color = { r = 1, g = 0, b = 0 },
+			contextInfo = 2,
+			icon = 236681,
+			quality = 3,
+			rank = "Test Text",
+			rankStandingMax = 3,
+			rankStandingMin = 2,
+			standing = 2,
+		}
+
+		assert.spy(spyElementNew).was.called_with(RepModule.Element, match.is_same(expectedFactionDetails))
 	end)
 end)

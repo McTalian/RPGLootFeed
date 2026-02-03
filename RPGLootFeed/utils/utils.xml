@@ -12,4 +12,5 @@
   <Script file="Maps.lua"/>
   <Script file="Queue.lua"/>
   <Script file="HistoryService.lua"/>
+  <Script file="ReputationHelpers.lua"/>
 </Ui>

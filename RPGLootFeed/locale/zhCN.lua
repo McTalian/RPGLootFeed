@@ -14,6 +14,10 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.28.0
+-- L["Unknown Faction"] = "Unknown Faction"
+--#endregion
+
 --#region 1.27.2
 L["ClickToOpenCloakTree"] = "点击打开披风（天赋）树"
 --#endregion

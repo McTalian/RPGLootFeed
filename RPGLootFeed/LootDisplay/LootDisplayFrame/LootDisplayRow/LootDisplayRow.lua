@@ -1323,7 +1323,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self.isSampleRow = element.isSampleRow or false
 	self.itemCount = element.itemCount
 	self.elementSecondaryText = element.secondaryText or nil
-	---@type ColorMixin|ColorMixin_RCC|nil
+	---@type ColorMixin|nil
 	self.elementSecondaryTextColor = element.secondaryTextColor or nil
 	self.isCustomLink = element.isCustomLink or false
 	self.customBehavior = element.customBehavior
