@@ -106,7 +106,7 @@ describe("Reputation Regressions", function()
 			name = "Рыболовы",
 			delta = 1100,
 			color = { r = 1, g = 0, b = 0 },
-			contextInfo = 2,
+			contextInfo = "2",
 			icon = 236681,
 			quality = 3,
 			rank = "Test Text",
