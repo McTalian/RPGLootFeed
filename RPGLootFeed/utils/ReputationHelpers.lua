@@ -244,7 +244,7 @@ function RepUtils.GetFactionData(factionId, repType)
 				factionData.rankStandingMin = friendInfo.reactionThreshold
 				factionData.rankStandingMax = friendInfo.nextThreshold
 				factionData.standing = standing
-				factionData.contextInfo = standing
+				factionData.contextInfo = tostring(standing)
 
 				local repDenominator = friendInfo.nextThreshold - friendInfo.reactionThreshold
 				if factionData.contextInfo and repDenominator and repDenominator > 1 then
@@ -259,7 +259,7 @@ function RepUtils.GetFactionData(factionId, repType)
 			factionData.standing = standing
 			factionData.rankStandingMin = fd.currentReactionThreshold
 			factionData.rankStandingMax = fd.nextReactionThreshold
-			factionData.contextInfo = standing
+			factionData.contextInfo = tostring(standing)
 			local denominator = fd.nextReactionThreshold - fd.currentReactionThreshold
 			if factionData.contextInfo and denominator and denominator > 1 then
 				factionData.contextInfo = factionData.contextInfo .. " / " .. denominator
@@ -273,6 +273,8 @@ function RepUtils.GetFactionData(factionId, repType)
 			C_Reputation.GetFactionParagonInfo(factionId)
 		if currentValue and threshold and threshold > 0 then
 			factionData.contextInfo = string.format("%d / %d", currentValue % threshold, threshold)
+		else
+			factionData.contextInfo = ""
 		end
 		if hasRewardPending then
 			local stylingDb = G_RLF.DbAccessor:Styling(G_RLF.Frames.MAIN)

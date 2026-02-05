@@ -271,7 +271,7 @@ end
 --- @field oldRenownLevel number
 
 --- Checks for updates to known hidden renown factions
----@param events table<string | nil, number>
+---@param events table<number | nil, number>
 function Rep:CheckForHiddenRenownFactions(events)
 	for k, v in pairs(events) do
 		if k then
@@ -320,6 +320,7 @@ function Rep:CheckForHiddenRenownFactions(events)
 		icon = 4635200, -- Delver's Journey
 		quality = G_RLF.ItemQualEnum.Rare,
 		color = ACCOUNT_WIDE_FONT_COLOR,
+		contextInfo = "",
 	}
 
 	local updated = C_MajorFactions.GetMajorFactionRenownInfo(CURRENT_SEASON_DELVE_JOURNEY)
@@ -357,11 +358,9 @@ function Rep:CheckForHiddenRenownFactions(events)
 	factionData.rank = newFactionDetails.rank
 	if newFactionDetails.standing then
 		factionData.contextInfo = tostring(newFactionDetails.standing)
-	end
-	if newFactionDetails.rankStandingMax then
-		factionData.contextInfo = tostring(factionData.contextInfo)
-			.. " / "
-			.. tostring(newFactionDetails.rankStandingMax)
+		if newFactionDetails.rankStandingMax then
+			factionData.contextInfo = factionData.contextInfo .. " / " .. tostring(newFactionDetails.rankStandingMax)
+		end
 	end
 
 	if repChange and repChange > 0 then

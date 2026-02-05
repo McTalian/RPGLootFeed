@@ -192,7 +192,7 @@ function LegacyRepParsing.ParseFactionChangeMessage(message, companionFactionNam
 	end
 	if not faction then
 		G_RLF:LogDebug(
-			"Checking for " .. companionFactionName .. " in message " .. message,
+			"Checking for " .. tostring(companionFactionName) .. " in message " .. message,
 			addonName,
 			"Reputation.LegacyChatParsing"
 		)
