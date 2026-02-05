@@ -246,10 +246,16 @@ function RepUtils.GetFactionData(factionId, repType)
 				factionData.rankStandingMax = friendInfo.nextThreshold
 				factionData.standing = standing
 				factionData.contextInfo = tostring(standing)
-
-				local repDenominator = friendInfo.nextThreshold - friendInfo.reactionThreshold
-				if factionData.contextInfo and repDenominator and repDenominator > 1 then
-					factionData.contextInfo = factionData.contextInfo .. " / " .. repDenominator
+				if
+					friendInfo.nextThreshold
+					and friendInfo.nextThreshold > 0
+					and friendInfo.reactionThreshold
+					and friendInfo.reactionThreshold > 0
+				then
+					local repDenominator = friendInfo.nextThreshold - friendInfo.reactionThreshold
+					if repDenominator > standing then
+						factionData.contextInfo = factionData.contextInfo .. " / " .. repDenominator
+					end
 				end
 			end
 		else
