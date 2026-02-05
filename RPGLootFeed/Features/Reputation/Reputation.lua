@@ -120,7 +120,7 @@ function Rep:OnDisable()
 		self:UnregisterAllBuckets()
 	end
 	if C_EventUtils and C_EventUtils.IsEventValid and C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED") then
-		self:RegisterBucketEvent("FACTION_STANDING_CHANGED", 0.2)
+		self:UnregisterAllBuckets()
 	else
 		self:UnregisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE")
 	end
@@ -135,12 +135,12 @@ function Rep:OnEnable()
 	end
 	if GetExpansionLevel() >= G_RLF.Expansion.TWW then
 		--- @type FrameEvent[]
-		local events = {
+		local delversJourneyPollEvents = {
 			"UPDATE_FACTION",
 			"MAJOR_FACTION_RENOWN_LEVEL_CHANGED",
 		}
 		---@diagnostic disable-next-line: param-type-mismatch
-		self:RegisterBucketEvent(events, 0.5, "CheckForHiddenRenownFactions")
+		self:RegisterBucketEvent(delversJourneyPollEvents, 0.5, "CheckForHiddenRenownFactions")
 	end
 	G_RLF:LogDebug("OnEnable", addonName, self.moduleName)
 end

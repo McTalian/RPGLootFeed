@@ -203,16 +203,17 @@ function RepUtils.GetFactionData(factionId, repType)
 		if ranks and ranks.currentLevel then
 			factionData.rank = ranks.currentLevel
 		end
+		if info then
+			factionData.standing = info.standing
 
-		factionData.standing = info.standing
-
-		if factionData.rank < ranks.maxLevel then
-			local currentXp = info.standing - info.reactionThreshold
-			if info.nextThreshold and info.nextThreshold > 1 then
-				local nextLevelAt = info.nextThreshold - info.reactionThreshold
-				factionData.rankStandingMin = info.reactionThreshold
-				factionData.rankStandingMax = info.nextThreshold
-				factionData.contextInfo = math.floor((currentXp / nextLevelAt) * 10000) / 100 .. "%"
+			if factionData.rank < ranks.maxLevel then
+				local currentXp = info.standing - info.reactionThreshold
+				if info.nextThreshold and info.nextThreshold > 1 then
+					local nextLevelAt = info.nextThreshold - info.reactionThreshold
+					factionData.rankStandingMin = info.reactionThreshold
+					factionData.rankStandingMax = info.nextThreshold
+					factionData.contextInfo = math.floor((currentXp / nextLevelAt) * 10000) / 100 .. "%"
+				end
 			end
 		end
 	else
