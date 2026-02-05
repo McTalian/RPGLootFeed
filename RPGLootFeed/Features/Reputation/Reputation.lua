@@ -18,6 +18,11 @@ local CURRENT_SEASON_DELVE_JOURNEY = 0
 local DELVER_JOURNEY_LABEL = nil
 
 local function buildCachedFactionDetails()
+	-- This should only be called from Retail, but just in case
+	if not C_Reputation.GetNumFactions or not C_Reputation.GetFactionDataByIndex then
+		return
+	end
+
 	local numCachedFactions = RepUtils.GetCount()
 	local numFactions = C_Reputation.GetNumFactions()
 	local hasMoreFactions = numFactions > numCachedFactions

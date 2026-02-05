@@ -93,7 +93,10 @@ function LegacyRepParsing.buildFactionLocaleMap(findName, isAccountWide)
 				G_RLF.db.locale.factionMap[factionData.name] = factionData.factionID
 			end
 			if findName then
-				if isAccountWide == factionData.isAccountWide and factionData.name == findName then
+				if
+					(isAccountWide == nil or isAccountWide == factionData.isAccountWide)
+					and factionData.name == findName
+				then
 					break
 				end
 			end

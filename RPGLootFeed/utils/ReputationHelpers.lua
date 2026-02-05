@@ -230,6 +230,7 @@ function RepUtils.GetFactionData(factionId, repType)
 		if not fd then
 			return nil
 		end
+		factionData.name = fd.name
 		if fd.reaction then
 			factionData.color = FACTION_BAR_COLORS[fd.reaction]
 		end
@@ -460,7 +461,7 @@ end
 --- @param newStanding number
 --- @return number|nil
 function RepUtils.GetDeltaAndUpdateCache(factionId, newStanding)
-	if C_Reputation.IsAccountWideReputation(factionId) then
+	if C_Reputation.IsAccountWideReputation and C_Reputation.IsAccountWideReputation(factionId) then
 		return getDeltaAndUpdateWarbandCache(factionId, newStanding)
 	else
 		return getDeltaAndUpdateCharCache(factionId, newStanding)
