@@ -200,20 +200,21 @@ function RepUtils.GetFactionData(factionId, repType)
 
 		local ranks = C_GossipInfo.GetFriendshipReputationRanks(factionId)
 		local info = C_GossipInfo.GetFriendshipReputation(factionId)
-		if ranks and ranks.currentLevel then
-			factionData.rank = ranks.currentLevel
+		if not ranks or not info then
+			return nil
 		end
-		if info then
-			factionData.standing = info.standing
 
-			if factionData.rank < ranks.maxLevel then
-				local currentXp = info.standing - info.reactionThreshold
-				if info.nextThreshold and info.nextThreshold > 1 then
-					local nextLevelAt = info.nextThreshold - info.reactionThreshold
-					factionData.rankStandingMin = info.reactionThreshold
-					factionData.rankStandingMax = info.nextThreshold
-					factionData.contextInfo = math.floor((currentXp / nextLevelAt) * 10000) / 100 .. "%"
-				end
+		factionData.rank = ranks.currentLevel
+		factionData.standing = info.standing
+
+		-- Once we hit max level, the thresholds are no longer valid
+		if factionData.rank < ranks.maxLevel then
+			local currentXp = info.standing - info.reactionThreshold
+			if info.nextThreshold and info.nextThreshold > 1 then
+				local nextLevelAt = info.nextThreshold - info.reactionThreshold
+				factionData.rankStandingMin = info.reactionThreshold
+				factionData.rankStandingMax = info.nextThreshold
+				factionData.contextInfo = math.floor((currentXp / nextLevelAt) * 10000) / 100 .. "%"
 			end
 		end
 	else
@@ -356,6 +357,7 @@ local function getDeltaAndUpdateCache(factionId, newStanding, cacheFns)
 		end
 
 		cachedDetails = {
+			repType = repType,
 			rank = fd.rank,
 			standing = newStanding,
 			rankStandingMin = fd.rankStandingMin,

@@ -235,8 +235,17 @@ function Rep:CHAT_MSG_COMBAT_FACTION_CHANGE(eventName, message)
 			fId = factionMapEntry
 			repType = RepUtils.DetermineRepType(fId)
 			factionData = RepUtils.GetFactionData(fId, repType)
-			if factionData and factionData.name ~= faction then
-				-- Name mismatch, likely due to localization differences
+			if not factionData then
+				G_RLF:LogWarn(
+					"Could not retrieve faction data for ID " .. tostring(fId) .. " repType:" .. tostring(repType),
+					addonName,
+					self.moduleName
+				)
+				return
+			end
+			if factionData.name ~= faction then
+				-- In case there's a mismatch for some reason when parsing chat messages,
+				-- prefer the parsed name
 				factionData.name = faction
 			end
 			factionData.delta = repChange

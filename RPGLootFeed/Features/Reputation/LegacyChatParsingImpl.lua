@@ -164,6 +164,9 @@ function LegacyRepParsing.ParseFactionChangeMessage(message, companionFactionNam
 	local isDelveCompanion = false
 	local isAccountWide = false
 	local faction, repChange
+	-- Account-wide factions only exist in Retail, currently. And now we're getting faction
+	-- rep changes from a different event instead of CHAT_MSG events. As such, this code
+	-- will likely never be hit again, but leaving it here for posterity.
 	if G_RLF:IsRetail() and accountWideIncreasePatterns then
 		faction, repChange = extractFactionAndRep(message, accountWideIncreasePatterns)
 		if not faction and accountWideDecreasePatterns then
@@ -220,7 +223,7 @@ function LegacyRepParsing.GetLocaleFactionMapData(faction, isAccountWide)
 		end
 	end
 
-	if not factionMapEntry then
+	if factionMapEntry then
 		return factionMapEntry
 	else
 		G_RLF:LogWarn(faction .. " is STILL not cached for " .. locale, addonName, "Reputation.LegacyChatParsing")
