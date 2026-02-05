@@ -15,6 +15,7 @@ local RepType = RepUtils.RepType
 local LegRep = G_RLF.LegacyRepParsing
 
 local CURRENT_SEASON_DELVE_JOURNEY = 0
+local DELVER_JOURNEY_LABEL = nil
 
 local function buildCachedFactionDetails()
 	local numCachedFactions = RepUtils.GetCount()
@@ -152,7 +153,6 @@ end
 function Rep:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload)
 	if GetExpansionLevel() >= G_RLF.Expansion.TWW then
 		if not self.companionFactionId or not self.companionFactionName then
-			-- local companionId = C_DelvesUI.GetCompanionInfoForActivePlayer()
 			self.companionFactionId = C_DelvesUI.GetFactionForCompanion()
 			local factionData = C_Reputation.GetFactionDataByID(self.companionFactionId)
 			if factionData then
@@ -291,14 +291,26 @@ function Rep:CheckForHiddenRenownFactions(events)
 		return
 	end
 
-	---@type string
-	local localeGlobalString = _G["DELVES_REPUTATION_BAR_TITLE_NO_SEASON"]
-	local trimIndex = localeGlobalString:find("%(")
-	if not trimIndex then
-		G_RLF:LogDebug("No trim index found for DJ locale string", addonName, self.moduleName)
-		return
+	if not DELVER_JOURNEY_LABEL then
+		---@type string
+		local localeGlobalString = _G["DELVES_REPUTATION_BAR_TITLE_NO_SEASON"]
+		if not localeGlobalString or type(localeGlobalString) ~= "string" then
+			G_RLF:LogDebug("No DJ locale string found", addonName, self.moduleName)
+			return
+		end
+		local trimIndex = localeGlobalString:find("%(")
+		if not trimIndex then
+			G_RLF:LogDebug("No trim index found for DJ locale string", addonName, self.moduleName)
+			return
+		end
+		DELVER_JOURNEY_LABEL = strtrim(localeGlobalString:sub(1, trimIndex - 1))
+		if not DELVER_JOURNEY_LABEL or DELVER_JOURNEY_LABEL == "" then
+			G_RLF:LogDebug("No DJ label after trim", addonName, self.moduleName)
+			return
+		end
 	end
-	local faction = strtrim(localeGlobalString:sub(1, trimIndex - 1))
+
+	local faction = DELVER_JOURNEY_LABEL
 
 	---@type UnifiedFactionData
 	local factionData = {
@@ -342,12 +354,14 @@ function Rep:CheckForHiddenRenownFactions(events)
 	--- @type number
 	local repChange = RepUtils.GetDeltaAndUpdateCache(CURRENT_SEASON_DELVE_JOURNEY, newFactionDetails.standing)
 
-	factionData.rank = cacheDetails.rank
-	if cacheDetails.standing then
-		factionData.contextInfo = tostring(cacheDetails.standing)
+	factionData.rank = newFactionDetails.rank
+	if newFactionDetails.standing then
+		factionData.contextInfo = tostring(newFactionDetails.standing)
 	end
-	if cacheDetails.rankStandingMax then
-		factionData.contextInfo = tostring(factionData.contextInfo) .. " / " .. tostring(cacheDetails.rankStandingMax)
+	if newFactionDetails.rankStandingMax then
+		factionData.contextInfo = tostring(factionData.contextInfo)
+			.. " / "
+			.. tostring(newFactionDetails.rankStandingMax)
 	end
 
 	if repChange and repChange > 0 then

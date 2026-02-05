@@ -269,10 +269,11 @@ function RepUtils.GetFactionData(factionId, repType)
 
 	if RepUtils.IsParagon(repType) then
 		factionData.color = factionData.color or FACTION_GREEN_COLOR
-		factionData = factionData or {}
 		local currentValue, threshold, rewardQuestId, hasRewardPending, tooLowLevelForParagon =
 			C_Reputation.GetFactionParagonInfo(factionId)
-		factionData.contextInfo = string.format("%d / %d", currentValue % threshold, threshold)
+		if currentValue and threshold and threshold > 0 then
+			factionData.contextInfo = string.format("%d / %d", currentValue % threshold, threshold)
+		end
 		if hasRewardPending then
 			local stylingDb = G_RLF.DbAccessor:Styling(G_RLF.Frames.MAIN)
 			local sizeCoeff = G_RLF.AtlasIconCoefficients[rewardIcon] or 1
@@ -343,19 +344,20 @@ local function getDeltaAndUpdateCache(factionId, newStanding, cacheFns)
 	local getCountFn = cacheFns.getCountFn
 	local updateCountFn = cacheFns.updateCountFn
 
+	local repType = RepUtils.DetermineRepType(factionId)
+	local fd = RepUtils.GetFactionData(factionId, repType)
+	if not fd then
+		G_RLF:LogWarn(
+			"Failed to get faction data for factionId " .. tostring(factionId),
+			addonName,
+			"Reputation.RepUtils"
+		)
+		return nil
+	end
+
+	---@type CachedFactionDetails|nil
 	local cachedDetails = getFn(factionId)
 	if not cachedDetails then
-		local repType = RepUtils.DetermineRepType(factionId)
-		local fd = RepUtils.GetFactionData(factionId, repType)
-		if not fd then
-			G_RLF:LogWarn(
-				"Failed to get faction data for factionId " .. tostring(factionId),
-				addonName,
-				"Reputation.RepUtils"
-			)
-			return nil
-		end
-
 		cachedDetails = {
 			repType = repType,
 			rank = fd.rank,
@@ -376,11 +378,15 @@ local function getDeltaAndUpdateCache(factionId, newStanding, cacheFns)
 		--- than CHAT_MSG_REPUTATION event, but perhaps now it's before.
 		--- In any case, this logic should cover both scenarios, but there's a chance our
 		--- the level we display is the old level.
-		delta = cachedDetails.rankStandingMax - cachedDetails.standing + newStanding
+		local rankStandingMax = cachedDetails.rankStandingMax or 2500 -- At least for most major factions
+		delta = rankStandingMax - cachedDetails.standing + newStanding
 	else
 		delta = newStanding - cachedDetails.standing
 	end
 	cachedDetails.standing = newStanding
+	cachedDetails.rank = fd.rank
+	cachedDetails.rankStandingMin = fd.rankStandingMin
+	cachedDetails.rankStandingMax = fd.rankStandingMax
 	updateFn(factionId, cachedDetails)
 	return delta
 end

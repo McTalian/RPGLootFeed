@@ -29,10 +29,6 @@ local SocketFDIDMap = {
 	["EMPTY_SOCKET_SINGINGTHUNDER"] = 2958631,
 	["EMPTY_SOCKET_SINGINGSEA"] = 2958629,
 	["EMPTY_SOCKET_SINGINGWIND"] = 2958630,
-	-- Legion Relic Slots are atlas textures but don't seem to
-	-- have direct file IDs, I should probably switch to using
-	-- atlas icons for all of these instead of file IDs
-	-- https://wago.tools/files?search=1114519
 }
 
 local TertiaryStatMap = {
