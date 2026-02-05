@@ -23,18 +23,19 @@ jobs:
           webhook-url: ${{ env.DISCORD_WEBHOOK_URL }}
           username: RPGLootFeed Releases
           avatar-url: https://raw.githubusercontent.com/McTalian/RPGLootFeed/refs/heads/main/RPGLootFeed_logo.png
-          embed-title: "New RPGLootFeed Release: v1.2.3"
+          embed-title: "New RPGLootFeed Release: ${{ github.event.release.tag_name || 'Test Release' }}"
           embed-description: |
-            TODO: Release body goes here.
+            ${{ github.event.release.body || 'Test Body' }}
 
-            Be the first to download via [GitHub](https://github.com/McTalian/RPGLootFeed/releases) TODO: Use release URL.
+            Be the first to download via [GitHub](${{ github.event.release.html_url || 'https://github.com/McTalian/RPGLootFeed/releases' }})
+
             Once approved it will also be available via:
             * [CurseForge](https://www.curseforge.com/wow/addons/rpglootfeed)
             * [WoWInterface](https://www.wowinterface.com/downloads/info26799-RPGLootFeed.html)
             * [Wago](https://addons.wago.io/addons/rpglootfeed)
-          embed-footer-text: |
-            Run into issues? Let me know on [GitHub](https://github.com/McTalian/RPGLootFeed/issues)!
-            Join the Discord for the fastest updates and support!
+
+            -# Run into issues? Let me know on [GitHub](https://github.com/McTalian/RPGLootFeed/issues)!
+            -# Join the [Discord](https://discord.gg/czRYVWhe33) for the fastest updates and support!
           embed-color: 15105570
 
   check_translations:
