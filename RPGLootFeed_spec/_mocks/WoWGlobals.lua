@@ -11,25 +11,6 @@ local function bnot(a)
 	return bit.bnot(a)
 end
 
-local function band(a1, ...)
-	local result = a1
-	for _, a in ipairs({ ... }) do
-		result = result
-			- (result % (a + 1))
-			+ (result % (a + 1)) * (1 - a % 2)
-			+ math.floor(result / (a + 1)) * math.floor(a / (a + 1)) * 2 * (a + 1)
-	end
-	return result
-end
-
-local function bor(a1, ...)
-	local result = a1
-	for _, a in ipairs({ ... }) do
-		result = bit.bor(result, a)
-	end
-	return result
-end
-
 local function bxor(a1, ...)
 	local result = a1
 	for _, a in ipairs({ ... }) do
