@@ -185,6 +185,7 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 				logger = {},
 				migrationVersion = 0,
 			},
+			char = {},
 			locale = {
 				factionMap = {},
 				accountWideFactionMap = {},
@@ -355,6 +356,10 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 				misc = {
 					hideAllIcons = false,
 				},
+				warbandFactions = {
+					cachedFactionDetailsById = {},
+					count = 0,
+				},
 			},
 			locale = {
 				factionMap = {},
@@ -363,6 +368,12 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 				},
 			},
 			profile = {},
+			char = {
+				repFactions = {
+					count = 0,
+					cachedFactionDetailsById = {},
+				},
+			},
 		}
 	end
 

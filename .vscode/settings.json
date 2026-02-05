@@ -97,7 +97,8 @@
     "GenericTraitUI_LoadUI",
     "ToggleFrame",
     "GenericTraitFrame",
-    "Item"
+    "Item",
+    "GetItemStats"
   ],
   "wowAPI.luals.frameXML": true,
   "wowAPI.luals.configurationScope": "User",

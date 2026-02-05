@@ -8,7 +8,7 @@
     <Include file="Currency/Currency.xml"/>
     <Script file="Money.lua"/>
     <Script file="Experience.lua"/>
-    <Script file="Reputation.lua"/>
+    <Include file="Reputation/index.xml"/>
     <Script file="Professions.lua"/>
     <Script file="TravelPoints.lua"/>
     <Script file="Transmog.lua"/>

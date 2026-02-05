@@ -8,6 +8,13 @@ G_RLF.ConfigHandlers = {}
 
 local ConfigOptions = {}
 
+---@class CachedFactionDetails
+---@field repType RepType
+---@field rank integer|string|nil
+---@field standing integer
+---@field rankStandingMin integer?
+---@field rankStandingMax integer?
+
 ---@class RLF_DB
 G_RLF.defaults = {
 	---@class RLF_DBProfile
@@ -17,6 +24,15 @@ G_RLF.defaults = {
 		factionMap = {},
 		accountWideFactionMap = {},
 	},
+	---@class RLF_DBChar
+	char = {
+		migrationVersion = 0,
+		repFactions = {
+			count = 0,
+			---@type table<number, CachedFactionDetails>
+			cachedFactionDetailsById = {},
+		},
+	},
 	---@class RLF_DBGlobal
 	global = {
 		lastVersionLoaded = "v1.0.0",
@@ -24,6 +40,11 @@ G_RLF.defaults = {
 		migrationVersion = 0,
 		notifications = {},
 		guid = nil,
+		warbandFactions = {
+			count = 0,
+			---@type table<number, CachedFactionDetails>
+			cachedFactionDetailsById = {},
+		},
 	},
 }
 
