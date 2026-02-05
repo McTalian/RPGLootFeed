@@ -13,6 +13,7 @@ permissions: {}
 jobs:
   test-announce:
     runs-on: ubuntu-latest
+    permissions: {}
     env:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCO_WH_RLF_RELEASES }}
 
@@ -23,9 +24,9 @@ jobs:
           webhook-url: ${{ env.DISCORD_WEBHOOK_URL }}
           username: RPGLootFeed Releases
           avatar-url: https://raw.githubusercontent.com/McTalian/RPGLootFeed/refs/heads/main/RPGLootFeed_logo.png
-          embed-title: "New RPGLootFeed Release: ${{ github.event.release.tag_name || 'Test Release' }}"
+          embed-title: "New RPGLootFeed Release: ${{ github.event.release.tag_name || ':tada:' }}"
           embed-description: |
-            ${{ github.event.release.body || 'Test Body' }}
+            ${{ github.event.release.body || '' }}
 
             Be the first to download via [GitHub](${{ github.event.release.html_url || 'https://github.com/McTalian/RPGLootFeed/releases' }})
 
@@ -34,8 +35,7 @@ jobs:
             * [WoWInterface](https://www.wowinterface.com/downloads/info26799-RPGLootFeed.html)
             * [Wago](https://addons.wago.io/addons/rpglootfeed)
 
-            -# Run into issues? Let me know on [GitHub](https://github.com/McTalian/RPGLootFeed/issues)!
-            -# Join the [Discord](https://discord.gg/czRYVWhe33) for the fastest updates and support!
+            > _Running into issues? Let me know on [GitHub](https://github.com/McTalian/RPGLootFeed/issues) or join the [Discord](https://discord.gg/czRYVWhe33) for the fastest updates and support!
           embed-color: 15105570
 
   check_translations:
