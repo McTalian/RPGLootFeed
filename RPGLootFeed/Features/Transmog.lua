@@ -67,13 +67,16 @@ end
 function Transmog:TRANSMOG_COLLECTION_SOURCE_ADDED(eventName, itemModifiedAppearanceID)
 	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, itemModifiedAppearanceID)
 
-	local category, itemAppearanceId, canHaveIllusion, icon, isCollected, itemLink, transmogLink, sourceType, itemSubClass =
-		C_TransmogCollection.GetAppearanceSourceInfo(itemModifiedAppearanceID)
+	local info = C_TransmogCollection.GetAppearanceSourceInfo(itemModifiedAppearanceID)
 
-	if not itemAppearanceId then
+	if not info then
 		G_RLF:LogWarn("Could not get appearance source info", addonName, self.moduleName)
 		return
 	end
+
+	local itemLink = info.itemLink
+	local transmogLink = info.transmoglink
+	local icon = info.icon
 
 	if not transmogLink or transmogLink == "" then
 		G_RLF:LogWarn("Transmog link is empty for " .. itemModifiedAppearanceID, addonName, self.moduleName)
@@ -81,8 +84,16 @@ function Transmog:TRANSMOG_COLLECTION_SOURCE_ADDED(eventName, itemModifiedAppear
 			local item = Item:CreateFromItemLink(itemLink)
 			if item then
 				item:ContinueOnItemLoad(function()
-					category, itemAppearanceId, canHaveIllusion, icon, isCollected, itemLink, transmogLink, sourceType, itemSubClass =
-						C_TransmogCollection.GetAppearanceSourceInfo(itemModifiedAppearanceID)
+					info = C_TransmogCollection.GetAppearanceSourceInfo(itemModifiedAppearanceID)
+					if not info then
+						G_RLF:LogWarn("Could not get appearance source info on item load", addonName, self.moduleName)
+						return
+					end
+
+					itemLink = info.itemLink
+					transmogLink = info.transmoglink
+					icon = info.icon
+
 					if not transmogLink or transmogLink == "" then
 						G_RLF:LogWarn(
 							"Transmog link is still empty for " .. itemModifiedAppearanceID,
