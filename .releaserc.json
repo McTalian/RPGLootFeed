@@ -7,14 +7,31 @@
         "preset": "conventionalcommits",
         "releaseRules": [
           { "type": "locale", "release": "patch" },
-          { "type": "build", "scope": "toc", "release": "patch" }
+          { "type": "toc", "release": "patch" }
         ]
       }
     ],
     [
       "@semantic-release/release-notes-generator",
       {
-        "preset": "conventionalcommits"
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "✨ Features" },
+            { "type": "fix", "section": "🪲 Bug Fixes" },
+
+            {
+              "type": "locale",
+              "section": "🌏 i18n Translations",
+              "hidden": false
+            },
+            {
+              "type": "toc",
+              "section": "📋 TOC Version Changes",
+              "hidden": false
+            }
+          ]
+        }
       }
     ],
     "@semantic-release/github"

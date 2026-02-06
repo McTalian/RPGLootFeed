@@ -18,6 +18,7 @@ export default {
         "test",
         // CUSTOM
         "locale",
+        "toc",
       ],
     ],
   },
