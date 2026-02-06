@@ -159,17 +159,18 @@ describe("Transmog module", function()
 			local icon = "Interface\\Icons\\TestIcon"
 
 			-- Mock successful API response
-			transmogCollectionMocks.GetAppearanceSourceInfo.returns(
-				1, -- category
-				67890, -- itemAppearanceId
-				false, -- canHaveIllusion
-				icon, -- icon
-				true, -- isCollected
-				"|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r", -- itemLink
-				transmogLink, -- transmogLink
-				1, -- sourceType
-				"Armor" -- itemSubClass
-			)
+			transmogCollectionMocks.GetAppearanceSourceInfo.returns({
+				category = 1,
+				itemApperanceID = 67890,
+				canHaveIllusion = false,
+				icon = icon,
+				isCollected = true,
+				itemLink = "|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r",
+				-- Yes, the casing is inconsistent, but it's what the API returns
+				transmoglink = transmogLink,
+				sourceType = 1,
+				itemSubclass = "Armor",
+			})
 
 			local elementNewSpy = spy.on(TransmogModule.Element, "new")
 			local elementShowStub = stub()
@@ -190,17 +191,7 @@ describe("Transmog module", function()
 			local itemModifiedAppearanceID = 12345
 
 			-- Mock API failure (returns nil for itemAppearanceId)
-			transmogCollectionMocks.GetAppearanceSourceInfo.returns(
-				1, -- category
-				nil, -- itemAppearanceId (nil indicates failure)
-				false, -- canHaveIllusion
-				nil, -- icon
-				false, -- isCollected
-				nil, -- itemLink
-				nil, -- transmogLink
-				nil, -- sourceType
-				nil -- itemSubClass
-			)
+			transmogCollectionMocks.GetAppearanceSourceInfo.returns(nil)
 
 			local elementNewSpy = spy.on(TransmogModule.Element, "new")
 			local logWarnSpy = spy.on(ns, "LogWarn")
@@ -222,17 +213,17 @@ describe("Transmog module", function()
 				local itemModifiedAppearanceID = 12345
 
 				-- Mock successful API response but with empty transmogLink
-				transmogCollectionMocks.GetAppearanceSourceInfo.returns(
-					1, -- category
-					67890, -- itemAppearanceId
-					false, -- canHaveIllusion
-					"Interface\\Icons\\TestIcon", -- icon
-					true, -- isCollected
-					"", -- itemLink (empty)
-					"", -- transmogLink (empty)
-					1, -- sourceType
-					"Armor" -- itemSubClass
-				)
+				transmogCollectionMocks.GetAppearanceSourceInfo.returns({
+					category = 1,
+					itemAppearanceID = 67890,
+					canHaveIllusion = false,
+					icon = "Interface\\Icons\\TestIcon",
+					isCollected = true,
+					itemLink = "",
+					transmoglink = "",
+					sourceType = 1,
+					itemSubclass = "Armor",
+				})
 
 				local elementNewSpy = spy.on(TransmogModule.Element, "new")
 				local logWarnSpy = spy.on(ns, "LogWarn")
@@ -259,17 +250,17 @@ describe("Transmog module", function()
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
 			-- Mock successful API response
-			transmogCollectionMocks.GetAppearanceSourceInfo.returns(
-				1, -- category
-				67890, -- itemAppearanceId
-				false, -- canHaveIllusion
-				"Interface\\Icons\\TestIcon", -- icon
-				true, -- isCollected
-				"|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r", -- itemLink
-				transmogLink, -- transmogLink
-				1, -- sourceType
-				"Armor" -- itemSubClass
-			)
+			transmogCollectionMocks.GetAppearanceSourceInfo.returns({
+				category = 1,
+				itemAppearanceID = 67890,
+				canHaveIllusion = false,
+				icon = "Interface\\Icons\\TestIcon",
+				isCollected = true,
+				itemLink = "|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r",
+				transmoglink = transmogLink,
+				sourceType = 1,
+				itemSubclass = "Armor",
+			})
 
 			-- Mock element creation failure
 			local elementNewSpy = spy.on(TransmogModule.Element, "new")
