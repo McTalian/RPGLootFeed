@@ -29,3 +29,31 @@ jobs:
         uses: McTalian/wow-build-tools@v1-beta
         with:
           args: -t ./RPGLootFeed -r ./.release
+
+  announce:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions: {}
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCO_WH_RLF_RELEASES }}
+
+    steps:
+      - name: Announce release
+        uses: tsickert/discord-webhook@b217a69502f52803de774ded2b1ab7c282e99645
+        with:
+          webhook-url: ${{ env.DISCORD_WEBHOOK_URL }}
+          username: RPGLootFeed Releases
+          avatar-url: https://raw.githubusercontent.com/McTalian/RPGLootFeed/refs/heads/main/RPGLootFeed_logo.png
+          embed-title: "New RPGLootFeed Release: ${{ github.event.release.tag_name || ':tada:' }}"
+          embed-description: |
+            ${{ github.event.release.body || '' }}
+
+            Be the first to download via :octopus: [GitHub](${{ github.event.release.html_url || 'https://github.com/McTalian/RPGLootFeed/releases' }}) :coin:
+
+            Once approved it will also be available via:
+            * :fire: [CurseForge](https://www.curseforge.com/wow/addons/rpglootfeed)
+            * :wireless: [WoWInterface](https://www.wowinterface.com/downloads/info26799-RPGLootFeed.html)
+            * :knot: [Wago](https://addons.wago.io/addons/rpglootfeed)
+
+            > _**Running into issues?** Let me know on [GitHub](https://github.com/McTalian/RPGLootFeed/issues) or join the [Discord](https://discord.gg/czRYVWhe33) for the fastest updates and support!_
+          embed-color: 15105570

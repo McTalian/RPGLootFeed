@@ -34,7 +34,7 @@ lint:
     - checkov@3.2.405
     - git-diff-check
     - isort@6.0.1
-    - markdownlint@0.44.0
+    - markdownlint@0.47.0
     - osv-scanner@2.0.1
     - prettier@3.5.3
     - ruff@0.11.5

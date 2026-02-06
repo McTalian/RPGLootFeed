@@ -67,8 +67,6 @@ jobs:
   test_package:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    env:
-      IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
     permissions:
       contents: read
       actions: write
@@ -76,15 +74,11 @@ jobs:
 
     steps:
       - name: Checkout code
-        if: env.IS_FORK == 'false'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 0
-
-      - name: Checkout code (fork)
-        if: env.IS_FORK == 'true'
-        uses: actions/checkout@v4
 
       - name: Fetch Latest Release Assets
         id: fetch-release-assets
@@ -99,13 +93,6 @@ jobs:
           echo "LATEST_RELEASE_LIBS_SIZE=$lib_size" >> $GITHUB_OUTPUT
 
       - name: Package
-        if: env.IS_FORK == 'false'
-        uses: McTalian/wow-build-tools@v1-beta
-        with:
-          args: -d -t ./RPGLootFeed -r ./.release --skipChangelog
-
-      - name: Package (fork)
-        if: env.IS_FORK == 'true'
         uses: McTalian/wow-build-tools@v1-beta
         with:
           args: -d -t ./RPGLootFeed -r ./.release --skipChangelog -n {package-name}-pr${{github.event.number}}-{nolib}{classic}
@@ -135,7 +122,6 @@ jobs:
           path: ${{ steps.capture-filenames.outputs.NOLIBZIP }}
 
       - name: Post PR comment
-        if: env.IS_FORK == 'false'
         uses: actions/github-script@v7
         with:
           script: |

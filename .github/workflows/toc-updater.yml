@@ -39,7 +39,7 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GH_PAT }}
-          title: "build(toc): bump toc versions, please submit any bugs!"
+          title: "toc: bump versions, please submit any bugs"
           body: |
             ## Requirements
 
@@ -55,6 +55,6 @@ jobs:
 
             ----------------------------------------------------
             _This PR was automatically created to update the supported interface versions in RPGLootFeed.toc._
-          commit-message: "build(toc): bump toc versions, please submit any bugs!"
+          commit-message: "toc: bump versions, please submit any bugs"
           branch: interface-version
           delete-branch: true
