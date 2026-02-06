@@ -1,8 +1,13 @@
-<!-- IMPORTANT: Please review the [PR title rules](https://github.com/Mctalian/RPGLootFeed/blob/main/docs/pr-title-rules.md) so the PR checks will pass. -->
+# RPGLootFeed PR
+
+<!-- IMPORTANT: Please review the
+[PR title rules](https://github.com/Mctalian/RPGLootFeed/blob/main/docs/pr-title-rules.md)
+so the PR checks will pass. -->
 
 ## Description
 
-<!-- Describe your changes in detail, including any relevant motivation and context. -->
+<!-- Describe your changes in detail, including any relevant motivation and
+context. -->
 
 ## Related Issue
 
@@ -12,6 +17,8 @@ If no issue exists, please create one before submitting this PR. -->
 
 ## Screenshots, Videos, or GIFs
 
-<!-- If applicable, add screenshots, videos, or GIFs to help showcase your changes. -->
+<!-- If applicable, add screenshots, videos, or GIFs to help showcase your
+changes. -->
 
-<!--All commented portion of this PR description can be removed once you have filled in the relevant sections.-->
+<!--All commented portion of this PR description can be removed once you have
+filled in the relevant sections.-->
