@@ -175,7 +175,6 @@ jobs:
       - name: Install commitlint
         run: |
           npm install @commitlint/config-conventional @commitlint/cli
-          echo "export default {extends: ['@commitlint/config-conventional']};" > commitlint.config.js
 
       - name: Run commitlint (PR)
         if: ${{ github.event_name == 'pull_request' }}
