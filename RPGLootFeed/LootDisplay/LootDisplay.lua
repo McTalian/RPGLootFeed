@@ -416,8 +416,7 @@ function LootDisplay:CreateSampleRow(frame)
 
 	-- Create a sample element using hardcoded data
 	---@class RLF_SampleElement: RLF_BaseLootElement
-	local sampleElement = {}
-	G_RLF.InitializeLootDisplayProperties(sampleElement)
+	local sampleElement = G_RLF.LootElementBase:new()
 
 	sampleElement.key = "sample_preview_item"
 	sampleElement.type = "SampleItem"

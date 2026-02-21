@@ -143,46 +143,49 @@ end
 local function runReputationIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation) --[[@as RLF_Reputation]]
 	local amountLooted = 664
-	if not C_EventUtils.IsEventValid or not C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED") then
-		-- Can't reliably test this event because we are ignoring the newStanding parameter that
-		-- the event provides and grabbing the values directly from API calls and comparing to
-		-- our cache to determine the delta. If the event gave us the amount changed, we could
-		-- simplify things significantly.
-		return 0
+	if
+		not G_RLF:IsRetail()
+		or not C_EventUtils.IsEventValid
+		or not C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED")
+	then
+		local testObj = TestMode.testFactions[2]
+		runTestSafely(
+			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
+			"LootDisplay: Reputation with Bonus",
+			module,
+			"CHAT_MSG_COMBAT_FACTION_CHANGE",
+			string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
+		)
+		runTestSafely(
+			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
+			"LootDisplay: Reputation with Bonus Update",
+			module,
+			"CHAT_MSG_COMBAT_FACTION_CHANGE",
+			string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
+		)
+
+		testObj = TestMode.testFactions[1]
+		runTestSafely(
+			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
+			"LootDisplay: Reputation",
+			module,
+			"CHAT_MSG_COMBAT_FACTION_CHANGE",
+			string.format(_G.FACTION_STANDING_INCREASED, testObj, 1030)
+		)
+		runTestSafely(
+			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
+			"LootDisplay: Reputation Update",
+			module,
+			"CHAT_MSG_COMBAT_FACTION_CHANGE",
+			string.format(_G.FACTION_STANDING_INCREASED, testObj, 307)
+		)
+		return 2
 	end
-
-	local testObj = TestMode.testFactions[2]
-	runTestSafely(
-		module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-		"LootDisplay: Reputation with Bonus",
-		module,
-		"CHAT_MSG_COMBAT_FACTION_CHANGE",
-		string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
-	)
-	runTestSafely(
-		module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-		"LootDisplay: Reputation with Bonus Update",
-		module,
-		"CHAT_MSG_COMBAT_FACTION_CHANGE",
-		string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
-	)
-
-	testObj = TestMode.testFactions[1]
-	runTestSafely(
-		module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-		"LootDisplay: Reputation",
-		module,
-		"CHAT_MSG_COMBAT_FACTION_CHANGE",
-		string.format(_G.FACTION_STANDING_INCREASED, testObj, 1030)
-	)
-	runTestSafely(
-		module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-		"LootDisplay: Reputation Update",
-		module,
-		"CHAT_MSG_COMBAT_FACTION_CHANGE",
-		string.format(_G.FACTION_STANDING_INCREASED, testObj, 307)
-	)
-	return 2
+	-- Can't reliably test this event because we are ignoring the newStanding parameter that
+	-- the event provides and grabbing the values directly from API calls and comparing to
+	-- our cache to determine the delta. If the event gave us the amount changed, we could
+	-- simplify things significantly.
+	return 0
 end
 
 local function runProfessionIntegrationTest()
