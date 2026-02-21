@@ -14,6 +14,8 @@ local G_RLF = ns
 local LootElementBase = G_RLF.LootElementBase
 local DefaultIcons = G_RLF.DefaultIcons
 local ItemQualEnum = G_RLF.ItemQualEnum
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
 local LogDebug = function(...)
 	G_RLF:LogDebug(...)
 end
@@ -30,10 +32,6 @@ local RGBAToHexFormat = function(...)
 	return G_RLF:RGBAToHexFormat(...)
 end
 
----@class RLF_TravelPoints: RLF_Module, AceEvent-3.0
-local TravelPoints = G_RLF.RLF:NewModule(G_RLF.FeatureModule.TravelPoints, "AceEvent-3.0")
-local currentTravelersJourney, maxTravelersJourney
-
 -- ── WoW API / Global abstraction adapters ────────────────────────────────────
 -- Each adapter wraps a surface of the WoW API or global state so the feature
 -- code only deals with inputs and outputs.  These local tables are the
@@ -49,7 +47,6 @@ local PerksActivitiesAdapter = {
 		return C_PerksActivities.GetPerksActivityInfo(activityID)
 	end,
 }
-TravelPoints._perksActivitiesAdapter = PerksActivitiesAdapter
 
 local GlobalStringsAdapter = {
 	--- The locale string used as the label for Travel Points (e.g. "Traveler's Log").
@@ -57,6 +54,12 @@ local GlobalStringsAdapter = {
 		return _G["MONTHLY_ACTIVITIES_POINTS"]
 	end,
 }
+
+---@class RLF_TravelPoints: RLF_Module, AceEvent-3.0
+local TravelPoints = FeatureBase:new(FeatureModule.TravelPoints, "AceEvent-3.0")
+local currentTravelersJourney, maxTravelersJourney
+
+TravelPoints._perksActivitiesAdapter = PerksActivitiesAdapter
 TravelPoints._globalStringsAdapter = GlobalStringsAdapter
 
 TravelPoints.Element = {}

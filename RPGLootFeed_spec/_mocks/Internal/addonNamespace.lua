@@ -253,6 +253,9 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		ns.LootElementBase = {}
 		addonNamespaceMocks.LootElementBase = {}
 		addonNamespaceMocks.LootElementBase.new = stub(ns.LootElementBase, "new").returns({})
+		ns.FeatureBase = {}
+		addonNamespaceMocks.FeatureBase = {}
+		addonNamespaceMocks.FeatureBase.new = stub(ns.FeatureBase, "new").returns({})
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.FeatureItemLootAuction then
 		ns.AuctionIntegrations = {}

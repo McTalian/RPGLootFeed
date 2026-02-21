@@ -14,17 +14,45 @@ describe("TravelPoints module", function()
 	local mockPerksAdapter, mockGlobalStringsAdapter
 
 	before_each(function()
-		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+		-- Use UtilsEnums section: gives us Enums (DefaultIcons, ItemQualEnum, FeatureModule)
+		-- and method stubs (LogDebug, LogInfo, LogWarn, SendMessage, IsRetail, RGBAToHexFormat).
+		-- This avoids the full nsMocks framework for this feature's tests.
+		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.UtilsEnums)
 		nsMocks.RGBAToHexFormat.returns("|cFFFFFFFF")
 
-		-- Load internal feature modules to populate `ns`
-		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
-		assert(loadfile("RPGLootFeed/Features/_Internals/LootDisplayProperties.lua"))("TestAddon", ns)
+		-- Provide db manually – AceDB is not available in this lightweight setup.
+		ns.db = {
+			global = {
+				animations = { exit = { fadeOutDelay = 3 } },
+				travelPoints = { textColor = { 1, 1, 1, 1 }, enableIcon = true, enabled = true },
+				misc = { hideAllIcons = false },
+			},
+		}
 
-		-- Ensure `ns` has been populated correctly
+		-- Load real LootElementBase so elements are fully constructed
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
 		assert.is_not_nil(ns.LootElementBase)
 
-		-- Load the travel points module before each test
+		-- Mock FeatureBase – returns a minimal stub module so TravelPoints tests
+		-- are completely independent of AceAddon plumbing.  The stub includes the
+		-- Ace lifecycle methods that TravelPoints.lua calls (Enable, Disable, etc.)
+		-- so spy.on() has something to wrap.
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterEvent = function() end,
+				}
+			end,
+		}
+
+		-- Load TravelPoints – the FeatureBase mock above is captured at load time
 		TravelPointsModule = assert(loadfile("RPGLootFeed/Features/TravelPoints.lua"))("TestAddon", ns)
 
 		-- Inject fresh mock adapters for full test isolation.
