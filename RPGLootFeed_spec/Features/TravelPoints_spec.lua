@@ -1,4 +1,4 @@
-local nsMocks = require("RPGLootFeed_spec._mocks.Internal.addonNamespace")
+require("RPGLootFeed_spec._mocks.LuaCompat")
 local assert = require("luassert")
 local match = require("luassert.match")
 local busted = require("busted")
@@ -12,24 +12,43 @@ describe("TravelPoints module", function()
 	local _ = match._
 	local TravelPointsModule, ns
 	local mockPerksAdapter, mockGlobalStringsAdapter
+	local sendMessageSpy
 
 	before_each(function()
-		-- Use UtilsEnums section: gives us Enums (DefaultIcons, ItemQualEnum, FeatureModule)
-		-- and method stubs (LogDebug, LogInfo, LogWarn, SendMessage, IsRetail, RGBAToHexFormat).
-		-- This avoids the full nsMocks framework for this feature's tests.
-		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.UtilsEnums)
-		nsMocks.RGBAToHexFormat.returns("|cFFFFFFFF")
+		-- Spy on ns.SendMessage so event-handling tests can assert it was called.
+		sendMessageSpy = spy.new(function() end)
 
-		-- Provide db manually – AceDB is not available in this lightweight setup.
-		ns.db = {
-			global = {
-				animations = { exit = { fadeOutDelay = 3 } },
-				travelPoints = { textColor = { 1, 1, 1, 1 }, enableIcon = true, enabled = true },
-				misc = { hideAllIcons = false },
+		-- Build a minimal ns from scratch – no nsMocks framework needed.
+		-- Only the fields actually referenced by TravelPoints.lua and LootElementBase.lua
+		-- are included; everything else is intentionally absent.
+		ns = {
+			-- Captured as locals by TravelPoints.lua at load time.
+			DefaultIcons = { TRAVELPOINTS = "Interface/Icons/Ability_mount_travelhorse" },
+			ItemQualEnum = { Common = 1 },
+			FeatureModule = { TravelPoints = "TravelPoints" },
+			-- Closure wrappers call these as G_RLF:Method(...).
+			LogDebug = function() end,
+			LogInfo = function() end,
+			LogWarn = function() end,
+			IsRetail = function()
+				return true
+			end,
+			-- RGBAToHexFormat is used by secondaryTextFn; return a fixed hex for tests.
+			RGBAToHexFormat = function()
+				return "|cFFFFFFFF"
+			end,
+			SendMessage = sendMessageSpy,
+			-- Runtime lookup by LootElementBase:new() and TravelPoints lifecycle methods.
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					travelPoints = { textColor = { 1, 1, 1, 1 }, enableIcon = true, enabled = true },
+					misc = { hideAllIcons = false },
+				},
 			},
 		}
 
-		-- Load real LootElementBase so elements are fully constructed
+		-- Load real LootElementBase so elements are fully constructed.
 		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
 		assert.is_not_nil(ns.LootElementBase)
 
@@ -52,7 +71,7 @@ describe("TravelPoints module", function()
 			end,
 		}
 
-		-- Load TravelPoints – the FeatureBase mock above is captured at load time
+		-- Load TravelPoints – the FeatureBase mock above is captured at load time.
 		TravelPointsModule = assert(loadfile("RPGLootFeed/Features/TravelPoints.lua"))("TestAddon", ns)
 
 		-- Inject fresh mock adapters for full test isolation.
@@ -269,8 +288,8 @@ describe("TravelPoints module", function()
 			-- Element:new was called with the correct contribution amount
 			assert.spy(elementNewSpy).was.called_with(_, contributionAmount)
 			-- Show() dispatches via G_RLF:SendMessage — verify the element was routed
-			assert.stub(nsMocks.SendMessage).was.called(1)
-			assert.stub(nsMocks.SendMessage).was.called_with(_, "RLF_NEW_LOOT", _)
+			assert.spy(sendMessageSpy).was.called(1)
+			assert.spy(sendMessageSpy).was.called_with(_, "RLF_NEW_LOOT", _)
 		end)
 
 		it("PERKS_ACTIVITY_COMPLETED logs warning when GetPerksActivityInfo fails", function()
