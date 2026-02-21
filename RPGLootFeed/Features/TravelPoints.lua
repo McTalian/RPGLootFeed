@@ -4,6 +4,32 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's full
+-- dependency surface on G_RLF / ns is visible in one place.  Tests pass a
+-- minimal mock ns to loadfile("TravelPoints.lua") to control these at
+-- injection time without the full nsMocks framework.
+-- NOTE: G_RLF.db is intentionally absent – AceDB populates it in
+-- OnInitialize, so it must remain a runtime lookup inside function bodies.
+local LootElementBase = G_RLF.LootElementBase
+local DefaultIcons = G_RLF.DefaultIcons
+local ItemQualEnum = G_RLF.ItemQualEnum
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogInfo = function(...)
+	G_RLF:LogInfo(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+local IsRetail = function()
+	return G_RLF:IsRetail()
+end
+local RGBAToHexFormat = function(...)
+	return G_RLF:RGBAToHexFormat(...)
+end
+
 ---@class RLF_TravelPoints: RLF_Module, AceEvent-3.0
 local TravelPoints = G_RLF.RLF:NewModule(G_RLF.FeatureModule.TravelPoints, "AceEvent-3.0")
 local currentTravelersJourney, maxTravelersJourney
@@ -37,7 +63,7 @@ TravelPoints.Element = {}
 
 function TravelPoints.Element:new(...)
 	---@class TravelPoints.Element: RLF_BaseLootElement
-	local element = G_RLF.LootElementBase:new()
+	local element = LootElementBase:new()
 
 	element.type = "TravelPoints"
 	element.IsEnabled = function()
@@ -52,11 +78,11 @@ function TravelPoints.Element:new(...)
 			.. " + "
 			.. ((existingAmount or 0) + element.quantity)
 	end
-	element.icon = G_RLF.DefaultIcons.TRAVELPOINTS
+	element.icon = DefaultIcons.TRAVELPOINTS
 	if not G_RLF.db.global.travelPoints.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		element.icon = nil
 	end
-	element.quality = G_RLF.ItemQualEnum.Common
+	element.quality = ItemQualEnum.Common
 
 	element.secondaryTextFn = function()
 		if not currentTravelersJourney then
@@ -66,7 +92,7 @@ function TravelPoints.Element:new(...)
 			return ""
 		end
 
-		local color = G_RLF:RGBAToHexFormat(element.r, element.g, element.b, element.a)
+		local color = RGBAToHexFormat(element.r, element.g, element.b, element.a)
 
 		return "    " .. color .. currentTravelersJourney .. "/" .. maxTravelersJourney .. "|r"
 	end
@@ -79,7 +105,7 @@ end
 local function calcTravelersJourneyVal(activityID)
 	local allInfo = TravelPoints._perksActivitiesAdapter.GetPerksActivitiesInfo()
 	if allInfo == nil then
-		G_RLF:LogWarn("Could not get all activity info", addonName, TravelPoints.moduleName)
+		LogWarn("Could not get all activity info", addonName, TravelPoints.moduleName)
 		return
 	end
 
@@ -99,7 +125,7 @@ local function calcTravelersJourneyVal(activityID)
 
 	currentTravelersJourney = progress
 	maxTravelersJourney = max
-	G_RLF:LogDebug(
+	LogDebug(
 		"Current Travelers Journey " .. tostring(currentTravelersJourney) .. " / " .. tostring(maxTravelersJourney),
 		addonName,
 		TravelPoints.moduleName
@@ -107,7 +133,7 @@ local function calcTravelersJourneyVal(activityID)
 end
 
 function TravelPoints:OnInitialize()
-	if G_RLF:IsRetail() and G_RLF.db.global.travelPoints.enabled then
+	if IsRetail() and G_RLF.db.global.travelPoints.enabled then
 		self:Enable()
 	else
 		self:Disable()
@@ -115,37 +141,37 @@ function TravelPoints:OnInitialize()
 end
 
 function TravelPoints:OnDisable()
-	if not G_RLF:IsRetail() then
+	if not IsRetail() then
 		return
 	end
 	self:UnregisterEvent("PERKS_ACTIVITY_COMPLETED")
 end
 
 function TravelPoints:OnEnable()
-	if not G_RLF:IsRetail() then
+	if not IsRetail() then
 		return
 	end
 
-	G_RLF:LogDebug("OnEnable", addonName, self.moduleName)
+	LogDebug("OnEnable", addonName, self.moduleName)
 	self:RegisterEvent("PERKS_ACTIVITY_COMPLETED")
 end
 
 function TravelPoints:PERKS_ACTIVITY_COMPLETED(eventName, activityID)
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, activityID)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, activityID)
 
 	local info = TravelPoints._perksActivitiesAdapter.GetPerksActivityInfo(activityID)
 	if info == nil then
-		G_RLF:LogWarn("Could not get activity info", addonName, self.moduleName)
+		LogWarn("Could not get activity info", addonName, self.moduleName)
 		return
 	end
 	local amount = info.thresholdContributionAmount
-	self:fn(calcTravelersJourneyVal, activityID)
+	calcTravelersJourneyVal(activityID)
 
 	if amount > 0 then
 		local e = self.Element:new(amount)
 		e:Show()
 	else
-		G_RLF:LogWarn(eventName .. " fired but amount was not positive", addonName, self.moduleName)
+		LogWarn(eventName .. " fired but amount was not positive", addonName, self.moduleName)
 	end
 end
 
