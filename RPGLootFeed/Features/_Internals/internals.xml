@@ -3,6 +3,7 @@
             xsi:schemaLocation="http://www.blizzard.com/wow/ui/
 ..\FrameXML\UI.xsd">
     <Script file="TextTemplateEngine.lua"/>
+    <Script file="LootElementBase.lua"/>
     <Script file="LootDisplayProperties.lua"/>
     <Script file="RLF_Notifications.lua"/>
     <Script file="RLF_Communications.lua"/>

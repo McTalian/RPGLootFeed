@@ -250,6 +250,9 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.FeatureInternals then
 		addonNamespaceMocks.InitializeLootDisplayProperties = stub(ns, "InitializeLootDisplayProperties")
+		ns.LootElementBase = {}
+		addonNamespaceMocks.LootElementBase = {}
+		addonNamespaceMocks.LootElementBase.new = stub(ns.LootElementBase, "new").returns({})
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.FeatureItemLootAuction then
 		ns.AuctionIntegrations = {}

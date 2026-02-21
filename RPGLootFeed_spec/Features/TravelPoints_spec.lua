@@ -20,11 +20,12 @@ describe("TravelPoints module", function()
 		-- Set up globals
 		_G["MONTHLY_ACTIVITIES_POINTS"] = "Traveler's Log"
 
-		-- Load the LootDisplayProperties module to populate `ns`
+		-- Load internal feature modules to populate `ns`
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
 		assert(loadfile("RPGLootFeed/Features/_Internals/LootDisplayProperties.lua"))("TestAddon", ns)
 
-		-- Ensure `ns` has been populated correctly by LootDisplayProperties
-		assert.is_not_nil(ns.InitializeLootDisplayProperties)
+		-- Ensure `ns` has been populated correctly
+		assert.is_not_nil(ns.LootElementBase)
 
 		-- Load the travel points module before each test
 		TravelPointsModule = assert(loadfile("RPGLootFeed/Features/TravelPoints.lua"))("TestAddon", ns)
