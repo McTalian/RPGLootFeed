@@ -4,15 +4,65 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's full
+-- dependency surface on G_RLF / ns is visible in one place.  Tests pass a
+-- minimal mock ns to loadfile("Professions.lua") to control these at
+-- injection time without the full nsMocks framework.
+-- NOTE: G_RLF.db is intentionally absent – AceDB populates it in
+-- OnInitialize, so it must remain a runtime lookup inside function bodies.
+local LootElementBase = G_RLF.LootElementBase
+local DefaultIcons = G_RLF.DefaultIcons
+local ItemQualEnum = G_RLF.ItemQualEnum
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogInfo = function(...)
+	G_RLF:LogInfo(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+local RGBAToHexFormat = function(...)
+	return G_RLF:RGBAToHexFormat(...)
+end
+local CreatePatternSegments = function(pattern)
+	return G_RLF:CreatePatternSegmentsForStringNumber(pattern)
+end
+local ExtractDynamicsFromPattern = function(message, segs)
+	return G_RLF:ExtractDynamicsFromPattern(message, segs)
+end
+
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps GetProfessions, GetProfessionInfo, issecretvalue, and SKILL_RANK_UP so
+-- tests can inject mocks without patching _G directly.
+local ProfessionsAdapter = {
+	GetProfessions = function()
+		return GetProfessions()
+	end,
+	GetProfessionInfo = function(id)
+		return GetProfessionInfo(id)
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	GetSkillRankUpPattern = function()
+		return _G.SKILL_RANK_UP
+	end,
+}
+
 ---@class RLF_Professions: RLF_Module, AceEvent-3.0
-local Professions = G_RLF.RLF:NewModule(G_RLF.FeatureModule.Profession, "AceEvent-3.0")
+local Professions = FeatureBase:new(FeatureModule.Profession, "AceEvent-3.0")
+
+Professions._professionsAdapter = ProfessionsAdapter
 
 Professions.Element = {}
 
 function Professions.Element:new(...)
 	---@class Professions.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = LootElementBase:new()
 
 	element.type = "Professions"
 	element.IsEnabled = function()
@@ -23,14 +73,14 @@ function Professions.Element:new(...)
 
 	local key
 	key, element.name, element.icon, element.level, element.maxLevel, element.quantity = ...
-	element.quality = G_RLF.ItemQualEnum.Rare
+	element.quality = ItemQualEnum.Rare
 	if not G_RLF.db.global.prof.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		element.icon = nil
 	end
 
 	element.key = keyPrefix .. key
 
-	local color = G_RLF:RGBAToHexFormat(unpack(G_RLF.db.global.prof.skillColor))
+	local color = RGBAToHexFormat(unpack(G_RLF.db.global.prof.skillColor))
 
 	element.textFn = function()
 		return color .. element.name .. " " .. element.level .. "|r"
@@ -44,7 +94,6 @@ function Professions.Element:new(...)
 end
 
 local segments
-local localeString = _G.SKILL_RANK_UP
 function Professions:OnInitialize()
 	self.professions = {}
 	self.profNameIconMap = {}
@@ -54,7 +103,8 @@ function Professions:OnInitialize()
 	else
 		self:Disable()
 	end
-	segments = G_RLF:CreatePatternSegmentsForStringNumber(localeString)
+	local pattern = Professions._professionsAdapter.GetSkillRankUpPattern()
+	segments = CreatePatternSegments(pattern)
 end
 
 function Professions:OnDisable()
@@ -65,16 +115,16 @@ end
 function Professions:OnEnable()
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 	self:RegisterEvent("CHAT_MSG_SKILL")
-	G_RLF:LogDebug("OnEnable", addonName, self.moduleName)
+	LogDebug("OnEnable", addonName, self.moduleName)
 end
 
 function Professions:InitializeProfessions()
-	local primaryId, secondaryId, archId, fishingId, cookingId = GetProfessions()
+	local primaryId, secondaryId, archId, fishingId, cookingId = Professions._professionsAdapter.GetProfessions()
 	local profs = { primaryId, secondaryId, archId, fishingId, cookingId }
 	for i = 1, #profs do
 		if profs[i] then
 			local name, icon, skillLevel, maxSkillLevel, numAbilities, spellOffset, skillLine, skillModifier, specializationIndex, specializationOffset, a, b =
-				GetProfessionInfo(profs[i])
+				Professions._professionsAdapter.GetProfessionInfo(profs[i])
 			if name and icon then
 				self.profNameIconMap[name] = icon
 			end
@@ -91,14 +141,14 @@ function Professions:PLAYER_ENTERING_WORLD()
 end
 
 function Professions:CHAT_MSG_SKILL(event, message)
-	if issecretvalue and issecretvalue(message) then
-		G_RLF:LogWarn("(" .. event .. ") Secret value detected, ignoring chat message", "WOWEVENT", self.moduleName, "")
+	if Professions._professionsAdapter.IssecretValue(message) then
+		LogWarn("(" .. event .. ") Secret value detected, ignoring chat message", "WOWEVENT", self.moduleName, "")
 		return
 	end
 
-	G_RLF:LogInfo(event, "WOWEVENT", self.moduleName, nil, message)
+	LogInfo(event, "WOWEVENT", self.moduleName, nil, message)
 
-	local skillName, skillLevel = G_RLF:ExtractDynamicsFromPattern(message, segments)
+	local skillName, skillLevel = ExtractDynamicsFromPattern(message, segments)
 	if skillName and skillLevel then
 		if not self.professions[skillName] then
 			self.professions[skillName] = {
@@ -119,7 +169,7 @@ function Professions:CHAT_MSG_SKILL(event, message)
 			end
 		end
 		if not icon then
-			icon = G_RLF.DefaultIcons.PROFESSION
+			icon = DefaultIcons.PROFESSION
 		end
 		local e = self.Element:new(
 			skillName,
