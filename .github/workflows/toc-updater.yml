@@ -9,6 +9,9 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  ADDON: RPGLootFeed
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -19,7 +22,32 @@ jobs:
       - name: Update TOC Interface version
         uses: Mctalian/wow-build-tools/toc/update@v1-beta
         with:
-          args: -a RPGLootFeed -b -p
+          args: -a ${{ env.ADDON }} -b -p
+
+      - name: Detect change type
+        id: change-type
+        run: |
+          # Extract old and new interface versions from git diff
+          OLD_VERSIONS=$(git diff ${{ env.ADDON }}/${{ env.ADDON }}.toc | grep '^-## Interface:' | sed 's/^-## Interface: //' || echo "")
+          NEW_VERSIONS=$(git diff ${{ env.ADDON }}/${{ env.ADDON }}.toc | grep '^+## Interface:' | sed 's/^+## Interface: //' || echo "")
+
+          # Count versions in old and new
+          OLD_COUNT=$(echo "$OLD_VERSIONS" | grep -o ',' | wc -l || echo 0)
+          NEW_COUNT=$(echo "$NEW_VERSIONS" | grep -o ',' | wc -l || echo 0)
+
+          # Add 1 to counts since comma count = version count - 1
+          OLD_COUNT=$((OLD_COUNT + 1))
+          NEW_COUNT=$((NEW_COUNT + 1))
+
+          if [ "$NEW_COUNT" -gt "$OLD_COUNT" ]; then
+            echo "pr_title=toc: bump versions, please submit any bugs" >> $GITHUB_OUTPUT
+            echo "commit_message=toc: bump versions, please submit any bugs" >> $GITHUB_OUTPUT
+            echo "Detected version additions (toc commit): $OLD_COUNT -> $NEW_COUNT versions"
+          else
+            echo "pr_title=chore: remove old interface versions" >> $GITHUB_OUTPUT
+            echo "commit_message=chore: remove old interface versions" >> $GITHUB_OUTPUT
+            echo "Detected only version removals or no change (chore commit): $OLD_COUNT -> $NEW_COUNT versions"
+          fi
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
@@ -39,22 +67,20 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GH_PAT }}
-          title: "toc: bump versions, please submit any bugs"
+          title: ${{ steps.change-type.outputs.pr_title }}
           body: |
             ## Requirements
 
             - [ ] Download test package in the comments below
             - [ ] Test for all applicable game clients
-              - [ ] Retail
-              - [ ] Retail PTR
-              - [ ] Classic
-              - [ ] Classic PTR
-              - [ ] Classic Era
-              - [ ] Classic Era PTR
-            - [ ] Check for new Hidden Currencies
+              - [ ] Retail (PTR? Beta?)
+              - [ ] Classic (PTR? Beta?)
+              - [ ] Classic Anniversary (PTR? Beta?)
+              - [ ] Classic Era (PTR? Beta?)
+            - [ ] Review any new Hidden Currencies
 
             ----------------------------------------------------
-            _This PR was automatically created to update the supported interface versions in RPGLootFeed.toc._
-          commit-message: "toc: bump versions, please submit any bugs"
+            _This PR was automatically created to update the supported interface versions in ${{ env.ADDON }}.toc._
+          commit-message: ${{ steps.change-type.outputs.commit_message }}
           branch: interface-version
           delete-branch: true
