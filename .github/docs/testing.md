@@ -63,60 +63,83 @@ end)
 
 ### Lightweight Feature Module Tests (preferred pattern)
 
-Feature modules now expose their full dependency surface as locals and use
-`FeatureBase:new()` instead of calling `G_RLF.RLF:NewModule()` directly.
-This allows tests to avoid the full `nsMocks` framework:
+Feature modules expose their full dependency surface as locals at the top of the file and use `FeatureBase:new()` instead of `G_RLF.RLF:NewModule()` directly. This means tests can build `ns` as a plain hand-crafted table with **zero reliance on the `nsMocks` framework**. See `TravelPoints_spec.lua` and `Transmog_spec.lua` as reference implementations.
 
 ```lua
+require("RPGLootFeed_spec._mocks.LuaCompat") -- unpack, format polyfills
+local assert = require("luassert")
+local busted = require("busted")
+local spy = busted.spy
+local stub = busted.stub
+
 describe("MyFeature", function()
     local ns, MyFeatureModule
-    local mockApiAdapter, mockGlobalStringsAdapter
+    local sendMessageSpy, logWarnSpy
 
     before_each(function()
-        -- Minimal load section – only what the feature actually needs
-        ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.UtilsEnums)
+        -- Fresh spies each test run.
+        sendMessageSpy = spy.new(function() end)
+        logWarnSpy = spy.new(function() end)
 
-        -- Provide ns.db manually (AceDB not available at this level)
-        ns.db = { global = { animations = { exit = { fadeOutDelay = 3 } }, ... } }
+        -- Build ns from scratch – only fields the feature actually references.
+        -- See the feature's "External dependency locals" block to know exactly
+        -- what is needed.
+        ns = {
+            DefaultIcons  = { MY_FEATURE = "Interface/Icons/SomeIcon" },
+            ItemQualEnum  = { Epic = 4 },
+            FeatureModule = { MyFeature = "MyFeature" },
+            LogDebug      = function() end,
+            LogInfo       = function() end,
+            LogWarn       = logWarnSpy,
+            IsRetail      = function() return true end,
+            SendMessage   = sendMessageSpy,
+            -- Runtime lookup by LootElementBase:new() and lifecycle methods.
+            db = {
+                global = {
+                    animations = { exit = { fadeOutDelay = 3 } },
+                    myFeature  = { enableIcon = true, enabled = true },
+                    misc       = { hideAllIcons = false },
+                },
+            },
+        }
 
-        -- Load the real LootElementBase so elements are fully constructed
+        -- Load real LootElementBase so elements are fully constructed.
         assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
 
-        -- Mock FeatureBase – returns a stub module; no Ace plumbing needed
+        -- Inline FeatureBase stub – no Ace plumbing needed.
         ns.FeatureBase = {
             new = function(_, name)
                 return {
-                    moduleName = name,
-                    Enable = function() end,
-                    Disable = function() end,
-                    IsEnabled = function() return true end,
+                    moduleName    = name,
+                    Enable        = function() end,
+                    Disable       = function() end,
+                    IsEnabled     = function() return true end,
                     RegisterEvent = function() end,
                     UnregisterEvent = function() end,
                 }
             end,
         }
 
-        -- Load the feature module
+        -- Load the feature – FeatureBase mock is captured at load time.
         MyFeatureModule = assert(loadfile("RPGLootFeed/Features/MyFeature.lua"))("TestAddon", ns)
 
-        -- Inject fresh adapter mocks for full test isolation
-        -- Tests that need specific API behaviour swap in their own table:
+        -- Inject default nil-returning adapters; individual tests override as needed:
         --   MyFeatureModule._someApiAdapter = { GetThing = function() return mockData end }
-        mockApiAdapter = { GetThing = function() return nil end }
-        mockGlobalStringsAdapter = { GetLabel = function() return "Test Label" end }
-        MyFeatureModule._someApiAdapter = mockApiAdapter
-        MyFeatureModule._globalStringsAdapter = mockGlobalStringsAdapter
+        MyFeatureModule._someApiAdapter = { GetThing = function() return nil end }
+        MyFeatureModule._globalStringsAdapter = { GetLabel = function() return "Test Label" end }
     end)
 end)
 ```
 
 **Key rules for this pattern:**
 
-- Use the lowest `LoadSections` level that satisfies the feature's dependency locals
+- `require("RPGLootFeed_spec._mocks.LuaCompat")` at the top — provides `unpack` / `format` polyfills without loading anything else
+- Build `ns` as a plain table — include only what the feature's "External dependency locals" block references
+- `SendMessage` and `LogWarn` should be `spy.new(function() end)` so event tests can assert against them without needing stub cleanup
+- Methods that some tests override (e.g. `IsRetail`) can be plain `function() end` — tests use `stub(ns, "IsRetail").returns(...)` and revert afterward
 - Provide `ns.db` manually — never rely on AceDB being initialised
-- Mock `ns.FeatureBase` so AceAddon is never invoked
-- Inject fresh adapter tables _after_ `loadfile` (they're captured at load time on the module)
-- Spy on `ns.LogWarn` / `ns.SendMessage` etc. to verify side effects — the wrapper closures route through `G_RLF` (which is `ns`), so spies set on `ns` are always intercepted
+- Inline `ns.FeatureBase` stub so AceAddon is never invoked
+- Inject fresh adapter tables _after_ `loadfile` (they're module-level fields, not captured locals)
 - `G_RLF.db` is intentionally excluded from dependency locals in feature files — always runtime
 
 ### FeatureBase Tests
