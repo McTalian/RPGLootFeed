@@ -53,9 +53,12 @@ RPGLootFeed/
 │   ├── Transmog.lua         # Transmog notifications
 │   ├── TravelPoints.lua     # Flight points discovered
 │   └── _Internals/          # Internal feature utilities
-│       ├── AnimationManager.lua
-│       ├── LootDisplayProperties.lua
-│       └── LootMessageBuilder.lua
+│       ├── FeatureBase.lua       # AceModule factory (wraps G_RLF.RLF:NewModule)
+│       ├── LootElementBase.lua   # Mixin factory for loot row data
+│       ├── LootDisplayProperties.lua  # Legacy initializer (being phased out)
+│       ├── TextTemplateEngine.lua
+│       ├── RLF_Notifications.lua
+│       └── RLF_Communications.lua
 ├── LootDisplay/             # UI display layer
 │   ├── LootDisplay.lua      # Main display manager
 │   ├── LootDisplayFrame.lua # Frame mixin
@@ -133,11 +136,19 @@ RPGLootFeed/
 - UI rendering (use LootDisplay instead)
 - Configuration UI (use config instead)
 
-**Pattern**: Each feature module listens for relevant WoW events, processes the data, and enqueues formatted loot messages
+**Pattern**: Each feature module:
 
-**Example**: `Currency.lua` listens for `CHAT_MSG_CURRENCY`, extracts currency info, formats it, and adds it to the loot queue
+1. Captures all `G_RLF` dependencies as locals at the top ("External dependency locals" block)
+2. Calls `FeatureBase:new(name, mixins...)` instead of `G_RLF.RLF:NewModule()` directly
+3. Defines WoW API / `_G` string access in local adapter tables (`_perksActivitiesAdapter`, `_globalStringsAdapter`, etc.) exposed on the module for test injection
+4. Uses `LootElementBase:new()` inside `Module.Element:new()` to create row data
+5. Calls external API/logging functions through the captured locals, NOT through `G_RLF.*` directly
 
-**Important**: Features use `_Internals/` for shared functionality across features (animation management, message building, display properties)
+**`fn` deprecation**: The `self:fn(func, ...)` xpcall wrapper on the module prototype is being phased out. It silently swallows errors. Features should use direct calls with explicit guard clauses instead.
+
+**`G_RLF.db` exception**: Database access is intentionally NOT captured as a local — it is nil until AceDB runs in `OnInitialize` and must remain a runtime lookup inside function bodies.
+
+**Example**: `TravelPoints.lua` is the reference implementation of this pattern.
 
 ### `/LootDisplay`
 
@@ -225,6 +236,48 @@ All addon code uses a shared namespace (`G_RLF`) passed via `local addonName, ns
 
 UI frames use mixins (`LootDisplayFrame`, `LootDisplayRow`) to encapsulate frame-specific behavior.
 
+### Feature Module Pattern (established in TravelPoints spike)
+
+Each feature module follows a strict structure to maximise testability:
+
+```lua
+-- 1. Capture all external deps as locals (visible dependency surface)
+local LootElementBase = G_RLF.LootElementBase
+local FeatureBase     = G_RLF.FeatureBase
+local FeatureModule   = G_RLF.FeatureModule
+local LogWarn = function(...) G_RLF:LogWarn(...) end
+-- NOTE: G_RLF.db intentionally absent – nil until OnInitialize
+
+-- 2. WoW API adapter tables (per-feature seam for test injection)
+local SomeApiAdapter = {
+    GetThing = function(id) return C_Some.GetThing(id) end,
+}
+local GlobalStringsAdapter = {
+    GetLabel = function() return _G["SOME_KEY"] end,
+}
+
+-- 3. Module creation through FeatureBase (not G_RLF.RLF:NewModule directly)
+local MyFeature = FeatureBase:new(FeatureModule.MyFeature, "AceEvent-3.0")
+MyFeature._someApiAdapter     = SomeApiAdapter
+MyFeature._globalStringsAdapter = GlobalStringsAdapter
+
+-- 4. Element construction through LootElementBase
+function MyFeature.Element:new(...)
+    local element = LootElementBase:new()
+    -- override fields as needed
+    return element
+end
+```
+
+Tests inject mocks by:
+
+- Providing a minimal `ns` table to `loadfile("MyFeature.lua")("TestAddon", ns)`
+- Overriding `TravelPointsModule._someApiAdapter = { ... }` after load
+
+### WoW API Abstraction Adapter Pattern
+
+All direct WoW API calls (`C_*`, `_G["STRING_KEY"]`) are wrapped in local adapter tables at the top of each feature file. These are the per-feature precursors to a planned top-level `Abstractions/` folder. When that consolidation happens, the local table will simply be replaced with a reference to the shared module from that folder.
+
 ## Data Flow
 
 1. **WoW Event Triggered** (e.g., player loots an item)
@@ -255,13 +308,12 @@ The load order is defined in `RPGLootFeed.toc` and is critical:
 
 1. **Library embeds** (`embeds.xml`)
 2. **Type definitions** (`_global_types.lua`, `_lib_types.lua`)
-3. **Utils** (Enums, Logger, Notifications, Queue, Utils)
-4. **Config base** (ConfigOptions)
-5. **Config modules** (Positioning, Sizing, Styling, Animations, Features, etc.)
-6. **Feature implementations** (ItemLoot, Currency, Money, etc.)
-7. **LootDisplay** (Frame mixins, display manager, history)
-8. **BlizzOverrides** (last, to hook into Blizzard UI)
-9. **Core** (last file, initializes everything)
-10. **GameTesting** (loaded last for test mode)
-
-This order ensures dependencies are available when modules load.
+3. **Core.lua** — sets up `G_RLF.RLF` (AceAddon instance) **first**, before any feature files
+4. **Utils** (Enums, Logger, Notifications, Queue, Utils)
+5. **Config base** (ConfigOptions)
+6. **Config modules** (Positioning, Sizing, Styling, Animations, Features, etc.)
+7. **BlizzOverrides**
+8. **Feature internals** (`_Internals/`: TextTemplateEngine → LootElementBase → FeatureBase → LootDisplayProperties → ...)
+9. **Feature implementations** (ItemLoot, Currency, Money, TravelPoints, etc.)
+10. **LootDisplay** (Frame mixins, display manager, history)
+11. **GameTesting** (loaded last for test mode)

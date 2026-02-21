@@ -61,6 +61,76 @@ describe("MyModule", function()
 end)
 ```
 
+### Lightweight Feature Module Tests (preferred pattern)
+
+Feature modules now expose their full dependency surface as locals and use
+`FeatureBase:new()` instead of calling `G_RLF.RLF:NewModule()` directly.
+This allows tests to avoid the full `nsMocks` framework:
+
+```lua
+describe("MyFeature", function()
+    local ns, MyFeatureModule
+    local mockApiAdapter, mockGlobalStringsAdapter
+
+    before_each(function()
+        -- Minimal load section – only what the feature actually needs
+        ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.UtilsEnums)
+
+        -- Provide ns.db manually (AceDB not available at this level)
+        ns.db = { global = { animations = { exit = { fadeOutDelay = 3 } }, ... } }
+
+        -- Load the real LootElementBase so elements are fully constructed
+        assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+
+        -- Mock FeatureBase – returns a stub module; no Ace plumbing needed
+        ns.FeatureBase = {
+            new = function(_, name)
+                return {
+                    moduleName = name,
+                    Enable = function() end,
+                    Disable = function() end,
+                    IsEnabled = function() return true end,
+                    RegisterEvent = function() end,
+                    UnregisterEvent = function() end,
+                }
+            end,
+        }
+
+        -- Load the feature module
+        MyFeatureModule = assert(loadfile("RPGLootFeed/Features/MyFeature.lua"))("TestAddon", ns)
+
+        -- Inject fresh adapter mocks for full test isolation
+        -- Tests that need specific API behaviour swap in their own table:
+        --   MyFeatureModule._someApiAdapter = { GetThing = function() return mockData end }
+        mockApiAdapter = { GetThing = function() return nil end }
+        mockGlobalStringsAdapter = { GetLabel = function() return "Test Label" end }
+        MyFeatureModule._someApiAdapter = mockApiAdapter
+        MyFeatureModule._globalStringsAdapter = mockGlobalStringsAdapter
+    end)
+end)
+```
+
+**Key rules for this pattern:**
+
+- Use the lowest `LoadSections` level that satisfies the feature's dependency locals
+- Provide `ns.db` manually — never rely on AceDB being initialised
+- Mock `ns.FeatureBase` so AceAddon is never invoked
+- Inject fresh adapter tables _after_ `loadfile` (they're captured at load time on the module)
+- Spy on `ns.LogWarn` / `ns.SendMessage` etc. to verify side effects — the wrapper closures route through `G_RLF` (which is `ns`), so spies set on `ns` are always intercepted
+- `G_RLF.db` is intentionally excluded from dependency locals in feature files — always runtime
+
+### FeatureBase Tests
+
+`FeatureBase` itself is tested with an even simpler plain `ns` table (no nsMocks at all):
+
+```lua
+before_each(function()
+    ns = { RLF = { NewModule = function() end } }
+    newModuleStub = stub(ns.RLF, "NewModule").returns(mockModule)
+    assert(loadfile("RPGLootFeed/Features/_Internals/FeatureBase.lua"))("TestAddon", ns)
+end)
+```
+
 ### Load Order Testing
 
 The mock system provides load sections that simulate the addon's load order:
