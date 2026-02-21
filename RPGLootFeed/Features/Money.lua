@@ -4,14 +4,52 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
----@class RLF_Money: RLF_Module, AceEvent-3.0
-local Money = G_RLF.RLF:NewModule(G_RLF.FeatureModule.Money, "AceEvent-3.0")
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's full
+-- dependency surface on G_RLF / ns is visible in one place.  Tests pass a
+-- minimal mock ns to loadfile("Money.lua") to control these at
+-- injection time without the full nsMocks framework.
+-- NOTE: G_RLF.db is intentionally absent – AceDB populates it in
+-- OnInitialize, so it must remain a runtime lookup inside function bodies.
+local LootElementBase = G_RLF.LootElementBase
+local DefaultIcons = G_RLF.DefaultIcons
+local ItemQualEnum = G_RLF.ItemQualEnum
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
+local TextTemplateEngine = G_RLF.TextTemplateEngine
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
 
--- Context provider function to be registered when module is enabled
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps C_CurrencyInfo, GetMoney, and PlaySoundFile so tests can inject mocks
+-- without patching _G directly.
+local MoneyAdapter = {
+	GetCoinTextureString = function(amount)
+		return C_CurrencyInfo.GetCoinTextureString(amount)
+	end,
+	GetMoney = function()
+		return GetMoney()
+	end,
+	PlaySoundFile = function(sound)
+		return PlaySoundFile(sound)
+	end,
+}
+
+---@class RLF_Money: RLF_Module, AceEvent-3.0
+local Money = FeatureBase:new(FeatureModule.Money, "AceEvent-3.0")
+
+Money._moneyAdapter = MoneyAdapter
+
+-- Context provider function to be registered when module is enabled.
+-- Defined after Money so the inner closure can reference Money._moneyAdapter.
 local function createMoneyContextProvider()
 	return function(context, data)
 		-- Get coin string for the total amount
-		context.coinString = C_CurrencyInfo.GetCoinTextureString(context.absTotal)
+		context.coinString = Money._moneyAdapter.GetCoinTextureString(context.absTotal)
 
 		-- Support for accountant mode
 		if G_RLF.db.global.money.accountantMode then
@@ -20,17 +58,17 @@ local function createMoneyContextProvider()
 
 		-- Current money total for secondary text
 		if G_RLF.db.global.money.showMoneyTotal then
-			local currentMoney = GetMoney()
+			local currentMoney = Money._moneyAdapter.GetMoney()
 			if currentMoney > 10000000 then -- More than 1000 gold
 				currentMoney = math.floor(currentMoney / 10000) * 10000 -- truncate silver and copper
 			end
-			context.currentMoney = C_CurrencyInfo.GetCoinTextureString(currentMoney)
+			context.currentMoney = Money._moneyAdapter.GetCoinTextureString(currentMoney)
 
 			-- Handle abbreviation if enabled
 			if G_RLF.db.global.money.abbreviateTotal and currentMoney > 10000000 then
 				local goldOnly = math.floor(currentMoney / 10000)
 				context.currentMoney =
-					context.currentMoney:gsub(tostring(goldOnly), G_RLF.TextTemplateEngine:AbbreviateNumber(goldOnly))
+					context.currentMoney:gsub(tostring(goldOnly), TextTemplateEngine:AbbreviateNumber(goldOnly))
 			end
 		else
 			-- When showMoneyTotal is disabled, provide empty currentMoney
@@ -44,15 +82,14 @@ Money.Element = {}
 
 function Money.Element:new(...)
 	---@class Money.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = LootElementBase:new()
 
-	element.type = G_RLF.FeatureModule.Money
-	element.icon = G_RLF.DefaultIcons.MONEY
+	element.type = FeatureModule.Money
+	element.icon = DefaultIcons.MONEY
 	if not G_RLF.db.global.money.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		element.icon = nil
 	end
-	element.quality = G_RLF.ItemQualEnum.Poor
+	element.quality = ItemQualEnum.Poor
 	element.IsEnabled = function()
 		return Money:IsEnabled()
 	end
@@ -78,12 +115,12 @@ function Money.Element:new(...)
 
 	-- Replace the old textFn with a new one that uses TextTemplateEngine
 	element.textFn = function(existingCopper)
-		return G_RLF.TextTemplateEngine:ProcessRowElements(1, elementData, existingCopper)
+		return TextTemplateEngine:ProcessRowElements(1, elementData, existingCopper)
 	end
 
 	-- Replace the old secondaryTextFn with new template-based approach
 	element.secondaryTextFn = function(existingCopper)
-		return G_RLF.TextTemplateEngine:ProcessRowElements(2, elementData, existingCopper)
+		return TextTemplateEngine:ProcessRowElements(2, elementData, existingCopper)
 	end
 
 	-- Handle sound configuration like the original Money module
@@ -94,15 +131,15 @@ function Money.Element:new(...)
 	-- Add PlaySoundIfEnabled method to the element
 	function element:PlaySoundIfEnabled()
 		if G_RLF.db.global.money.overrideMoneyLootSound and G_RLF.db.global.money.moneyLootSound ~= "" then
-			local willPlay, handle = PlaySoundFile(G_RLF.db.global.money.moneyLootSound)
+			local willPlay, handle = Money._moneyAdapter.PlaySoundFile(G_RLF.db.global.money.moneyLootSound)
 			if not willPlay then
-				G_RLF:LogWarn(
+				LogWarn(
 					"Failed to play sound " .. G_RLF.db.global.money.moneyLootSound,
 					addonName,
 					Money.moduleName or "MoneyV2"
 				)
 			else
-				G_RLF:LogDebug(
+				LogDebug(
 					"Sound queued to play " .. G_RLF.db.global.money.moneyLootSound .. " " .. handle,
 					addonName,
 					Money.moduleName or "MoneyV2"
@@ -158,43 +195,41 @@ end
 
 function Money:OnEnable()
 	-- Register our context provider with the TextTemplateEngine
-	G_RLF.TextTemplateEngine:RegisterContextProvider("Money", createMoneyContextProvider())
+	TextTemplateEngine:RegisterContextProvider("Money", createMoneyContextProvider())
 
 	self:RegisterEvent("PLAYER_MONEY")
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
-	self.startingMoney = GetMoney()
+	self.startingMoney = Money._moneyAdapter.GetMoney()
 end
 
 function Money:OnDisable()
 	-- Unregister our context provider
-	G_RLF.TextTemplateEngine.contextProviders["Money"] = nil
+	TextTemplateEngine.contextProviders["Money"] = nil
 
 	self:UnregisterEvent("PLAYER_MONEY")
 	self:UnregisterEvent("PLAYER_ENTERING_WORLD")
 end
 
 function Money:PLAYER_ENTERING_WORLD(eventName)
-	self.startingMoney = GetMoney()
+	self.startingMoney = Money._moneyAdapter.GetMoney()
 end
 
 function Money:PLAYER_MONEY(eventName)
-	G_RLF:fn(function()
-		local newMoney = GetMoney()
-		local amountInCopper = newMoney - self.startingMoney
-		if amountInCopper == 0 then
-			return
-		end
-		self.startingMoney = newMoney
-		if G_RLF.db.global.money.onlyIncome and amountInCopper < 0 then
-			return
-		end
+	local newMoney = Money._moneyAdapter.GetMoney()
+	local amountInCopper = newMoney - self.startingMoney
+	if amountInCopper == 0 then
+		return
+	end
+	self.startingMoney = newMoney
+	if G_RLF.db.global.money.onlyIncome and amountInCopper < 0 then
+		return
+	end
 
-		local element = self.Element:new(amountInCopper)
-		if element then
-			element:Show()
-			element:PlaySoundIfEnabled()
-		end
-	end)
+	local element = self.Element:new(amountInCopper)
+	if element then
+		element:Show()
+		element:PlaySoundIfEnabled()
+	end
 end
 
 return Money

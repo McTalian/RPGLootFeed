@@ -1,5 +1,5 @@
 ---@diagnostic disable: need-check-nil
-local nsMocks = require("RPGLootFeed_spec._mocks.Internal.addonNamespace")
+require("RPGLootFeed_spec._mocks.LuaCompat")
 local assert = require("luassert")
 local match = require("luassert.match")
 local busted = require("busted")
@@ -11,57 +11,99 @@ local stub = busted.stub
 
 describe("Money", function()
 	local _ = match._
-	---@type RLF_Money, table, table, table
-	local Money, ns, fnMocks, stubPlaySoundFile
+	---@type RLF_Money, table
+	local Money, ns, sendMessageSpy
 
 	before_each(function()
-		fnMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
-		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+		sendMessageSpy = spy.new(function() end)
 
-		-- Load TextTemplateEngine first
-		ns.TextTemplateEngine =
-			assert(loadfile("RPGLootFeed/Features/_Internals/TextTemplateEngine.lua"))("TestAddon", ns)
-
-		-- Set up default configuration
-		ns.db.global.money.enabled = true
-		ns.db.global.money.accountantMode = false
-		ns.db.global.money.showMoneyTotal = true
-		ns.db.global.money.abbreviateTotal = false
-		ns.db.global.money.enableIcon = true
-		ns.db.global.money.overrideMoneyLootSound = false
-		ns.db.global.money.moneyLootSound = ""
-		ns.db.global.money.onlyIncome = false
-		ns.db.global.misc.hideAllIcons = false
-
-		-- Mock localization
-		ns.L = {
-			["ThousandAbbrev"] = "K",
-			["MillionAbbrev"] = "M",
-			["BillionAbbrev"] = "B",
+		-- Build a minimal ns from scratch – no nsMocks framework needed.
+		-- Only the fields actually referenced by Money.lua, LootElementBase.lua,
+		-- and TextTemplateEngine.lua are included; everything else is intentionally absent.
+		ns = {
+			-- Captured as locals by Money.lua at load time.
+			DefaultIcons = { MONEY = 132279 },
+			ItemQualEnum = { Poor = 0 },
+			FeatureModule = { Money = "Money" },
+			-- Closure wrappers call these as G_RLF:Method(...).
+			LogDebug = function() end,
+			LogWarn = function() end,
+			-- RGBAToHexFormat referenced in TextTemplateEngine for colored elements.
+			RGBAToHexFormat = function()
+				return "|cFFFFFFFF"
+			end,
+			-- L used by TextTemplateEngine AbbreviateNumber.
+			L = {
+				ThousandAbbrev = "K",
+				MillionAbbrev = "M",
+				BillionAbbrev = "B",
+			},
+			SendMessage = sendMessageSpy,
+			-- Runtime lookups by LootElementBase:new() and lifecycle methods.
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					money = {
+						enabled = true,
+						accountantMode = false,
+						showMoneyTotal = true,
+						abbreviateTotal = false,
+						enableIcon = true,
+						overrideMoneyLootSound = false,
+						moneyLootSound = "",
+						onlyIncome = false,
+					},
+					misc = { hideAllIcons = false, showOneQuantity = false },
+				},
+			},
 		}
 
-		-- Mock C_CurrencyInfo
-		local mockCurrencyInfo = {
-			GetCoinTextureString = function(amount)
-				-- Return a predictable format that includes the amount
-				local gold = math.floor(amount / 10000)
-				local silver = math.floor((amount % 10000) / 100)
-				local copper = amount % 100
-				return string.format("%dg %ds %dc", gold, silver, copper)
+		-- Load real LootElementBase so elements are fully constructed.
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+		assert.is_not_nil(ns.LootElementBase)
+
+		-- Load TextTemplateEngine before Money.lua so the local capture works.
+		assert(loadfile("RPGLootFeed/Features/_Internals/TextTemplateEngine.lua"))("TestAddon", ns)
+		assert.is_not_nil(ns.TextTemplateEngine)
+
+		-- Mock FeatureBase – returns a minimal stub module so Money tests
+		-- are completely independent of AceAddon plumbing.
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterEvent = function() end,
+				}
 			end,
 		}
-		_G.C_CurrencyInfo = mockCurrencyInfo
 
-		-- Mock GetMoney
-		fnMocks.GetMoney.returns(1500000) -- 150 gold
-
-		-- Mock PlaySoundFile
-		stubPlaySoundFile = stub(_G, "PlaySoundFile").invokes(function()
-			return true, 12345
-		end)
-
-		-- Load the Money module
+		-- Load Money – the FeatureBase mock above is captured at load time.
 		Money = assert(loadfile("RPGLootFeed/Features/Money.lua"))("TestAddon", ns)
+
+		-- Inject a fresh mock adapter so tests control external API calls without
+		-- patching _G directly.  Tests that need specific behaviour set adapter
+		-- fields directly before the act step.
+		local mockCoinTextureString = function(amount)
+			local gold = math.floor(amount / 10000)
+			local silver = math.floor((amount % 10000) / 100)
+			local copper = amount % 100
+			return string.format("%dg %ds %dc", gold, silver, copper)
+		end
+		Money._moneyAdapter = {
+			GetCoinTextureString = mockCoinTextureString,
+			GetMoney = function()
+				return 1500000 -- 150 gold default
+			end,
+			PlaySoundFile = spy.new(function()
+				return true, 12345
+			end),
+		}
 	end)
 
 	describe("module lifecycle", function()
@@ -215,11 +257,14 @@ describe("Money", function()
 		it("PlaySoundIfEnabled works correctly", function()
 			ns.db.global.money.overrideMoneyLootSound = true
 			ns.db.global.money.moneyLootSound = "Interface\\Sounds\\Custom.ogg"
+			Money._moneyAdapter.PlaySoundFile = spy.new(function()
+				return true, 12345
+			end)
 
 			local element = Money.Element:new(50000)
 			element:PlaySoundIfEnabled()
 
-			assert.spy(stubPlaySoundFile).was.called_with("Interface\\Sounds\\Custom.ogg")
+			assert.spy(Money._moneyAdapter.PlaySoundFile).was.called_with("Interface\\Sounds\\Custom.ogg")
 		end)
 
 		it("returns nil for zero quantity", function()
@@ -257,7 +302,9 @@ describe("Money", function()
 		end)
 
 		it("tracks starting money on PLAYER_ENTERING_WORLD", function()
-			fnMocks.GetMoney.returns(2000000) -- 200 gold
+			Money._moneyAdapter.GetMoney = function()
+				return 2000000
+			end -- 200 gold
 
 			Money:PLAYER_ENTERING_WORLD("PLAYER_ENTERING_WORLD")
 
@@ -266,7 +313,9 @@ describe("Money", function()
 
 		it("processes money changes on PLAYER_MONEY", function()
 			Money.startingMoney = 1000000 -- 100 gold
-			fnMocks.GetMoney.returns(1050000) -- 105 gold
+			Money._moneyAdapter.GetMoney = function()
+				return 1050000
+			end -- 105 gold
 
 			-- Mock the element creation and display
 			local mockElement = {
@@ -286,7 +335,9 @@ describe("Money", function()
 
 		it("ignores zero money changes", function()
 			Money.startingMoney = 1000000
-			fnMocks.GetMoney.returns(1000000) -- Same amount
+			Money._moneyAdapter.GetMoney = function()
+				return 1000000
+			end -- Same amount
 
 			local spyElementNew = spy.on(Money.Element, "new")
 
@@ -299,7 +350,9 @@ describe("Money", function()
 		it("respects onlyIncome setting", function()
 			ns.db.global.money.onlyIncome = true
 			Money.startingMoney = 1000000
-			fnMocks.GetMoney.returns(950000) -- Lost money
+			Money._moneyAdapter.GetMoney = function()
+				return 950000
+			end -- Lost money
 
 			local spyElementNew = spy.on(Money.Element, "new")
 
@@ -349,7 +402,9 @@ describe("Money", function()
 		describe("current money truncation", function()
 			it("truncates silver and copper for amounts over 1000 gold", function()
 				-- Set current money to 15,235,678 copper = 1523g 56s 78c
-				fnMocks.GetMoney.returns(15235678)
+				Money._moneyAdapter.GetMoney = function()
+					return 15235678
+				end
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = Money.Element:new(50000)
@@ -361,7 +416,9 @@ describe("Money", function()
 
 			it("does not truncate amounts under 1000 gold", function()
 				-- Set current money to 9,876,543 copper = 987g 65s 43c (under 1000g)
-				fnMocks.GetMoney.returns(9876543)
+				Money._moneyAdapter.GetMoney = function()
+					return 9876543
+				end
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = Money.Element:new(50000)
@@ -373,7 +430,9 @@ describe("Money", function()
 
 			it("handles exactly 1000 gold threshold", function()
 				-- Set current money to exactly 10,000,000 copper = 1000g 0s 0c
-				fnMocks.GetMoney.returns(10000000)
+				Money._moneyAdapter.GetMoney = function()
+					return 10000000
+				end
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = Money.Element:new(50000)
@@ -385,7 +444,9 @@ describe("Money", function()
 
 			it("handles exactly 1000g 1c threshold", function()
 				-- Set current money to 10,000,001 copper = 1000g 0s 1c
-				fnMocks.GetMoney.returns(10000001)
+				Money._moneyAdapter.GetMoney = function()
+					return 10000001
+				end
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = Money.Element:new(50000)
@@ -399,7 +460,9 @@ describe("Money", function()
 		describe("current money abbreviation", function()
 			it("abbreviates gold when enabled and over 1000 gold", function()
 				-- Set current money to 25,000,000 copper = 2500g 0s 0c
-				fnMocks.GetMoney.returns(25000000)
+				Money._moneyAdapter.GetMoney = function()
+					return 25000000
+				end
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
@@ -412,7 +475,9 @@ describe("Money", function()
 
 			it("does not abbreviate when disabled", function()
 				-- Set current money to 25,000,000 copper = 2500g 0s 0c
-				fnMocks.GetMoney.returns(25000000)
+				Money._moneyAdapter.GetMoney = function()
+					return 25000000
+				end
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = false
 
@@ -425,7 +490,9 @@ describe("Money", function()
 
 			it("does not abbreviate amounts under 1000 gold", function()
 				-- Set current money to 9,876,543 copper = 987g 65s 43c (under 1000g)
-				fnMocks.GetMoney.returns(9876543)
+				Money._moneyAdapter.GetMoney = function()
+					return 9876543
+				end
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
@@ -438,7 +505,9 @@ describe("Money", function()
 
 			it("handles millions of gold", function()
 				-- Set current money to 250,000,000 copper = 25,000g 0s 0c
-				fnMocks.GetMoney.returns(250000000)
+				Money._moneyAdapter.GetMoney = function()
+					return 250000000
+				end
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
@@ -453,7 +522,9 @@ describe("Money", function()
 		describe("combined truncation and abbreviation", function()
 			it("truncates before abbreviating", function()
 				-- Set current money to 25,123,456 copper = 2512g 34s 56c
-				fnMocks.GetMoney.returns(25123456)
+				Money._moneyAdapter.GetMoney = function()
+					return 25123456
+				end
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
