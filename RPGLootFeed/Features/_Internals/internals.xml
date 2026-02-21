@@ -4,6 +4,7 @@
 ..\FrameXML\UI.xsd">
     <Script file="TextTemplateEngine.lua"/>
     <Script file="LootElementBase.lua"/>
+    <Script file="FeatureBase.lua"/>
     <Script file="LootDisplayProperties.lua"/>
     <Script file="RLF_Notifications.lua"/>
     <Script file="RLF_Communications.lua"/>
