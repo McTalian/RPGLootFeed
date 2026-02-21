@@ -1,5 +1,5 @@
 ---@diagnostic disable: undefined-field
-local nsMocks = require("RPGLootFeed_spec._mocks.Internal.addonNamespace")
+require("RPGLootFeed_spec._mocks.LuaCompat")
 local assert = require("luassert")
 local match = require("luassert.match")
 local busted = require("busted")
@@ -11,40 +11,89 @@ local stub = busted.stub
 
 describe("Experience module", function()
 	local _ = match._
-	local XpModule, ns, fnMocks
+	local XpModule, ns
+	local sendMessageSpy
 
 	before_each(function()
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Enum")
-		fnMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
-		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+		sendMessageSpy = spy.new(function() end)
 
-		-- Load TextTemplateEngine first
-		ns.TextTemplateEngine =
-			assert(loadfile("RPGLootFeed/Features/_Internals/TextTemplateEngine.lua"))("TestAddon", ns)
+		-- Build a minimal ns from scratch – no nsMocks framework needed.
+		-- Only the fields actually referenced by Experience.lua, LootElementBase.lua,
+		-- and TextTemplateEngine.lua are included; everything else is intentionally absent.
+		ns = {
+			-- Captured as locals by Experience.lua at load time.
+			DefaultIcons = { XP = 894556 },
+			ItemQualEnum = { Epic = 4 },
+			FeatureModule = { Experience = "Experience" },
+			-- Closure wrappers call these as G_RLF:Method(...).
+			LogDebug = function() end,
+			LogInfo = function() end,
+			LogWarn = function() end,
+			IsRetail = function()
+				return true
+			end,
+			-- RGBAToHexFormat used by TextTemplateEngine for colored text.
+			RGBAToHexFormat = function()
+				return "|cFFEDCBA0"
+			end,
+			-- L used by createExperienceContextProvider for the {xpLabel} template key.
+			L = { XP = "XP" },
+			SendMessage = sendMessageSpy,
+			-- Runtime lookups by LootElementBase:new() and lifecycle methods.
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					xp = {
+						enabled = true,
+						enableIcon = true,
+						experienceTextColor = { 0.93, 0.55, 0.63, 1.0 },
+					},
+					misc = { hideAllIcons = false, showOneQuantity = false },
+				},
+			},
+		}
 
-		-- Mock WoW functions
-		_G.UnitXP = fnMocks.UnitXP or function()
-			return 10
-		end
-		_G.UnitXPMax = fnMocks.UnitXPMax or function()
-			return 50
-		end
-		_G.UnitLevel = fnMocks.UnitLevel or function()
-			return 2
-		end
+		-- Load real LootElementBase so elements are fully constructed.
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+		assert.is_not_nil(ns.LootElementBase)
 
-		-- Configure RGBAToHexFormat stub to return a proper color code
-		ns.RGBAToHexFormat.returns("|cFFEDCBA0")
-		ns.db.global.xp.experienceTextColor = { 0.93, 0.55, 0.63, 1.0 }
+		-- Load TextTemplateEngine before Experience.lua so the local capture works.
+		assert(loadfile("RPGLootFeed/Features/_Internals/TextTemplateEngine.lua"))("TestAddon", ns)
+		assert.is_not_nil(ns.TextTemplateEngine)
 
-		-- Load the LootDisplayProperties module to populate `ns`
-		assert(loadfile("RPGLootFeed/Features/_Internals/LootDisplayProperties.lua"))("TestAddon", ns)
+		-- Mock FeatureBase – returns a minimal stub module so Experience tests
+		-- are completely independent of AceAddon plumbing.
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterEvent = function() end,
+				}
+			end,
+		}
 
-		-- Ensure `ns` has been populated correctly by LootDisplayProperties
-		assert.is_not_nil(ns.InitializeLootDisplayProperties)
-
-		-- Load the list module before each test
+		-- Load Experience – the FeatureBase mock above is captured at load time.
 		XpModule = assert(loadfile("RPGLootFeed/Features/Experience.lua"))("TestAddon", ns)
+
+		-- Inject a default UnitXpAdapter so event-handler tests work without
+		-- patching _G directly.
+		XpModule._unitXpAdapter = {
+			UnitXP = function()
+				return 10
+			end,
+			UnitXPMax = function()
+				return 50
+			end,
+			UnitLevel = function()
+				return 2
+			end,
+		}
 	end)
 
 	it("does not show xp if the unit target is not player", function()
@@ -52,7 +101,7 @@ describe("Experience module", function()
 
 		XpModule:PLAYER_XP_UPDATE("PLAYER_XP_UPDATE", "target")
 
-		assert.stub(ns.SendMessage).was.not_called()
+		assert.spy(sendMessageSpy).was.not_called()
 	end)
 
 	it("does not show xp if the calculated delta is 0", function()
@@ -62,7 +111,7 @@ describe("Experience module", function()
 
 		XpModule:PLAYER_XP_UPDATE("PLAYER_XP_UPDATE", "player")
 
-		assert.stub(ns.SendMessage).was.not_called()
+		assert.spy(sendMessageSpy).was.not_called()
 	end)
 
 	it("show xp if the player levels up", function()
@@ -74,19 +123,19 @@ describe("Experience module", function()
 		-- old max XP was 50
 		-- xp value is still 10
 		-- (50 max for last level - 10 old xp value) + 10 new xp value = 50 xp earned
-		---@diagnostic disable-next-line: undefined-field
-		local stubUnitLevel = fnMocks.UnitLevel.returns(3)
-		---@diagnostic disable-next-line: undefined-field
-		local stubUnitXPMax = fnMocks.UnitXPMax.returns(100)
+		XpModule._unitXpAdapter.UnitLevel = function()
+			return 3
+		end
+		XpModule._unitXpAdapter.UnitXPMax = function()
+			return 100
+		end
 
 		local newElement = spy.on(XpModule.Element, "new")
 
 		XpModule:PLAYER_XP_UPDATE("PLAYER_XP_UPDATE", "player")
 
 		assert.spy(newElement).was.called_with(_, 50)
-		assert.stub(ns.SendMessage).was.called(1)
-		stubUnitLevel:revert()
-		stubUnitXPMax:revert()
+		assert.spy(sendMessageSpy).was.called(1)
 	end)
 
 	describe("GenerateTextElements", function()
@@ -150,17 +199,15 @@ describe("Experience module", function()
 		end)
 
 		it("secondaryTextFn shows XP percentage when XP data available", function()
-			-- Mock XP values
-			local originalUnitXP = _G.UnitXP
-			local originalUnitXPMax = _G.UnitXPMax
-			_G.UnitXP = function()
+			-- Override adapter to return specific XP values for this test.
+			XpModule._unitXpAdapter.UnitXP = function()
 				return 7526
 			end
-			_G.UnitXPMax = function()
+			XpModule._unitXpAdapter.UnitXPMax = function()
 				return 10000
 			end
 
-			-- Initialize XP values
+			-- Initialize XP values via event handler
 			XpModule:PLAYER_ENTERING_WORLD("PLAYER_ENTERING_WORLD")
 
 			local element = XpModule.Element:new(500)
@@ -173,20 +220,14 @@ describe("Experience module", function()
 			assert.matches("75.26%%", result) -- Escape the dot and double % for literal match
 			assert.matches("|cFFEDCBA0", result)
 			assert.matches("|r", result) -- Ensure color reset at end
-
-			-- Restore original functions
-			_G.UnitXP = originalUnitXP
-			_G.UnitXPMax = originalUnitXPMax
 		end)
 
 		it("secondaryTextFn returns empty when XP data unavailable", function()
-			-- Clear XP values
-			local originalUnitXP = _G.UnitXP
-			local originalUnitXPMax = _G.UnitXPMax
-			_G.UnitXP = function()
+			-- Override adapter to return nil to simulate missing data.
+			XpModule._unitXpAdapter.UnitXP = function()
 				return nil
 			end
-			_G.UnitXPMax = function()
+			XpModule._unitXpAdapter.UnitXPMax = function()
 				return nil
 			end
 
@@ -198,10 +239,6 @@ describe("Experience module", function()
 
 			-- Should return empty string when XP data is not available
 			assert.equal("", result)
-
-			-- Restore original functions
-			_G.UnitXP = originalUnitXP
-			_G.UnitXPMax = originalUnitXPMax
 		end)
 
 		it("returns nil for zero quantity", function()
