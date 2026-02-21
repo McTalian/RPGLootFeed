@@ -8,12 +8,36 @@ local G_RLF = ns
 local TravelPoints = G_RLF.RLF:NewModule(G_RLF.FeatureModule.TravelPoints, "AceEvent-3.0")
 local currentTravelersJourney, maxTravelersJourney
 
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Each adapter wraps a surface of the WoW API or global state so the feature
+-- code only deals with inputs and outputs.  These local tables are the
+-- per-feature precursor to the planned top-level Abstractions/ folder; when
+-- that consolidation happens, the adapter tables will simply be replaced with
+-- references to the shared modules from that folder.
+
+local PerksActivitiesAdapter = {
+	GetPerksActivitiesInfo = function()
+		return C_PerksActivities.GetPerksActivitiesInfo()
+	end,
+	GetPerksActivityInfo = function(activityID)
+		return C_PerksActivities.GetPerksActivityInfo(activityID)
+	end,
+}
+TravelPoints._perksActivitiesAdapter = PerksActivitiesAdapter
+
+local GlobalStringsAdapter = {
+	--- The locale string used as the label for Travel Points (e.g. "Traveler's Log").
+	GetMonthlyActivitiesPointsLabel = function()
+		return _G["MONTHLY_ACTIVITIES_POINTS"]
+	end,
+}
+TravelPoints._globalStringsAdapter = GlobalStringsAdapter
+
 TravelPoints.Element = {}
 
 function TravelPoints.Element:new(...)
 	---@class TravelPoints.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = G_RLF.LootElementBase:new()
 
 	element.type = "TravelPoints"
 	element.IsEnabled = function()
@@ -24,7 +48,9 @@ function TravelPoints.Element:new(...)
 	element.quantity = ...
 	element.r, element.g, element.b, element.a = unpack(G_RLF.db.global.travelPoints.textColor)
 	element.textFn = function(existingAmount)
-		return _G["MONTHLY_ACTIVITIES_POINTS"] .. " + " .. ((existingAmount or 0) + element.quantity)
+		return TravelPoints._globalStringsAdapter.GetMonthlyActivitiesPointsLabel()
+			.. " + "
+			.. ((existingAmount or 0) + element.quantity)
 	end
 	element.icon = G_RLF.DefaultIcons.TRAVELPOINTS
 	if not G_RLF.db.global.travelPoints.enableIcon or G_RLF.db.global.misc.hideAllIcons then
@@ -51,7 +77,7 @@ end
 --- Calculate the current and max values for the Travelers Journey
 --- @param activityID? number
 local function calcTravelersJourneyVal(activityID)
-	local allInfo = C_PerksActivities.GetPerksActivitiesInfo()
+	local allInfo = TravelPoints._perksActivitiesAdapter.GetPerksActivitiesInfo()
 	if allInfo == nil then
 		G_RLF:LogWarn("Could not get all activity info", addonName, TravelPoints.moduleName)
 		return
@@ -107,7 +133,7 @@ end
 function TravelPoints:PERKS_ACTIVITY_COMPLETED(eventName, activityID)
 	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, activityID)
 
-	local info = C_PerksActivities.GetPerksActivityInfo(activityID)
+	local info = TravelPoints._perksActivitiesAdapter.GetPerksActivityInfo(activityID)
 	if info == nil then
 		G_RLF:LogWarn("Could not get activity info", addonName, self.moduleName)
 		return
