@@ -4,17 +4,112 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's full
+-- dependency surface on G_RLF / ns is visible in one place.  Tests pass a
+-- minimal mock ns to loadfile("Currency.lua") to control these at injection
+-- time without the full nsMocks framework.
+-- NOTE: G_RLF.db and G_RLF.hiddenCurrencies are intentionally absent –
+-- they must remain runtime lookups so per-test overrides work correctly.
+local LootElementBase = G_RLF.LootElementBase
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
+local Expansion = G_RLF.Expansion
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogInfo = function(...)
+	G_RLF:LogInfo(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+local IsRetail = function()
+	return G_RLF:IsRetail()
+end
+local RGBAToHexFormat = function(...)
+	return G_RLF:RGBAToHexFormat(...)
+end
+local ExtractCurrencyID = function(msg)
+	return G_RLF:ExtractCurrencyID(msg)
+end
+
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps GetExpansionLevel, currency info APIs (C_Everywhere + direct), honor
+-- tracking, locale patterns, Constants, and Ethereal-Strands UI behind
+-- testable functions so tests can inject mocks without patching _G.
 local C = LibStub("C_Everywhere")
+local CurrencyAdapter = {
+	GetExpansionLevel = function()
+		return GetExpansionLevel()
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	-- C_Everywhere unified queries used in Process (CURRENCY_DISPLAY_UPDATE path)
+	GetCurrencyInfo = function(currencyType)
+		return C.CurrencyInfo.GetCurrencyInfo(currencyType)
+	end,
+	GetBasicCurrencyInfo = function(currencyType, amount)
+		return C.CurrencyInfo.GetBasicCurrencyInfo(currencyType, amount)
+	end,
+	GetCurrencyLinkFromLib = function(currencyType)
+		return C.CurrencyInfo.GetCurrencyLink(currencyType)
+	end,
+	-- Predicate: does the modern C_CurrencyInfo.GetCurrencyLink API exist?
+	HasGetCurrencyLinkAPI = function()
+		return C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink ~= nil
+	end,
+	-- Classic fallback (bare global) for GetCurrencyLink
+	GetCurrencyLinkFromGlobal = function(currencyId, quantity)
+		return GetCurrencyLink(currencyId, quantity)
+	end,
+	-- Honor tracking for the Account-Wide Honor currency element
+	GetUnitHonorLevel = function(unit)
+		return UnitHonorLevel(unit)
+	end,
+	GetUnitHonorMax = function(unit)
+		return UnitHonorMax(unit)
+	end,
+	GetUnitHonor = function(unit)
+		return UnitHonor(unit)
+	end,
+	-- WoW Constants tables
+	GetAccountWideHonorCurrencyID = function()
+		return Constants and Constants.CurrencyConsts and Constants.CurrencyConsts.ACCOUNT_WIDE_HONOR_CURRENCY_ID
+	end,
+	GetPerksProgramCurrencyID = function()
+		return Constants
+			and Constants.CurrencyConsts
+			and Constants.CurrencyConsts.CURRENCY_ID_PERKS_PROGRAM_DISPLAY_INFO
+	end,
+	-- Classic locale patterns used in OnInitialize to build classicCurrencyPatterns
+	GetCurrencyGainedMultiplePattern = function()
+		return CURRENCY_GAINED_MULTIPLE
+	end,
+	GetCurrencyGainedMultipleBonusPattern = function()
+		return CURRENCY_GAINED_MULTIPLE_BONUS
+	end,
+	-- Ethereal Strands UI (3278) custom link handler
+	GenericTraitToggle = function()
+		GenericTraitUI_LoadUI()
+		GenericTraitFrame:SetSystemID(29)
+		GenericTraitFrame:SetTreeID(1115)
+		ToggleFrame(GenericTraitFrame)
+	end,
+}
 
 ---@class RLF_Currency: RLF_Module, AceEvent-3.0
-local Currency = G_RLF.RLF:NewModule(G_RLF.FeatureModule.Currency, "AceEvent-3.0")
+local Currency = FeatureBase:new(FeatureModule.Currency, "AceEvent-3.0")
+
+Currency._currencyAdapter = CurrencyAdapter
 
 --- @param content string
 --- @param message string
 --- @param id? string
 --- @param amount? string|number
 function Currency:LogDebug(content, message, id, amount)
-	G_RLF:LogDebug(message, addonName, self.moduleName, id, content, amount)
+	LogDebug(message, addonName, self.moduleName, id, content, amount)
 end
 
 Currency.Element = {}
@@ -26,8 +121,7 @@ local ETHEREAL_STRANDS_CURRENCY_ID = 3278
 --- @param basicInfo CurrencyDisplayInfo
 function Currency.Element:new(currencyLink, currencyInfo, basicInfo)
 	---@class Currency.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = LootElementBase:new()
 
 	element.type = "Currency"
 	element.IsEnabled = function()
@@ -57,10 +151,10 @@ function Currency.Element:new(currencyLink, currencyInfo, basicInfo)
 	element.totalEarned = currencyInfo.totalEarned
 	element.cappedQuantity = currencyInfo.maxQuantity
 
-	if element.key == Constants.CurrencyConsts.ACCOUNT_WIDE_HONOR_CURRENCY_ID then
-		element.itemCount = UnitHonorLevel("player")
-		element.cappedQuantity = UnitHonorMax("player")
-		element.totalEarned = UnitHonor("player")
+	if element.key == Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
+		element.itemCount = Currency._currencyAdapter.GetUnitHonorLevel("player")
+		element.cappedQuantity = Currency._currencyAdapter.GetUnitHonorMax("player")
+		element.totalEarned = Currency._currencyAdapter.GetUnitHonor("player")
 		---@diagnostic disable-next-line: undefined-field
 		currencyLink = currencyLink:gsub(currencyInfo.name, _G.LIFETIME_HONOR)
 	end
@@ -97,14 +191,14 @@ function Currency.Element:new(currencyLink, currencyInfo, basicInfo)
 			local lowestColor = currencyDb.lowestColor
 			local midColor = currencyDb.midColor
 			local upperColor = currencyDb.upperColor
-			local color = G_RLF:RGBAToHexFormat(unpack(lowestColor))
-			if element.key ~= Constants.CurrencyConsts.ACCOUNT_WIDE_HONOR_CURRENCY_ID then
+			local color = RGBAToHexFormat(unpack(lowestColor))
+			if element.key ~= Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
 				if percentage < lowThreshold then
-					color = G_RLF:RGBAToHexFormat(unpack(lowestColor))
+					color = RGBAToHexFormat(unpack(lowestColor))
 				elseif percentage >= lowThreshold and percentage < upperThreshold then
-					color = G_RLF:RGBAToHexFormat(unpack(midColor))
+					color = RGBAToHexFormat(unpack(midColor))
 				else
-					color = G_RLF:RGBAToHexFormat(unpack(upperColor))
+					color = RGBAToHexFormat(unpack(upperColor))
 				end
 			end
 
@@ -129,10 +223,7 @@ function Currency.Element:new(currencyLink, currencyInfo, basicInfo)
 			local customCurrencyId = tonumber(id)
 
 			if customCurrencyId == ETHEREAL_STRANDS_CURRENCY_ID then
-				GenericTraitUI_LoadUI()
-				GenericTraitFrame:SetSystemID(29)
-				GenericTraitFrame:SetTreeID(1115)
-				ToggleFrame(GenericTraitFrame)
+				Currency._currencyAdapter.GenericTraitToggle()
 			else
 				Currency:LogDebug("Custom behavior", "SKIP: unhandled custom currency link", element.key)
 			end
@@ -184,16 +275,16 @@ end
 
 local classicCurrencyPatterns
 function Currency:OnInitialize()
-	if G_RLF.db.global.currency.enabled and GetExpansionLevel() >= G_RLF.Expansion.WOTLK then
+	if G_RLF.db.global.currency.enabled and Currency._currencyAdapter.GetExpansionLevel() >= Expansion.WOTLK then
 		self:Enable()
 	else
 		self:Disable()
 	end
 
-	if GetExpansionLevel() < G_RLF.Expansion.BFA then
+	if Currency._currencyAdapter.GetExpansionLevel() < Expansion.BFA then
 		local currencyConsts = {
-			CURRENCY_GAINED_MULTIPLE,
-			CURRENCY_GAINED_MULTIPLE_BONUS,
+			Currency._currencyAdapter.GetCurrencyGainedMultiplePattern(),
+			Currency._currencyAdapter.GetCurrencyGainedMultipleBonusPattern(),
 		}
 		classicCurrencyPatterns = precomputeAmountPatternSegments(currencyConsts)
 	else
@@ -202,39 +293,39 @@ function Currency:OnInitialize()
 end
 
 function Currency:OnDisable()
-	if GetExpansionLevel() < G_RLF.Expansion.WOTLK then
+	if Currency._currencyAdapter.GetExpansionLevel() < Expansion.WOTLK then
 		self:LogDebug("OnEnable", "Disabled because expansion is below WOTLK")
 		return
 	end
-	if GetExpansionLevel() < G_RLF.Expansion.BFA then
+	if Currency._currencyAdapter.GetExpansionLevel() < Expansion.BFA then
 		self:UnregisterEvent("CHAT_MSG_CURRENCY")
 	else
 		self:UnregisterEvent("CURRENCY_DISPLAY_UPDATE")
 	end
-	if G_RLF:IsRetail() then
+	if IsRetail() then
 		self:UnregisterEvent("PERKS_PROGRAM_CURRENCY_AWARDED")
 		self:UnregisterEvent("PERKS_PROGRAM_CURRENCY_REFRESH")
 	end
 end
 
 function Currency:OnEnable()
-	if GetExpansionLevel() < G_RLF.Expansion.WOTLK then
+	if Currency._currencyAdapter.GetExpansionLevel() < Expansion.WOTLK then
 		self:LogDebug("OnEnable", "Disabled because expansion is below WOTLK")
 		return
 	end
-	if GetExpansionLevel() < G_RLF.Expansion.BFA then
+	if Currency._currencyAdapter.GetExpansionLevel() < Expansion.BFA then
 		self:RegisterEvent("CHAT_MSG_CURRENCY")
 	else
 		self:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
 	end
-	if G_RLF:IsRetail() then
+	if IsRetail() then
 		self:RegisterEvent("PERKS_PROGRAM_CURRENCY_AWARDED")
 	end
 	self:LogDebug("OnEnable", "Currency module is enabled")
 end
 
 function Currency:Process(eventName, currencyType, quantityChange)
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, currencyType, eventName, quantityChange)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, currencyType, eventName, quantityChange)
 
 	if currencyType == nil or not quantityChange or quantityChange == 0 then
 		self:LogDebug(
@@ -257,29 +348,27 @@ function Currency:Process(eventName, currencyType, quantityChange)
 	end
 
 	---@type CurrencyInfo
-	local info = C.CurrencyInfo.GetCurrencyInfo(currencyType)
+	local info = Currency._currencyAdapter.GetCurrencyInfo(currencyType)
 	if info == nil or info.description == "" or info.iconFileID == nil then
 		self:LogDebug("Skip showing currency", "SKIP: Description or icon was empty", currencyType, quantityChange)
 		return
 	end
 
-	self:fn(function()
-		---@type CurrencyDisplayInfo
-		local basicInfo = C.CurrencyInfo.GetBasicCurrencyInfo(currencyType, quantityChange)
-		local link
-		if C_CurrencyInfo.GetCurrencyLink then
-			link = C.CurrencyInfo.GetCurrencyLink(currencyType)
-		else
-			-- Fallback for pre-SL clients
-			link = GetCurrencyLink(currencyType, quantityChange)
-		end
-		local e = self.Element:new(link, info, basicInfo)
-		if e then
-			e:Show()
-		else
-			self:LogDebug("Skip showing currency", "SKIP: Element was nil", currencyType, quantityChange)
-		end
-	end)
+	---@type CurrencyDisplayInfo
+	local basicInfo = Currency._currencyAdapter.GetBasicCurrencyInfo(currencyType, quantityChange)
+	local link
+	if Currency._currencyAdapter.HasGetCurrencyLinkAPI() then
+		link = Currency._currencyAdapter.GetCurrencyLinkFromLib(currencyType)
+	else
+		-- Fallback for pre-SL clients
+		link = Currency._currencyAdapter.GetCurrencyLinkFromGlobal(currencyType, quantityChange)
+	end
+	local e = self.Element:new(link, info, basicInfo)
+	if e then
+		e:Show()
+	else
+		self:LogDebug("Skip showing currency", "SKIP: Element was nil", currencyType, quantityChange)
+	end
 end
 
 function Currency:CURRENCY_DISPLAY_UPDATE(eventName, ...)
@@ -305,19 +394,14 @@ end
 
 function Currency:CHAT_MSG_CURRENCY(eventName, ...)
 	local msg = ...
-	if issecretvalue and issecretvalue(msg) then
-		G_RLF:LogWarn(
-			"(" .. eventName .. ") Secret value detected, ignoring chat message",
-			"WOWEVENT",
-			self.moduleName,
-			""
-		)
+	if Currency._currencyAdapter.IssecretValue(msg) then
+		LogWarn("(" .. eventName .. ") Secret value detected, ignoring chat message", "WOWEVENT", self.moduleName, "")
 		return
 	end
 
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, nil, msg)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, nil, msg)
 
-	local currencyId = G_RLF:ExtractCurrencyID(msg)
+	local currencyId = ExtractCurrencyID(msg)
 	if currencyId == 0 or currencyId == nil then
 		self:LogDebug("Skip showing currency", "SKIP: No currency ID found for links in msg = " .. tostring(msg))
 		return
@@ -342,7 +426,7 @@ function Currency:CHAT_MSG_CURRENCY(eventName, ...)
 		return
 	end
 
-	local currencyInfo = C_CurrencyInfo.GetCurrencyInfo(currencyId)
+	local currencyInfo = Currency._currencyAdapter.GetCurrencyInfo(currencyId)
 	if not currencyInfo then
 		self:LogDebug("Skip showing currency", "SKIP: No currency info found for msg = " .. msg, tostring(currencyId))
 		return
@@ -370,7 +454,7 @@ function Currency:CHAT_MSG_CURRENCY(eventName, ...)
 		displayAmount = quantityChange,
 	}
 
-	local currencyLink = GetCurrencyLink(currencyId, currencyInfo.quantity)
+	local currencyLink = Currency._currencyAdapter.GetCurrencyLinkFromGlobal(currencyId, currencyInfo.quantity)
 	local e = self.Element:new(currencyLink, currencyInfo, basicInfo)
 	if e then
 		e:Show()
@@ -381,13 +465,13 @@ end
 
 function Currency:PERKS_PROGRAM_CURRENCY_AWARDED(eventName, quantityChange)
 	self:RegisterEvent("PERKS_PROGRAM_CURRENCY_REFRESH")
-	local currencyType = Constants.CurrencyConsts.CURRENCY_ID_PERKS_PROGRAM_DISPLAY_INFO
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, tostring(currencyType), eventName, quantityChange)
+	local currencyType = Currency._currencyAdapter.GetPerksProgramCurrencyID()
+	LogInfo(eventName, "WOWEVENT", self.moduleName, tostring(currencyType), eventName, quantityChange)
 	self:UnregisterEvent("PERKS_PROGRAM_CURRENCY_AWARDED")
 end
 
 function Currency:PERKS_PROGRAM_CURRENCY_REFRESH(eventName, oldQuantity, newQuantity)
-	local currencyType = Constants.CurrencyConsts.CURRENCY_ID_PERKS_PROGRAM_DISPLAY_INFO
+	local currencyType = Currency._currencyAdapter.GetPerksProgramCurrencyID()
 
 	local quantityChange = newQuantity - oldQuantity
 	if quantityChange == 0 then

@@ -1,4 +1,4 @@
-local nsMocks = require("RPGLootFeed_spec._mocks.Internal.addonNamespace")
+require("RPGLootFeed_spec._mocks.LuaCompat")
 local assert = require("luassert")
 local match = require("luassert.match")
 local busted = require("busted")
@@ -10,24 +10,88 @@ local it = busted.it
 
 describe("TravelPoints module", function()
 	local _ = match._
-	local TravelPointsModule, ns, perksActivitiesMocks
+	local TravelPointsModule, ns
+	local mockPerksAdapter, mockGlobalStringsAdapter
+	local sendMessageSpy
 
 	before_each(function()
-		perksActivitiesMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_PerksActivities")
-		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
-		nsMocks.RGBAToHexFormat.returns("|cFFFFFFFF")
+		-- Spy on ns.SendMessage so event-handling tests can assert it was called.
+		sendMessageSpy = spy.new(function() end)
 
-		-- Set up globals
-		_G["MONTHLY_ACTIVITIES_POINTS"] = "Traveler's Log"
+		-- Build a minimal ns from scratch – no nsMocks framework needed.
+		-- Only the fields actually referenced by TravelPoints.lua and LootElementBase.lua
+		-- are included; everything else is intentionally absent.
+		ns = {
+			-- Captured as locals by TravelPoints.lua at load time.
+			DefaultIcons = { TRAVELPOINTS = "Interface/Icons/Ability_mount_travelhorse" },
+			ItemQualEnum = { Common = 1 },
+			FeatureModule = { TravelPoints = "TravelPoints" },
+			-- Closure wrappers call these as G_RLF:Method(...).
+			LogDebug = function() end,
+			LogInfo = function() end,
+			LogWarn = function() end,
+			IsRetail = function()
+				return true
+			end,
+			-- RGBAToHexFormat is used by secondaryTextFn; return a fixed hex for tests.
+			RGBAToHexFormat = function()
+				return "|cFFFFFFFF"
+			end,
+			SendMessage = sendMessageSpy,
+			-- Runtime lookup by LootElementBase:new() and TravelPoints lifecycle methods.
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					travelPoints = { textColor = { 1, 1, 1, 1 }, enableIcon = true, enabled = true },
+					misc = { hideAllIcons = false },
+				},
+			},
+		}
 
-		-- Load the LootDisplayProperties module to populate `ns`
-		assert(loadfile("RPGLootFeed/Features/_Internals/LootDisplayProperties.lua"))("TestAddon", ns)
+		-- Load real LootElementBase so elements are fully constructed.
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+		assert.is_not_nil(ns.LootElementBase)
 
-		-- Ensure `ns` has been populated correctly by LootDisplayProperties
-		assert.is_not_nil(ns.InitializeLootDisplayProperties)
+		-- Mock FeatureBase – returns a minimal stub module so TravelPoints tests
+		-- are completely independent of AceAddon plumbing.  The stub includes the
+		-- Ace lifecycle methods that TravelPoints.lua calls (Enable, Disable, etc.)
+		-- so spy.on() has something to wrap.
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterEvent = function() end,
+				}
+			end,
+		}
 
-		-- Load the travel points module before each test
+		-- Load TravelPoints – the FeatureBase mock above is captured at load time.
 		TravelPointsModule = assert(loadfile("RPGLootFeed/Features/TravelPoints.lua"))("TestAddon", ns)
+
+		-- Inject fresh mock adapters for full test isolation.
+		-- Tests that need specific behaviour swap in their own adapter table via
+		-- TravelPointsModule._*Adapter = { ... } before the act step.
+		mockPerksAdapter = {
+			GetPerksActivitiesInfo = function()
+				return nil
+			end,
+			GetPerksActivityInfo = function(_activityID)
+				return nil
+			end,
+		}
+		mockGlobalStringsAdapter = {
+			GetMonthlyActivitiesPointsLabel = function()
+				return "Traveler's Log"
+			end,
+		}
+		TravelPointsModule._perksActivitiesAdapter = mockPerksAdapter
+		TravelPointsModule._globalStringsAdapter = mockGlobalStringsAdapter
 	end)
 
 	describe("Element creation", function()
@@ -68,34 +132,31 @@ describe("TravelPoints module", function()
 		it("secondaryTextFn returns progress when journey values are set", function()
 			local quantity = 25
 
-			-- Mock the journey values being set
-			local element = TravelPointsModule.Element:new(quantity)
+			TravelPointsModule._perksActivitiesAdapter = {
+				GetPerksActivitiesInfo = function()
+					return {
+						activities = {
+							{ ID = 1, completed = true, thresholdContributionAmount = 10 },
+							{ ID = 2, completed = false, thresholdContributionAmount = 20 },
+						},
+						thresholds = {
+							{ requiredContributionAmount = 100 },
+							{ requiredContributionAmount = 150 },
+						},
+					}
+				end,
+				GetPerksActivityInfo = function(_activityID)
+					return { thresholdContributionAmount = 20 }
+				end,
+			}
 
-			-- Set up the module's internal journey values
-			-- We need to trigger calcTravelersJourneyVal to set these values
-			perksActivitiesMocks.GetPerksActivitiesInfo.returns({
-				activities = {
-					{ ID = 1, completed = true, thresholdContributionAmount = 10 },
-					{ ID = 2, completed = false, thresholdContributionAmount = 20 },
-				},
-				thresholds = {
-					{ requiredContributionAmount = 100 },
-					{ requiredContributionAmount = 150 },
-				},
-			})
-
-			-- Trigger PERKS_ACTIVITY_COMPLETED to set the journey values
-			perksActivitiesMocks.GetPerksActivityInfo.returns({
-				thresholdContributionAmount = 20,
-			})
-
+			-- Trigger the event to populate internal journey values
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", 2)
 
+			local element = TravelPointsModule.Element:new(quantity)
 			local result = element.secondaryTextFn()
 
-			-- Should show progress: currentTravelersJourney/maxTravelersJourney
-			-- current = 10 (completed) + 20 (activity 2) = 30
-			-- max = 150 (highest threshold)
+			-- current = 10 (completed) + 20 (activity 2) = 30, max = 150
 			assert.matches("30/150", result)
 		end)
 
@@ -203,38 +264,37 @@ describe("TravelPoints module", function()
 			local activityID = 123
 			local contributionAmount = 25
 
-			-- Mock successful API responses
-			perksActivitiesMocks.GetPerksActivityInfo.returns({
-				thresholdContributionAmount = contributionAmount,
-			})
-
-			perksActivitiesMocks.GetPerksActivitiesInfo.returns({
-				activities = {
-					{ ID = 1, completed = true, thresholdContributionAmount = 10 },
-					{ ID = activityID, completed = false, thresholdContributionAmount = contributionAmount },
-				},
-				thresholds = {
-					{ requiredContributionAmount = 100 },
-				},
-			})
+			TravelPointsModule._perksActivitiesAdapter = {
+				GetPerksActivityInfo = function(_activityID)
+					return { thresholdContributionAmount = contributionAmount }
+				end,
+				GetPerksActivitiesInfo = function()
+					return {
+						activities = {
+							{ ID = 1, completed = true, thresholdContributionAmount = 10 },
+							{ ID = activityID, completed = false, thresholdContributionAmount = contributionAmount },
+						},
+						thresholds = {
+							{ requiredContributionAmount = 100 },
+						},
+					}
+				end,
+			}
 
 			local elementNewSpy = spy.on(TravelPointsModule.Element, "new")
-			local elementShowStub = stub()
-			elementNewSpy.callback = function()
-				return { Show = elementShowStub }
-			end
 
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", activityID)
 
+			-- Element:new was called with the correct contribution amount
 			assert.spy(elementNewSpy).was.called_with(_, contributionAmount)
-			assert.stub(elementShowStub).was.called(1)
+			-- Show() dispatches via G_RLF:SendMessage — verify the element was routed
+			assert.spy(sendMessageSpy).was.called(1)
+			assert.spy(sendMessageSpy).was.called_with(_, "RLF_NEW_LOOT", _)
 		end)
 
 		it("PERKS_ACTIVITY_COMPLETED logs warning when GetPerksActivityInfo fails", function()
 			local activityID = 123
-
-			-- Mock API failure
-			perksActivitiesMocks.GetPerksActivityInfo.returns(nil)
+			-- mockPerksAdapter.GetPerksActivityInfo already returns nil from before_each
 
 			local elementNewSpy = spy.on(TravelPointsModule.Element, "new")
 			local logWarnSpy = spy.on(ns, "LogWarn")
@@ -250,15 +310,14 @@ describe("TravelPoints module", function()
 		it("PERKS_ACTIVITY_COMPLETED logs warning when amount is not positive", function()
 			local activityID = 123
 
-			-- Mock API response with zero amount
-			perksActivitiesMocks.GetPerksActivityInfo.returns({
-				thresholdContributionAmount = 0,
-			})
-
-			perksActivitiesMocks.GetPerksActivitiesInfo.returns({
-				activities = {},
-				thresholds = {},
-			})
+			TravelPointsModule._perksActivitiesAdapter = {
+				GetPerksActivityInfo = function(_activityID)
+					return { thresholdContributionAmount = 0 }
+				end,
+				GetPerksActivitiesInfo = function()
+					return { activities = {}, thresholds = {} }
+				end,
+			}
 
 			local elementNewSpy = spy.on(TravelPointsModule.Element, "new")
 			local logWarnSpy = spy.on(ns, "LogWarn")
@@ -277,12 +336,14 @@ describe("TravelPoints module", function()
 		it("PERKS_ACTIVITY_COMPLETED logs warning when GetPerksActivitiesInfo fails", function()
 			local activityID = 123
 
-			-- Mock successful activity info but failed activities info
-			perksActivitiesMocks.GetPerksActivityInfo.returns({
-				thresholdContributionAmount = 25,
-			})
-
-			perksActivitiesMocks.GetPerksActivitiesInfo.returns(nil)
+			TravelPointsModule._perksActivitiesAdapter = {
+				GetPerksActivityInfo = function(_activityID)
+					return { thresholdContributionAmount = 25 }
+				end,
+				GetPerksActivitiesInfo = function()
+					return nil
+				end,
+			}
 
 			local logWarnSpy = spy.on(ns, "LogWarn")
 
@@ -298,32 +359,33 @@ describe("TravelPoints module", function()
 		it("calculates progress correctly with completed and current activities", function()
 			local activityID = 2
 
-			perksActivitiesMocks.GetPerksActivitiesInfo.returns({
-				activities = {
-					{ ID = 1, completed = true, thresholdContributionAmount = 10 },
-					{ ID = activityID, completed = false, thresholdContributionAmount = 20 },
-					{ ID = 3, completed = false, thresholdContributionAmount = 15 },
-				},
-				thresholds = {
-					{ requiredContributionAmount = 100 },
-					{ requiredContributionAmount = 150 },
-				},
-			})
+			TravelPointsModule._perksActivitiesAdapter = {
+				GetPerksActivitiesInfo = function()
+					return {
+						activities = {
+							{ ID = 1, completed = true, thresholdContributionAmount = 10 },
+							{ ID = activityID, completed = false, thresholdContributionAmount = 20 },
+							{ ID = 3, completed = false, thresholdContributionAmount = 15 },
+						},
+						thresholds = {
+							{ requiredContributionAmount = 100 },
+							{ requiredContributionAmount = 150 },
+						},
+					}
+				end,
+				GetPerksActivityInfo = function(_activityID)
+					return { thresholdContributionAmount = 20 }
+				end,
+			}
 
-			perksActivitiesMocks.GetPerksActivityInfo.returns({
-				thresholdContributionAmount = 20,
-			})
-
-			-- Call the event which triggers calcTravelersJourneyVal
+			-- Trigger the event which internally calls calcTravelersJourneyVal
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", activityID)
 
-			-- Test that the journey values were calculated correctly
-			-- Create a new element to test the secondaryTextFn
+			-- Verify journey values via secondaryTextFn on a fresh element
 			local element = TravelPointsModule.Element:new(20)
 			local result = element.secondaryTextFn()
 
-			-- Expected: 10 (completed) + 20 (current activity) = 30 progress
-			-- Max: 150 (highest threshold)
+			-- current = 10 (completed) + 20 (activity 2 = current) = 30, max = 150
 			assert.matches("30/150", result)
 		end)
 	end)
