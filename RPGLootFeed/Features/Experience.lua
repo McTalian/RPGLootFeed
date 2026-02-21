@@ -4,9 +4,49 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's full
+-- dependency surface on G_RLF / ns is visible in one place.  Tests pass a
+-- minimal mock ns to loadfile("Experience.lua") to control these at
+-- injection time without the full nsMocks framework.
+-- NOTE: G_RLF.db is intentionally absent – AceDB populates it in
+-- OnInitialize, so it must remain a runtime lookup inside function bodies.
+local LootElementBase = G_RLF.LootElementBase
+local DefaultIcons = G_RLF.DefaultIcons
+local ItemQualEnum = G_RLF.ItemQualEnum
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
+local TextTemplateEngine = G_RLF.TextTemplateEngine
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogInfo = function(...)
+	G_RLF:LogInfo(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps UnitXP, UnitXPMax, and UnitLevel so tests can inject mocks without
+-- patching _G directly.
+local UnitXpAdapter = {
+	UnitXP = function(unit)
+		return UnitXP(unit)
+	end,
+	UnitXPMax = function(unit)
+		return UnitXPMax(unit)
+	end,
+	UnitLevel = function(unit)
+		return UnitLevel(unit)
+	end,
+}
+
 ---@class RLF_Experience: RLF_Module, AceEvent-3.0
-local Xp = G_RLF.RLF:NewModule(G_RLF.FeatureModule.Experience, "AceEvent-3.0")
+local Xp = FeatureBase:new(FeatureModule.Experience, "AceEvent-3.0")
 local currentXP, currentMaxXP, currentLevel
+
+Xp._unitXpAdapter = UnitXpAdapter
 
 -- Context provider function to be registered when module is enabled
 local function createExperienceContextProvider()
@@ -29,10 +69,9 @@ Xp.Element = {}
 
 function Xp.Element:new(...)
 	---@class Xp.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = LootElementBase:new()
 
-	element.type = G_RLF.FeatureModule.Experience
+	element.type = FeatureModule.Experience
 	element.IsEnabled = function()
 		return Xp:IsEnabled()
 	end
@@ -44,11 +83,11 @@ function Xp.Element:new(...)
 	end
 
 	element.itemCount = currentLevel
-	element.icon = G_RLF.DefaultIcons.XP
+	element.icon = DefaultIcons.XP
 	if not G_RLF.db.global.xp.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		element.icon = nil
 	end
-	element.quality = G_RLF.ItemQualEnum.Epic
+	element.quality = ItemQualEnum.Epic
 
 	-- Generate text elements using the new data-driven approach
 	element.textElements = Xp:GenerateTextElements(element.quantity)
@@ -64,11 +103,11 @@ function Xp.Element:new(...)
 	}
 
 	element.textFn = function(existingXP)
-		return G_RLF.TextTemplateEngine:ProcessRowElements(1, elementData, existingXP)
+		return TextTemplateEngine:ProcessRowElements(1, elementData, existingXP)
 	end
 
 	element.secondaryTextFn = function(existingXP)
-		return G_RLF.TextTemplateEngine:ProcessRowElements(2, elementData, existingXP)
+		return TextTemplateEngine:ProcessRowElements(2, elementData, existingXP)
 	end
 
 	return element
@@ -110,9 +149,9 @@ function Xp:GenerateTextElements(quantity)
 end
 
 local function initXpValues()
-	currentXP = UnitXP("player")
-	currentMaxXP = UnitXPMax("player")
-	currentLevel = UnitLevel("player")
+	currentXP = Xp._unitXpAdapter.UnitXP("player")
+	currentMaxXP = Xp._unitXpAdapter.UnitXPMax("player")
+	currentLevel = Xp._unitXpAdapter.UnitLevel("player")
 end
 
 function Xp:OnInitialize()
@@ -125,32 +164,32 @@ end
 
 function Xp:OnDisable()
 	-- Unregister our context provider
-	G_RLF.TextTemplateEngine.contextProviders["Experience"] = nil
+	TextTemplateEngine.contextProviders["Experience"] = nil
 
 	self:UnregisterEvent("PLAYER_ENTERING_WORLD")
 	self:UnregisterEvent("PLAYER_XP_UPDATE")
 end
 
 function Xp:OnEnable()
-	G_RLF:LogDebug("OnEnable", addonName, self.moduleName)
+	LogDebug("OnEnable", addonName, self.moduleName)
 
 	-- Register our context provider with the TextTemplateEngine
-	G_RLF.TextTemplateEngine:RegisterContextProvider("Experience", createExperienceContextProvider())
+	TextTemplateEngine:RegisterContextProvider("Experience", createExperienceContextProvider())
 
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 	self:RegisterEvent("PLAYER_XP_UPDATE")
 	if currentXP == nil then
-		self:fn(initXpValues)
+		initXpValues()
 	end
 end
 
 function Xp:PLAYER_ENTERING_WORLD(eventName)
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName)
-	self:fn(initXpValues)
+	LogInfo(eventName, "WOWEVENT", self.moduleName)
+	initXpValues()
 end
 
 function Xp:PLAYER_XP_UPDATE(eventName, unitTarget)
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, unitTarget)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, unitTarget)
 	if unitTarget ~= "player" then
 		return
 	end
@@ -158,14 +197,14 @@ function Xp:PLAYER_XP_UPDATE(eventName, unitTarget)
 	local oldLevel = currentLevel
 	local oldCurrentXP = currentXP
 	local oldMaxXP = currentMaxXP
-	local newLevel = UnitLevel(unitTarget)
+	local newLevel = Xp._unitXpAdapter.UnitLevel(unitTarget)
 	if newLevel == nil then
-		G_RLF:LogWarn("Could not get player level", addonName, self.moduleName)
+		LogWarn("Could not get player level", addonName, self.moduleName)
 		return
 	end
 	currentLevel = newLevel
-	currentXP = UnitXP(unitTarget)
-	currentMaxXP = UnitXPMax(unitTarget)
+	currentXP = Xp._unitXpAdapter.UnitXP(unitTarget)
+	currentMaxXP = Xp._unitXpAdapter.UnitXPMax(unitTarget)
 	local delta = 0
 	if newLevel > oldLevel then
 		delta = (oldMaxXP - oldCurrentXP) + currentXP
@@ -174,14 +213,12 @@ function Xp:PLAYER_XP_UPDATE(eventName, unitTarget)
 	end
 
 	if delta > 0 then
-		self:fn(function()
-			local e = self.Element:new(delta)
-			if e then
-				e:Show()
-			end
-		end)
+		local e = self.Element:new(delta)
+		if e then
+			e:Show()
+		end
 	else
-		G_RLF:LogWarn(eventName .. " fired but delta was not positive", addonName, self.moduleName)
+		LogWarn(eventName .. " fired but delta was not positive", addonName, self.moduleName)
 	end
 end
 
