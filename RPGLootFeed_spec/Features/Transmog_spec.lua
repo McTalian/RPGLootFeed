@@ -1,4 +1,3 @@
-local nsMocks = require("RPGLootFeed_spec._mocks.Internal.addonNamespace")
 local assert = require("luassert")
 local match = require("luassert.match")
 local busted = require("busted")
@@ -10,24 +9,79 @@ local it = busted.it
 
 describe("Transmog module", function()
 	local _ = match._
-	local TransmogModule, ns, transmogCollectionMocks, functionMocks
+	local TransmogModule, ns
+	local sendMessageSpy, logWarnSpy
 
 	before_each(function()
-		transmogCollectionMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_TransmogCollection")
-		functionMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
-		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+		-- Spies on ns methods that tests need to assert against.
+		sendMessageSpy = spy.new(function() end)
+		logWarnSpy = spy.new(function() end)
 
-		-- Set up ERR_LEARN_TRANSMOG_S global
-		_G["ERR_LEARN_TRANSMOG_S"] = "%s has been added to your appearance collection."
+		-- Build a minimal ns from scratch – no nsMocks framework needed.
+		-- Only the fields actually referenced by Transmog.lua and LootElementBase.lua
+		-- are included; everything else is intentionally absent.
+		ns = {
+			-- Captured as locals by Transmog.lua at load time.
+			DefaultIcons = { TRANSMOG = "Interface/Icons/Inv_misc_questionmark" },
+			ItemQualEnum = { Epic = 4 },
+			FeatureModule = { Transmog = "Transmog" },
+			-- Closure wrappers in Transmog.lua call these as G_RLF:Method(...).
+			LogDebug = function() end,
+			LogInfo = function() end,
+			LogWarn = logWarnSpy,
+			IsRetail = function()
+				return true
+			end,
+			SendMessage = sendMessageSpy,
+			-- Runtime lookup by LootElementBase:new() and Transmog lifecycle methods.
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					transmog = { enableIcon = true, enabled = true },
+					misc = { hideAllIcons = false },
+				},
+			},
+		}
 
-		-- Load the LootDisplayProperties module to populate `ns`
-		assert(loadfile("RPGLootFeed/Features/_Internals/LootDisplayProperties.lua"))("TestAddon", ns)
+		-- Load real LootElementBase so elements are fully constructed.
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+		assert.is_not_nil(ns.LootElementBase)
 
-		-- Ensure `ns` has been populated correctly by LootDisplayProperties
-		assert.is_not_nil(ns.InitializeLootDisplayProperties)
+		-- Mock FeatureBase – returns a minimal stub module so Transmog tests
+		-- are completely independent of AceAddon plumbing.
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterEvent = function() end,
+				}
+			end,
+		}
 
-		-- Load the transmog module before each test
+		-- Load Transmog – the FeatureBase mock above is captured at load time.
 		TransmogModule = assert(loadfile("RPGLootFeed/Features/Transmog.lua"))("TestAddon", ns)
+
+		-- Inject fresh mock adapters for full test isolation.
+		-- Tests that need specific behaviour swap in their own adapter table.
+		TransmogModule._transmogCollectionAdapter = {
+			GetAppearanceSourceInfo = function(_id)
+				return nil
+			end,
+			CreateItemFromItemLink = function(_link)
+				return nil
+			end,
+		}
+		TransmogModule._globalStringsAdapter = {
+			GetErrLearnTransmogS = function()
+				return "%s has been added to your appearance collection."
+			end,
+		}
 	end)
 
 	describe("Element creation", function()
@@ -84,7 +138,11 @@ describe("Transmog module", function()
 		end)
 
 		it("secondaryTextFn returns formatted transmog learn message for ruRU", function()
-			_G["ERR_LEARN_TRANSMOG_S"] = "Модель %s добавлена в вашу коллекцию."
+			TransmogModule._globalStringsAdapter = {
+				GetErrLearnTransmogS = function()
+					return "Модель %s добавлена в вашу коллекцию."
+				end,
+			}
 
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
@@ -92,8 +150,6 @@ describe("Transmog module", function()
 			local result = element.secondaryTextFn()
 
 			assert.are.equal("Модель добавлена в вашу коллекцию", result)
-
-			_G["ERR_LEARN_TRANSMOG_S"] = "%s has been added to your appearance collection."
 		end)
 
 		it("IsEnabled function returns module enabled state", function()
@@ -148,35 +204,33 @@ describe("Transmog module", function()
 	end)
 
 	describe("Event handling", function()
-		before_each(function()
-			-- Set up C_TransmogCollection.GetAppearanceSourceInfo mock
-			transmogCollectionMocks.GetAppearanceSourceInfo = stub(_G.C_TransmogCollection, "GetAppearanceSourceInfo")
-		end)
-
 		it("TRANSMOG_COLLECTION_SOURCE_ADDED creates and shows element when data is valid", function()
 			local itemModifiedAppearanceID = 12345
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 			local icon = "Interface\\Icons\\TestIcon"
 
-			-- Mock successful API response
-			transmogCollectionMocks.GetAppearanceSourceInfo.returns({
-				category = 1,
-				itemApperanceID = 67890,
-				canHaveIllusion = false,
-				icon = icon,
-				isCollected = true,
-				itemLink = "|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r",
-				-- Yes, the casing is inconsistent, but it's what the API returns
-				transmoglink = transmogLink,
-				sourceType = 1,
-				itemSubclass = "Armor",
-			})
+			-- Inject adapter with a successful response.
+			TransmogModule._transmogCollectionAdapter = {
+				GetAppearanceSourceInfo = function(_id)
+					return {
+						category = 1,
+						itemApperanceID = 67890,
+						canHaveIllusion = false,
+						icon = icon,
+						isCollected = true,
+						itemLink = "|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r",
+						-- Yes, the casing is inconsistent, but it's what the API returns
+						transmoglink = transmogLink,
+						sourceType = 1,
+						itemSubclass = "Armor",
+					}
+				end,
+				CreateItemFromItemLink = function(_link)
+					return nil
+				end,
+			}
 
 			local elementNewSpy = spy.on(TransmogModule.Element, "new")
-			local elementShowStub = stub()
-			elementNewSpy.callback = function()
-				return { Show = elementShowStub }
-			end
 
 			TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 				"TRANSMOG_COLLECTION_SOURCE_ADDED",
@@ -184,17 +238,14 @@ describe("Transmog module", function()
 			)
 
 			assert.spy(elementNewSpy).was.called_with(_, transmogLink, icon)
-			assert.stub(elementShowStub).was.called(1)
+			assert.spy(sendMessageSpy).was.called_with(_, "RLF_NEW_LOOT", _)
 		end)
 
 		it("TRANSMOG_COLLECTION_SOURCE_ADDED does not create element when GetAppearanceSourceInfo fails", function()
 			local itemModifiedAppearanceID = 12345
 
-			-- Mock API failure (returns nil for itemAppearanceId)
-			transmogCollectionMocks.GetAppearanceSourceInfo.returns(nil)
-
+			-- Default adapter already returns nil; no override needed.
 			local elementNewSpy = spy.on(TransmogModule.Element, "new")
-			local logWarnSpy = spy.on(ns, "LogWarn")
 
 			TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 				"TRANSMOG_COLLECTION_SOURCE_ADDED",
@@ -212,21 +263,27 @@ describe("Transmog module", function()
 			function()
 				local itemModifiedAppearanceID = 12345
 
-				-- Mock successful API response but with empty transmogLink
-				transmogCollectionMocks.GetAppearanceSourceInfo.returns({
-					category = 1,
-					itemAppearanceID = 67890,
-					canHaveIllusion = false,
-					icon = "Interface\\Icons\\TestIcon",
-					isCollected = true,
-					itemLink = "",
-					transmoglink = "",
-					sourceType = 1,
-					itemSubclass = "Armor",
-				})
+				-- Inject adapter with both links empty.
+				TransmogModule._transmogCollectionAdapter = {
+					GetAppearanceSourceInfo = function(_id)
+						return {
+							category = 1,
+							itemAppearanceID = 67890,
+							canHaveIllusion = false,
+							icon = "Interface\\Icons\\TestIcon",
+							isCollected = true,
+							itemLink = "",
+							transmoglink = "",
+							sourceType = 1,
+							itemSubclass = "Armor",
+						}
+					end,
+					CreateItemFromItemLink = function(_link)
+						return nil
+					end,
+				}
 
 				local elementNewSpy = spy.on(TransmogModule.Element, "new")
-				local logWarnSpy = spy.on(ns, "LogWarn")
 
 				TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 					"TRANSMOG_COLLECTION_SOURCE_ADDED",
@@ -249,26 +306,28 @@ describe("Transmog module", function()
 			local itemModifiedAppearanceID = 12345
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
-			-- Mock successful API response
-			transmogCollectionMocks.GetAppearanceSourceInfo.returns({
-				category = 1,
-				itemAppearanceID = 67890,
-				canHaveIllusion = false,
-				icon = "Interface\\Icons\\TestIcon",
-				isCollected = true,
-				itemLink = "|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r",
-				transmoglink = transmogLink,
-				sourceType = 1,
-				itemSubclass = "Armor",
-			})
+			-- Inject adapter with a successful response.
+			TransmogModule._transmogCollectionAdapter = {
+				GetAppearanceSourceInfo = function(_id)
+					return {
+						category = 1,
+						itemAppearanceID = 67890,
+						canHaveIllusion = false,
+						icon = "Interface\\Icons\\TestIcon",
+						isCollected = true,
+						itemLink = "|cffffffff|Hitem:12345::::::::80:::::|h[Test Item]|h|r",
+						transmoglink = transmogLink,
+						sourceType = 1,
+						itemSubclass = "Armor",
+					}
+				end,
+				CreateItemFromItemLink = function(_link)
+					return nil
+				end,
+			}
 
-			-- Mock element creation failure
-			local elementNewSpy = spy.on(TransmogModule.Element, "new")
-			elementNewSpy.callback = function()
-				return nil
-			end
-
-			local logWarnSpy = spy.on(ns, "LogWarn")
+			-- Force element creation to return nil to trigger the warning path.
+			stub(TransmogModule.Element, "new").returns(nil)
 
 			TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 				"TRANSMOG_COLLECTION_SOURCE_ADDED",
