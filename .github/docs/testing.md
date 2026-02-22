@@ -60,6 +60,12 @@ Spec files **do not need** to require any of these manually. Assignments like `i
 
 **`Internal/LootDisplayRowFrame.lua`** — factory that builds a fully-stubbed row-frame `self` table for `RowXxxMixin` unit tests. All sub-elements (`Background`, `Icon`, `PrimaryText`, `UnitPortrait`, `ClickableButton`, etc.) carry busted stubs on every WoW method, so tests can call mixin methods and immediately assert against spies without any per-test frame setup.
 
+Key mock details:
+
+- `row.PrimaryText` / `row.ItemCountText` / `row.SecondaryText` — `mockFontString()` with stubs for all layout + font methods. `GetUnboundedStringWidth` returns `80` (a plain function, not a busted stub, since `LayoutPrimaryLine` calls it in the hot path).
+- `row.PrimaryLineLayout` — `mockLayoutFrame()` with a `Layout` stub and writable `spacing`, `childLayoutDirection`, `fixedWidth` fields. Represents the `HorizontalLayoutMixin` container created programmatically by `CreatePrimaryLineLayout()`.
+- `row.ClickableButton` — `mockButton()` with `SetSize`, `SetPoint`, `ClearAllPoints`, `Show`, `Hide`, `SetScript`, `RegisterEvent`, `UnregisterEvent` stubs.
+
 ```lua
 local rowFrameMocks = require("RPGLootFeed_spec._mocks.Internal.LootDisplayRowFrame")
 local nsMocks = require("RPGLootFeed_spec._mocks.Internal.addonNamespace")

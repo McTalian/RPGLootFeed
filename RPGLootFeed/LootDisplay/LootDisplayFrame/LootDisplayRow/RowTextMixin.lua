@@ -12,6 +12,32 @@ RLF_RowTextMixin = {}
 
 local defaultColor = { 1, 1, 1, 1 }
 
+--- Create the PrimaryLineLayout horizontal layout container that holds
+--- PrimaryText and ItemCountText as layout children.
+--- Must be called once during row frame initialisation (from Init()).
+function RLF_RowTextMixin:CreatePrimaryLineLayout()
+	local layout = CreateFrame("Frame", nil, self)
+	-- Both mixins are required:
+	--   LayoutMixin        → provides Layout(), GetLayoutChildren(), CalculateFrameSize()
+	--   HorizontalLayoutMixin → provides LayoutChildren() (horizontal positioning)
+	-- This mirrors the XML template: mixin="LayoutMixin, HorizontalLayoutMixin"
+	Mixin(layout, LayoutMixin, HorizontalLayoutMixin)
+	layout.spacing = 0 -- updated in StyleText() once iconSize is known
+
+	-- PrimaryText is re-parented from the row into the layout container.
+	self.PrimaryText:SetParent(layout)
+	self.PrimaryText.layoutIndex = 1
+	-- SetWordWrap(false) once here so the engine truncates with "..." rather than
+	-- wrapping.  Not repeated in the hot-path LayoutPrimaryLine().
+	self.PrimaryText:SetWordWrap(false)
+
+	-- ItemCountText is likewise re-parented into the layout container.
+	self.ItemCountText:SetParent(layout)
+	self.ItemCountText.layoutIndex = 2
+
+	self.PrimaryLineLayout = layout
+end
+
 local function ApplyFontStyle(
 	fontString,
 	fontPath,
@@ -165,17 +191,26 @@ function RLF_RowTextMixin:StyleText()
 			iconAnchor = "LEFT"
 			xOffset = xOffset * -1
 		end
-		self.PrimaryText:ClearAllPoints()
-		self.ItemCountText:ClearAllPoints()
+		-- PrimaryLineLayout owns the anchor to Icon; its children (PrimaryText,
+		-- ItemCountText) are positioned by Layout().  The spacing between them
+		-- equals the icon-gap.  childLayoutDirection reverses child order for
+		-- right-align (icon on right) without changing layoutIndex values.
+		self.PrimaryLineLayout.spacing = iconSize / 4
+		if leftAlign then
+			self.PrimaryLineLayout.childLayoutDirection = nil
+		else
+			self.PrimaryLineLayout.childLayoutDirection = "rightToLeft"
+		end
+		self.PrimaryLineLayout:ClearAllPoints()
 		self.PrimaryText:SetJustifyH(anchor)
 		if self.icon then
 			if self.unit and G_RLF.db.global.partyLoot.enablePartyAvatar then
-				self.PrimaryText:SetPoint(anchor, self.UnitPortrait, iconAnchor, xOffset, 0)
+				self.PrimaryLineLayout:SetPoint(anchor, self.UnitPortrait, iconAnchor, xOffset, 0)
 			else
-				self.PrimaryText:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
+				self.PrimaryLineLayout:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
 			end
 		else
-			self.PrimaryText:SetPoint(anchor, self.Icon, anchor, 0, 0)
+			self.PrimaryLineLayout:SetPoint(anchor, self.Icon, anchor, 0, 0)
 		end
 
 		if enabledSecondaryRowText and self.secondaryText ~= nil and self.secondaryText ~= "" then
@@ -202,12 +237,12 @@ function RLF_RowTextMixin:StyleText()
 			else
 				self.SecondaryText:SetPoint(anchor, self.Icon, anchor, 0, 0)
 			end
-			self.PrimaryText:SetPoint("BOTTOM", self, "CENTER", 0, padding)
+			-- Vertical split: PrimaryLineLayout (not PrimaryText) takes the top slot;
+			-- SecondaryText takes the bottom slot.
+			self.PrimaryLineLayout:SetPoint("BOTTOM", self, "CENTER", 0, padding)
 			self.SecondaryText:SetPoint("TOP", self, "CENTER", 0, -padding)
 			self.SecondaryText:SetShown(true)
 		end
-
-		self.ItemCountText:SetPoint(anchor, self.PrimaryText, iconAnchor, xOffset, 0)
 	end
 end
 
@@ -364,23 +399,81 @@ function RLF_RowTextMixin:ShowItemCountText(itemCount, options)
 	else
 		self.ItemCountText:Hide()
 	end
+
+	-- Second layout pass: now that the count string is set (or hidden), the
+	-- accurate ItemCountText width is measured and PrimaryText is resized to
+	-- fit within the remaining budget.
+	self:LayoutPrimaryLine()
 end
 
-function RLF_RowTextMixin:ShowText(text, r, g, b, a)
+--- Compute the available text width, apply it to PrimaryText, and call Layout()
+--- on PrimaryLineLayout.  Also sizes ClickableButton once Layout() has applied
+--- engine truncation so GetStringWidth() reflects the visible display width.
+--- Called from ShowText() for all rows, and again from ShowItemCountText() for
+--- rows that display a count (Items, Currency, Reputation, XP, Professions).
+function RLF_RowTextMixin:LayoutPrimaryLine()
+	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
+	local iconSize = sizingDb.iconSize
+	local feedWidth = sizingDb.feedWidth
+
+	local portraitOffset = 0
+	if self.unit and G_RLF.db.global.partyLoot.enablePartyAvatar then
+		local portraitSize = iconSize * 0.8
+		portraitOffset = portraitSize - (portraitSize / 2)
+	end
+
+	-- Space occupied by the icon column:
+	--   iconSize/4  (gap from row left edge to icon — icon is anchored at xOffset=iconSize/4)
+	--   iconSize    (the icon itself)
+	--   iconSize/4  (gap between icon right edge and the start of PrimaryLineLayout)
+	-- This matches the original TruncateItemLink formula: feedWidth - (iconSize/4) - iconSize - (iconSize/4)
+	local iconOffset = iconSize + 2 * (iconSize / 4)
+	local availableWidth = feedWidth - iconOffset - portraitOffset
+
+	-- When ItemCountText is visible its width (plus the layout spacing gap) is
+	-- subtracted from the budget so PrimaryText knows how much room it has.
+	local itemCountWidth = 0
+	if self.ItemCountText:IsShown() then
+		itemCountWidth = self.ItemCountText:GetUnboundedStringWidth() + self.PrimaryLineLayout.spacing
+	end
+
+	-- PrimaryText takes only the space it naturally needs, truncating only when
+	-- its intrinsic width would push ItemCountText (or future AmountText) off-row.
+	local maxPrimaryWidth = math.max(1, availableWidth - itemCountWidth)
+	local naturalWidth = self.PrimaryText:GetUnboundedStringWidth()
+	local primaryTextWidth = math.min(naturalWidth, maxPrimaryWidth)
+	self.PrimaryText:SetWidth(primaryTextWidth)
+	-- Re-set the stored raw text so GetText() always returns the full original
+	-- string (engine truncation only affects display rendering, not GetText()).
+	self.PrimaryText:SetText(self.rawPrimaryText)
+	-- SetWordWrap(false) was already called once in CreatePrimaryLineLayout().
+
+	self.PrimaryLineLayout.fixedWidth = availableWidth
+	self.PrimaryLineLayout:Layout()
+
+	-- ClickableButton geometry is owned exclusively here (not in ShowText or
+	-- SetupTooltip) so it reflects the post-truncation display width.
+	if self.link then
+		self.ClickableButton:ClearAllPoints()
+		self.ClickableButton:SetPoint("LEFT", self.PrimaryText, "LEFT")
+		self.ClickableButton:SetSize(self.PrimaryText:GetStringWidth(), self.PrimaryText:GetStringHeight())
+	end
+end
+
+function RLF_RowTextMixin:ShowText(rawText, r, g, b, a)
 	if a == nil then
 		a = 1
 	end
 
-	self.PrimaryText:SetText(text)
+	-- Store the raw (untruncated) text; LayoutPrimaryLine() will re-apply it
+	-- after computing the correct width budget.
+	self.rawPrimaryText = rawText
+	self.PrimaryText:SetText(rawText)
 
 	if r == nil and g == nil and b == nil and self.amount ~= nil and self.amount < 0 then
 		r, g, b, a = 1, 0, 0, 0.8
 	elseif r == nil or g == nil or b == nil then
 		r, g, b, a = unpack(defaultColor)
-	end
-
-	if self.link then
-		self.ClickableButton:SetSize(self.PrimaryText:GetStringWidth(), self.PrimaryText:GetStringHeight())
 	end
 
 	self.PrimaryText:SetTextColor(r, g, b, a)
@@ -393,6 +486,11 @@ function RLF_RowTextMixin:ShowText(text, r, g, b, a)
 	else
 		self.SecondaryText:Hide()
 	end
+
+	-- Initial layout pass with ItemCountText hidden (count text is set later via
+	-- a deferred UpdateItemCount → ShowItemCountText call).  PrimaryText gets
+	-- the full available width on this pass.
+	self:LayoutPrimaryLine()
 end
 
 G_RLF.RLF_RowTextMixin = RLF_RowTextMixin

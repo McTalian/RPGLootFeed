@@ -11,10 +11,9 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 	if not self.link then
 		return
 	end
-	-- Dynamically size the button to match the PrimaryText width
-	self.ClickableButton:ClearAllPoints()
-	self.ClickableButton:SetPoint("LEFT", self.PrimaryText, "LEFT")
-	self.ClickableButton:SetSize(self.PrimaryText:GetStringWidth(), self.PrimaryText:GetStringHeight())
+	-- ClickableButton geometry (anchor + size) is set by LayoutPrimaryLine(),
+	-- which is called from ShowText() / ShowItemCountText() before SetupTooltip()
+	-- runs in the row lifecycle.  Only Show() is needed here.
 	self.ClickableButton:Show()
 	-- Add Tooltip
 	-- Tooltip logic

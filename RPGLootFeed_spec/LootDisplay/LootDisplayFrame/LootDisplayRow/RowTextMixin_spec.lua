@@ -56,6 +56,8 @@ describe("RLF_RowTextMixin", function()
 			assert.is_function(RLF_RowTextMixin.ShowText)
 			assert.is_function(RLF_RowTextMixin.ShowItemCountText)
 			assert.is_function(RLF_RowTextMixin.UpdateSecondaryText)
+			assert.is_function(RLF_RowTextMixin.CreatePrimaryLineLayout)
+			assert.is_function(RLF_RowTextMixin.LayoutPrimaryLine)
 		end)
 	end)
 
@@ -124,14 +126,27 @@ describe("RLF_RowTextMixin", function()
 			assert.stub(row.PrimaryText.SetJustifyH).was.called(1)
 		end)
 
-		it("calls SetPoint on PrimaryText based on layout", function()
+		it("calls SetPoint on PrimaryLineLayout (icon anchor) based on layout", function()
 			RLF_RowTextMixin.StyleText(row)
-			assert.stub(row.PrimaryText.SetPoint).was.called()
+			assert.stub(row.PrimaryLineLayout.SetPoint).was.called()
 		end)
 
-		it("calls ItemCountText:SetPoint to anchor it relative to PrimaryText", function()
+		it("sets PrimaryLineLayout.childLayoutDirection to nil when leftAlign is true", function()
 			RLF_RowTextMixin.StyleText(row)
-			assert.stub(row.ItemCountText.SetPoint).was.called(1)
+			assert.is_nil(row.PrimaryLineLayout.childLayoutDirection)
+		end)
+
+		it("sets PrimaryLineLayout.childLayoutDirection to rightToLeft when leftAlign is false", function()
+			local db = makeDefaultStylingDb()
+			db.leftAlign = false
+			stub(ns.DbAccessor, "Styling").returns(db)
+			RLF_RowTextMixin.StyleText(row)
+			assert.equal("rightToLeft", row.PrimaryLineLayout.childLayoutDirection)
+		end)
+
+		it("sets PrimaryLineLayout.spacing to iconSize/4", function()
+			RLF_RowTextMixin.StyleText(row)
+			assert.equal(8, row.PrimaryLineLayout.spacing) -- iconSize=32, 32/4=8
 		end)
 	end)
 
@@ -142,11 +157,20 @@ describe("RLF_RowTextMixin", function()
 			stub(ns.DbAccessor, "Styling").returns({
 				enabledSecondaryRowText = false,
 			})
+			stub(ns.DbAccessor, "Sizing").returns({ iconSize = 32, feedWidth = 200, padding = 4 })
+			-- Stub LayoutPrimaryLine so ShowText tests focus on text/color logic only.
+			-- LayoutPrimaryLine has its own dedicated describe block below.
+			stub(row, "LayoutPrimaryLine")
 		end)
 
 		it("calls SetText on PrimaryText", function()
 			RLF_RowTextMixin.ShowText(row, "Hello World")
 			assert.stub(row.PrimaryText.SetText).was.called_with(row.PrimaryText, "Hello World")
+		end)
+
+		it("stores the raw text in rawPrimaryText", function()
+			RLF_RowTextMixin.ShowText(row, "Hello World")
+			assert.equal("Hello World", row.rawPrimaryText)
 		end)
 
 		it("calls SetTextColor on PrimaryText", function()
@@ -177,16 +201,9 @@ describe("RLF_RowTextMixin", function()
 			assert.equal(0, b)
 		end)
 
-		it("sizes ClickableButton to match PrimaryText when link is set", function()
-			row.link = "|Hitem:123|h[Foo]|h"
+		it("calls LayoutPrimaryLine to drive the layout pass", function()
 			RLF_RowTextMixin.ShowText(row, "Foo")
-			assert.stub(row.ClickableButton.SetSize).was.called(1)
-		end)
-
-		it("does not resize ClickableButton when link is nil", function()
-			row.link = nil
-			RLF_RowTextMixin.ShowText(row, "Foo")
-			assert.stub(row.ClickableButton.SetSize).was_not.called()
+			assert.stub(row.LayoutPrimaryLine).was.called(1)
 		end)
 
 		it("shows SecondaryText when enabledSecondaryRowText is true and secondaryText is set", function()
@@ -205,6 +222,11 @@ describe("RLF_RowTextMixin", function()
 	-- ── ShowItemCountText ──────────────────────────────────────────────────
 
 	describe("ShowItemCountText", function()
+		before_each(function()
+			stub(ns.DbAccessor, "Sizing").returns({ iconSize = 32, feedWidth = 200, padding = 4 })
+			-- Isolate ShowItemCountText from LayoutPrimaryLine - tested separately.
+			stub(row, "LayoutPrimaryLine")
+		end)
 		it("shows ItemCountText when count is a number greater than 1", function()
 			RLF_RowTextMixin.ShowItemCountText(row, 5, { color = "|cffffffff" })
 			assert.stub(row.ItemCountText.Show).was.called(1)
@@ -242,6 +264,129 @@ describe("RLF_RowTextMixin", function()
 		it("does not show ItemCountText when count is an empty string", function()
 			RLF_RowTextMixin.ShowItemCountText(row, "", { color = "|cffffffff" })
 			assert.stub(row.ItemCountText.Show).was_not.called()
+		end)
+
+		it("calls LayoutPrimaryLine after updating ItemCountText", function()
+			RLF_RowTextMixin.ShowItemCountText(row, 5, { color = "|cffffffff" })
+			assert.stub(row.LayoutPrimaryLine).was.called(1)
+		end)
+	end)
+
+	-- ── LayoutPrimaryLine ──────────────────────────────────────────────
+
+	describe("LayoutPrimaryLine", function()
+		-- iconSize=32, feedWidth=200
+		-- iconOffset = iconSize/4 + iconSize + iconSize/4 = 8+32+8 = 48
+		-- availableWidth = 200 - 48 = 152 (no portrait)
+		local ICON_SIZE = 32
+		local FEED_WIDTH = 200
+		local AVAILABLE_WIDTH = FEED_WIDTH - (ICON_SIZE + 2 * (ICON_SIZE / 4)) -- 152
+		local SPACING = ICON_SIZE / 4 -- 8
+
+		before_each(function()
+			stub(ns.DbAccessor, "Sizing").returns({ iconSize = ICON_SIZE, feedWidth = FEED_WIDTH })
+			row.rawPrimaryText = "Some Item Name"
+			row.ItemCountText.IsShown = function()
+				return false
+			end
+			row.ItemCountText.GetUnboundedStringWidth = function()
+				return 40
+			end
+			row.PrimaryLineLayout.spacing = SPACING
+		end)
+
+		-- ── Natural width fits within available space ──────────────────────
+
+		it("uses natural width when text fits (no ItemCountText)", function()
+			local NATURAL = 80 -- fits within 152
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return NATURAL
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, NATURAL)
+		end)
+
+		it("uses natural width when text fits with ItemCountText shown", function()
+			local COUNT_WIDTH = 40
+			local NATURAL = 80 -- fits within 152-40-8 = 104
+			row.ItemCountText.IsShown = function()
+				return true
+			end
+			row.ItemCountText.GetUnboundedStringWidth = function()
+				return COUNT_WIDTH
+			end
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return NATURAL
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, NATURAL)
+		end)
+
+		-- ── Natural width exceeds budget → truncate ────────────────────────
+
+		it("caps PrimaryText at availableWidth when text is wider than the row", function()
+			local NATURAL = 200 -- wider than 152
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return NATURAL
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, AVAILABLE_WIDTH)
+		end)
+
+		it("caps PrimaryText when ItemCountText is shown and text overflows remaining space", function()
+			local COUNT_WIDTH = 40
+			local MAX_PRIMARY = AVAILABLE_WIDTH - COUNT_WIDTH - SPACING -- 104
+			local NATURAL = 150 -- wider than 104
+			row.ItemCountText.IsShown = function()
+				return true
+			end
+			row.ItemCountText.GetUnboundedStringWidth = function()
+				return COUNT_WIDTH
+			end
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return NATURAL
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, MAX_PRIMARY)
+		end)
+
+		-- ── Container and layout ───────────────────────────────────────────
+
+		it("always sets PrimaryLineLayout.fixedWidth to availableWidth", function()
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.equal(AVAILABLE_WIDTH, row.PrimaryLineLayout.fixedWidth)
+		end)
+
+		it("calls PrimaryLineLayout:Layout()", function()
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryLineLayout.Layout).was.called(1)
+		end)
+
+		-- ── ClickableButton ────────────────────────────────────────────────
+
+		it("sets ClickableButton anchor and size when link is set", function()
+			row.link = "|Hitem:123|h[Foo]|h"
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.ClickableButton.SetSize).was.called(1)
+			assert.stub(row.ClickableButton.SetPoint).was.called(1)
+		end)
+
+		it("does not touch ClickableButton when link is nil", function()
+			row.link = nil
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.ClickableButton.SetSize).was_not.called()
 		end)
 	end)
 

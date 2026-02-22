@@ -82,6 +82,7 @@ function LootDisplayRowMixin:Init()
 	self:CreateTopLeftText()
 	self.Icon.topLeftText:Hide()
 	self.Icon.IconBorder:SetVertexColor(G_RLF.noQualColor.r, G_RLF.noQualColor.g, G_RLF.noQualColor.b, 1)
+	self:CreatePrimaryLineLayout()
 	self:StyleBackground()
 	self:StyleRowBackdrop()
 	self:StyleExitAnimation()
@@ -228,32 +229,9 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self.topLeftColor = element.topLeftColor
 
 	if isLink then
-		local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
-		local iconSize = sizingDb.iconSize
-		local extraWidthStr = ""
-		if self.amount then
-			extraWidthStr = " x" .. self.amount
-		end
-		local extraWidth = 0
-		if type(self.itemCount) == "number" and self.itemCount > 0 then
-			local wrapChar = nil
-			if element.type == G_RLF.FeatureModule.ItemLoot then
-				wrapChar = G_RLF.db.global.item.itemCountTextWrapChar
-			elseif element.type == G_RLF.FeatureModule.Currency then
-				wrapChar = G_RLF.db.global.currency.currencyTotalTextWrapChar
-			end
-
-			local leftChar, rightChar = G_RLF:GetWrapChars(wrapChar)
-
-			extraWidth = (iconSize / 4)
-				+ G_RLF:CalculateTextWidth(leftChar .. self.itemCount .. rightChar .. "  ", self.frameType)
-		end
-		extraWidth = extraWidth + G_RLF:CalculateTextWidth(extraWidthStr, self.frameType)
-		if self.unit then
-			local portraitSize = iconSize * 0.8
-			extraWidth = extraWidth + portraitSize - (portraitSize / 2)
-		end
-		self.link = G_RLF:TruncateItemLink(textFn(), extraWidth)
+		-- Store the full untruncated link.  LayoutPrimaryLine() handles display
+		-- truncation natively via PrimaryText:SetWidth() + SetWordWrap(false).
+		self.link = textFn()
 		text = textFn(0, self.link)
 		self:SetupTooltip()
 	else

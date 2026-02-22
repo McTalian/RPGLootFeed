@@ -20,7 +20,6 @@ local lootQueues = {
 	[G_RLF.Frames.MAIN] = G_RLF.Queue:new(),
 	[G_RLF.Frames.PARTY] = G_RLF.Queue:new(),
 }
-G_RLF.tempFontString = nil
 
 -- Function to update queue labels
 local function updateQueueLabels()
@@ -57,9 +56,6 @@ function LootDisplay:OnInitialize()
 	if G_RLF.db.global.partyLoot.enabled and G_RLF.db.global.partyLoot.separateFrame then
 		self:CreatePartyFrame()
 	end
-
-	G_RLF.tempFontString = UIParent:CreateFontString(nil, "ARTWORK")
-	G_RLF.tempFontString:Hide() -- Prevent it from showing up
 end
 
 function LootDisplay:OnEnable()
@@ -473,73 +469,5 @@ function LootDisplay:RefreshSampleRowsIfShown()
 end
 
 G_RLF.LootDisplay = LootDisplay
-
---- Calculate the width of a string of text using the frame's font settings
---- @param text string
---- @param frame? G_RLF.Frames
---- @return number
-function G_RLF:CalculateTextWidth(text, frame)
-	frame = frame or G_RLF.Frames.MAIN
-	local stylingDb = G_RLF.DbAccessor:Styling(frame)
-	local fontFace = stylingDb.fontFace
-	if stylingDb.useFontObjects or not fontFace then
-		G_RLF.tempFontString:SetFontObject(stylingDb.font)
-	else
-		local fontPath = lsm:Fetch(lsm.MediaType.FONT, fontFace)
-		if not fontPath then
-			G_RLF:LogWarn("Font not found: " .. fontFace, addonName)
-			return 0
-		end
-		G_RLF.tempFontString:SetFont(fontPath, stylingDb.fontSize, G_RLF:FontFlagsToString())
-	end
-	G_RLF.tempFontString:SetText(text)
-	local width = G_RLF.tempFontString:GetUnboundedStringWidth()
-	return width
-end
-
---- Truncate an item link to fit within the feed width
---- @param itemLink string
---- @param extraWidth number
---- @param frame? G_RLF.Frames
-function G_RLF:TruncateItemLink(itemLink, extraWidth, frame)
-	local originalLink = itemLink .. ""
-	local itemName = string.match(itemLink, "%[(.-)%]")
-	local begIndex, endIndex = string.find(originalLink, itemName, 1, true)
-	if begIndex == nil then
-		return originalLink
-	end
-	local linkStart = string.sub(originalLink, 0, begIndex - 1)
-	local linkEnd = string.sub(originalLink, endIndex + 1)
-
-	local sizingDb = G_RLF.DbAccessor:Sizing(frame)
-	local iconSize = sizingDb.iconSize
-	local maxWidth = sizingDb.feedWidth - (iconSize / 4) - iconSize - (iconSize / 4) - extraWidth
-
-	-- Calculate the width of the item name plus the link start and end
-	local itemNameWidth = G_RLF:CalculateTextWidth("[" .. itemName .. "]", frame)
-
-	-- If the width exceeds maxWidth, truncate and add ellipses
-	if itemNameWidth > maxWidth then
-		G_RLF:LogDebug(
-			"Truncating item name: "
-				.. itemName
-				.. " to fit within max width: "
-				.. maxWidth
-				.. ", original link width: "
-				.. itemNameWidth
-				.. ", extraWidth: "
-				.. extraWidth,
-			addonName,
-			"General"
-		)
-		-- Approximate truncation by progressively shortening the name
-		while G_RLF:CalculateTextWidth("[" .. itemName .. "...]", frame) > maxWidth and #itemName > 0 do
-			itemName = string.sub(itemName, 1, -2)
-		end
-		itemName = itemName .. "..."
-	end
-
-	return linkStart .. itemName .. linkEnd
-end
 
 return LootDisplay
