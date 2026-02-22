@@ -10,7 +10,7 @@ See [row-layout-redesign.md](row-layout-redesign.md) for the full design vision.
 ### 1.1 Frame Structure
 
 `PrimaryText`, `ItemCountText`, and `SecondaryText` are bare `FontString`s defined
-in `RowText.xml` as children of `RLF_RowTextTemplate`:
+in [RowText.xml](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowText.xml) as children of `RLF_RowTextTemplate`:
 
 ```xml
 <Frame name="RLF_RowTextTemplate" mixin="RLF_RowTextMixin" virtual="true">
@@ -27,7 +27,7 @@ in `RowText.xml` as children of `RLF_RowTextTemplate`:
 There is no layout container. All positioning is done via manual `SetPoint` calls:
 
 - `PrimaryText` is anchored to `Icon.RIGHT` (left-align) or `Icon.LEFT` (right-align)
-  in `RLF_RowTextMixin:StyleText()`.
+  in [`RLF_RowTextMixin:StyleText()`](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua#L59).
 - `ItemCountText` is anchored relative to `PrimaryText` in the same function:
   ```lua
   self.ItemCountText:SetPoint(anchor, self.PrimaryText, iconAnchor, xOffset, 0)
@@ -43,7 +43,7 @@ Before `ShowText()` is called in `LootDisplayRow:Populate()`, an `extraWidth` va
 is assembled from all the things that share horizontal space with `PrimaryText`:
 
 ```lua
--- Simplified from LootDisplayRow.lua ~line 240
+-- Simplified from LootDisplayRow.lua (BootstrapFromElement, line 237)
 extraWidth = (iconSize / 4)                                     -- icon gap
            + CalculateTextWidth(itemCountWrapChars, frameType)  -- wrap chars
            + itemCountWidth                                      -- "x99" etc.
@@ -53,7 +53,7 @@ self.link = G_RLF:TruncateItemLink(textFn(), extraWidth)
 text = textFn(0, self.link)
 ```
 
-`TruncateItemLink` (in `LootDisplay.lua` ~line 504):
+[`TruncateItemLink`](../../RPGLootFeed/LootDisplay/LootDisplay.lua#L504) (in [LootDisplay.lua](../../RPGLootFeed/LootDisplay/LootDisplay.lua)):
 
 ```lua
 local maxWidth = feedWidth - (iconSize/4) - iconSize - (iconSize/4) - extraWidth
@@ -65,7 +65,7 @@ local maxWidth = feedWidth - (iconSize/4) - iconSize - (iconSize/4) - extraWidth
 
 ### 1.3 `ItemCountText` Is Set Deferred
 
-`UpdateItemCount()` is called via `RunNextFrame` after `ShowText()`. This means at
+[`UpdateItemCount()`](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua#L247) is called via `RunNextFrame` after [`ShowText()`](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua#L369). This means at
 the time `TruncateItemLink` runs, the `ItemCountText` string hasn't been formatted
 yet — the _expected_ count text width is calculated manually from the raw number.
 
@@ -101,7 +101,7 @@ right-align: [ItemCountText][ ...PrimaryText][Icon]
 
 ## 2. The `HorizontalLayoutMixin` Primer (Accurate)
 
-**Source**: `wow-ui-source/Interface/AddOns/Blizzard_SharedXML/LayoutFrame.lua`
+**Source**: [wow-ui-source/Interface/AddOns/Blizzard_SharedXML/LayoutFrame.lua](../../../wow-ui-source/Interface/AddOns/Blizzard_SharedXML/LayoutFrame.lua)
 
 This is the **current** (live-branch) version — significantly more capable than the
 older version documented elsewhere.
@@ -198,7 +198,7 @@ that falls out of native truncation with no extra cost.
 
 ### 3.2 Future option: `AutoScalingFontStringMixin`
 
-Found in `wow-ui-source/Interface/AddOns/Blizzard_SharedXML/SecureUtil.lua`:
+Found in [wow-ui-source/Interface/AddOns/Blizzard_SharedXML/SecureUtil.lua](../../../wow-ui-source/Interface/AddOns/Blizzard_SharedXML/SecureUtil.lua):
 
 ```lua
 -- Mix into a FontString to shrink text to fit without truncating,
@@ -224,6 +224,8 @@ Introduce a lightweight `Frame` container between the row and its text `FontStri
 mixed with `HorizontalLayoutMixin`. This container holds `PrimaryText` and
 `ItemCountText` as direct children with explicit `layoutIndex` values.
 
+`PrimaryLineLayout` uses **plain `HorizontalLayoutMixin`** (not `ResizingHorizontalLayoutMixin`). Its `fixedWidth` is set explicitly before each `Layout()` call to `availableWidth`, keeping the container a fixed, predictable size. `PrimaryText:SetWidth()` then controls the truncation budget within that fixed container.
+
 ```
 LootDisplayRow (existing row frame)
 └── Icon  (existing ItemButton, unchanged)
@@ -244,8 +246,10 @@ itemCountWidth = ItemCountText:GetUnboundedStringWidth()   -- after text is set
 primaryTextWidth = availableWidth - itemCountWidth - layout.spacing
 ```
 
-`PrimaryText:SetWidth(primaryTextWidth)` is called before `PrimaryLineLayout:Layout()`.
-`TruncateToWidth(PrimaryText, primaryTextWidth, rawName)` is then called.
+`PrimaryLineLayout.fixedWidth = availableWidth` is set before `Layout()` so the
+container has a known fixed size. `PrimaryText:SetWidth(primaryTextWidth)` controls
+how much of that space the text occupies, with the remainder reserved for
+`ItemCountText`. The engine then handles truncation natively.
 
 ### 4.3 Solving the Deferred `ItemCountText` Problem
 
@@ -260,17 +264,22 @@ With the new approach, we consolidate into a single deferred layout step:
 
 ```
 Populate():
-    1. ShowText(rawText, ...) → sets PrimaryText with FULL availableWidth (no truncation yet)
+    1. ShowText(rawText, ...) → calls LayoutPrimaryLine() immediately with ItemCountText hidden
     2. RunNextFrame:
-        a. ShowItemCountText(count) → sets ItemCountText string
-        b. Re-layout: PrimaryLineLayout:Layout() after SetWidth calculations + TruncateToWidth
+        a. ShowItemCountText(count) → sets ItemCountText string, shows/hides it
+        b. ShowItemCountText calls LayoutPrimaryLine() again with final ItemCountText width
 ```
+
+`LayoutPrimaryLine()` is the **universal layout entry point** — it is called from
+`ShowText()` for all rows (link and non-link alike), and again from
+`ShowItemCountText()` once the count text is known. On the first call, `ItemCountText`
+is hidden so `primaryTextWidth = availableWidth` (full width). On the second call,
+the actual count width is measured and `primaryTextWidth` shrinks accordingly.
 
 This eliminates `extraWidth` pre-calculation entirely. `ItemCountText` width is
 measured from the actual formatted string, not reconstructed from the raw number.
-
-To enable this, `ShowText` needs to accept raw item name (not a pre-truncated link),
-and truncation moves into the deferred step alongside `ItemCountText` setup.
+`ShowText` no longer needs to accept a pre-truncated link — it stores `rawPrimaryText`
+and delegates layout to `LayoutPrimaryLine()`.
 
 ### 4.4 Handling `leftAlign` (icon position)
 
@@ -291,7 +300,7 @@ Setting `childLayoutDirection` is done in `StyleText()` alongside the existing
 
 ## 5. File-by-File Changes
 
-### 5.1 `RowText.xml`
+### 5.1 [RowText.xml](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowText.xml)
 
 **Remove** `ItemCountText` from the `<Layers>` block (it becomes a programmatic child
 of `PrimaryLineLayout`, not an XML-defined sibling of `PrimaryText`).
@@ -340,7 +349,7 @@ Option B — Programmatic in `RLF_RowTextMixin:CreatePrimaryLineLayout()` called
 programmatic is easier to test in busted specs. Given existing mixin pattern,
 **programmatic is recommended** for consistency with how `RowIconMixin`, etc. work.
 
-### 5.2 `RowTextMixin.lua`
+### 5.2 [RowTextMixin.lua](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua)
 
 #### New: `CreatePrimaryLineLayout()`
 
@@ -354,6 +363,7 @@ function RLF_RowTextMixin:CreatePrimaryLineLayout()
     -- of the layout frame.
     self.PrimaryText:SetParent(layout)
     self.PrimaryText.layoutIndex = 1
+    self.PrimaryText:SetWordWrap(false)   -- set once here, not in the hot path
 
     self.ItemCountText:SetParent(layout)
     self.ItemCountText.layoutIndex = 2
@@ -374,23 +384,39 @@ Add:
 - `self.PrimaryLineLayout.spacing = iconSize / 4`
 - `self.PrimaryLineLayout.childLayoutDirection = leftAlign and nil or "rightToLeft"`
 - `self.PrimaryLineLayout:ClearAllPoints()`
-- `self.PrimaryLineLayout:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)`
-  (same anchor logic that was on `self.PrimaryText`)
+- `self.PrimaryLineLayout:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)` —
+  the icon-relative anchor that was previously on `self.PrimaryText`
+
+When `SecondaryText` is active, the vertical split anchors also move from
+`PrimaryText` to `PrimaryLineLayout`:
+
+```lua
+-- was: self.PrimaryText:SetPoint("BOTTOM", self, "CENTER", 0, padding)
+self.PrimaryLineLayout:SetPoint("BOTTOM", self, "CENTER", 0, padding)
+```
+
+The `SecondaryText:SetPoint("TOP", self, "CENTER", 0, -padding)` is unchanged
+since `SecondaryText` is not a layout child.
 
 #### Modified: `ShowText()`
 
 Remove the current assumption that `text` is pre-truncated.
-Rename param from `text` to `rawText`. Store `rawText` for use in deferred layout.
-
-After setting `self.rawPrimaryText = rawText`:
+Rename param from `text` to `rawText`. Store `rawText` on `self` for use by
+`LayoutPrimaryLine()`:
 
 ```lua
-self.PrimaryText:SetText(rawText)  -- temporary; overwritten in deferred step
+self.rawPrimaryText = rawText
+self.PrimaryText:SetText(rawText)  -- initial render; LayoutPrimaryLine refines
 ```
+
+At the end of `ShowText()`, call `self:LayoutPrimaryLine()`. This handles all
+non-deferred rows (Money, XP, Reputation, etc.) that never reach `ShowItemCountText()`.
+`ItemCountText` is hidden at this point so `primaryTextWidth = availableWidth`.
 
 #### New: `LayoutPrimaryLine()`
 
-Called from `RunNextFrame` after `ShowItemCountText()` has run:
+Called from `ShowText()` immediately, and again from `ShowItemCountText()` once
+the count string is set:
 
 ```lua
 function RLF_RowTextMixin:LayoutPrimaryLine()
@@ -415,9 +441,10 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 
     local primaryTextWidth = math.max(1, availableWidth - itemCountWidth)
     self.PrimaryText:SetWidth(primaryTextWidth)
-    self.PrimaryText:SetWordWrap(false)   -- engine truncates with "..." natively
     self.PrimaryText:SetText(self.rawPrimaryText)
+    -- SetWordWrap(false) is set once in CreatePrimaryLineLayout(), not here
 
+    self.PrimaryLineLayout.fixedWidth = availableWidth
     self.PrimaryLineLayout:Layout()
 end
 ```
@@ -427,9 +454,11 @@ No truncation helper function is needed — the engine handles it.
 #### Modified: `ShowItemCountText()`
 
 After the existing `self.ItemCountText:Show()` / `self.ItemCountText:Hide()` logic,
-call `self:LayoutPrimaryLine()` at the end.
+call `self:LayoutPrimaryLine()` at the end. This is the second call for rows that
+have a count (Items, Currency, Reputation levels, XP levels, Professions skill
+changes) — it remeasures the count text and recalculates `primaryTextWidth`.
 
-### 5.3 `LootDisplayRow.lua`
+### 5.3 [LootDisplayRow.lua](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/LootDisplayRow.lua)
 
 #### Modified: `Populate()` (and `Update()`)
 
@@ -437,30 +466,29 @@ Remove:
 
 - The entire `extraWidth` assembly block
 - `G_RLF:TruncateItemLink(textFn(), extraWidth)` call
-- `self.link = ...` assignment that stores the pre-truncated link
-
-Add:
-
-- `self.rawLink = textFn()` — stores the untruncated link/name for deferred use
 
 Change:
 
-- `text = textFn(0, self.link)` → `text = textFn(0, self.rawLink)` (full link, no
-  truncation yet; `ShowText` will accept it and truncation happens in `LayoutPrimaryLine`)
+- `self.link = G_RLF:TruncateItemLink(textFn(), extraWidth)` →
+  `self.link = textFn()` — store the full untruncated link directly
+- `text = textFn(0, self.link)` — unchanged; `self.link` is now simply the
+  untruncated link and is used as-is for the initial render
 
-> **Edge case**: `self.link` is also used by `SetupTooltip()` and `ClickableButton`
-> sizing. Tooltip should use the **untruncated** link anyway — this is a pre-existing
-> correctness improvement. `ClickableButton` sizing currently reads
-> `self.PrimaryText:GetStringWidth()` — this still works correctly because
-> `LayoutPrimaryLine` will have set the final truncated width by the time it's visible.
+`self.link` keeps its existing name and role. Post-refactor it naturally holds the
+full item link, which is exactly what [`SetupTooltip()`](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTooltipMixin.lua#L10)
+(`GameTooltip:SetHyperlink(self.link)`) and `UpdateItemCount()` (`C_Item.GetItemInfo(self.link)`)
+already expect. No rename, no new field, no callsite updates needed.
 
-### 5.4 `LootDisplay.lua`
+Display truncation is handled entirely by `LayoutPrimaryLine()` via
+`PrimaryText:SetWidth()` + engine native truncation.
+
+### 5.4 [LootDisplay.lua](../../RPGLootFeed/LootDisplay/LootDisplay.lua)
 
 Remove (after confirming no other callers):
 
-- `G_RLF:TruncateItemLink(...)` function
-- `G_RLF:CalculateTextWidth(...)` function
-- `G_RLF.tempFontString` initialization
+- [`G_RLF:TruncateItemLink(...)`](../../RPGLootFeed/LootDisplay/LootDisplay.lua#L504) function
+- [`G_RLF:CalculateTextWidth(...)`](../../RPGLootFeed/LootDisplay/LootDisplay.lua#L481) function
+- [`G_RLF.tempFontString`](../../RPGLootFeed/LootDisplay/LootDisplay.lua#L23) initialization
 
 ### 5.5 No new utility file needed
 
@@ -481,6 +509,10 @@ custom truncation logic. No `Utils/TextLayout.lua` is required.
 | All feature modules (`ItemLoot`, `Currency`, etc.)  | `textFn` contract unchanged — only callers in `LootDisplayRow` change |
 | `SecondaryText` font styling                        | Unchanged                                                             |
 | History mode / `LootDisplayFrame` data capture      | Reads from `PrimaryText:GetText()` — still valid after layout         |
+
+> **No database or configuration changes** are introduced in Step 1. This is a purely
+> internal layout refactor — no migration script, no new config options, and no schema
+> changes are required.
 
 ---
 
@@ -504,20 +536,23 @@ custom truncation logic. No `Utils/TextLayout.lua` is required.
 - New tests for `LayoutPrimaryLine()`:
   - `ItemCountText` hidden → `PrimaryText` gets full available width
   - `ItemCountText` shown → `PrimaryText` width = availableWidth - countWidth - spacing
-  - Long item name → `TruncateToWidth` is called (spy on `PrimaryText:SetText`)
+  - `PrimaryLineLayout.fixedWidth` is set to `availableWidth` in both cases
+  - `PrimaryText:SetWordWrap` is **not** called in `LayoutPrimaryLine()` (it is set
+    once in `CreatePrimaryLineLayout()`)
 
 ### 7.3 `LootDisplay/LootDisplayFrame/LootDisplayRow/LootDisplayRow_spec.lua`
 
 - Assertions on `TruncateItemLink` being called should be removed.
-- Assertions on `text = textFn(0, truncatedLink)` change to `text = textFn(0, rawLink)`.
+- Assertions on `self.link` should verify it holds the **full untruncated** link
+  (i.e. `textFn()` result directly, without pre-truncation).
 - `extraWidth` assembly logic has no test coverage today — simply remove.
 
-### 7.4 No `TruncateToWidth` specs needed
+### 7.4 No truncation helper specs needed
 
 Native truncation is engine behavior — not our code, not our test responsibility.
-The `LayoutPrimaryLine` spec (section 7.2) covers that `SetWidth` and `SetWordWrap`
-are called with the correct values; correctness of the visual output is validated
-in-game.
+The `LayoutPrimaryLine` spec (section 7.2) covers that `SetWidth` is called with
+the correct value and `fixedWidth` is set on the container; visual correctness is
+validated in-game.
 
 ---
 
@@ -546,7 +581,7 @@ should work, but verify that `GetLayoutChildren()` via `GetChildren()` and
 
 ### 8.3 `ClickableButton` sizing after truncation
 
-`ClickableButton:SetSize(self.PrimaryText:GetStringWidth(), ...)` in `ShowText()`.
+`ClickableButton:SetSize(self.PrimaryText:GetStringWidth(), ...)` in [`ShowText()`](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua#L369).
 This must be called **after** `LayoutPrimaryLine()` sets the final text. Move
 `ClickableButton` sizing into `LayoutPrimaryLine()`.
 
@@ -562,12 +597,11 @@ After this change, `PrimaryText:GetText()` returns the **truncated** text, not t
 original item link. For history, we want the original. Consider adding
 `row.rawPrimaryText` to the saved history data.
 
-### 8.5 `SetWordWrap(false)` must be set during frame setup, not just at truncation time
+### 8.5 `SetWordWrap(false)` is set once during frame setup
 
-`SetWordWrap(false)` should be called once in `CreatePrimaryLineLayout()` or
-`OnLoad`, not in `LayoutPrimaryLine()` on every update, since it only needs to
-be set once per `FontString`. Moving it out of the hot path keeps `LayoutPrimaryLine`
-leaner.
+`SetWordWrap(false)` is called once in `CreatePrimaryLineLayout()` when `PrimaryText`
+is re-parented, not in `LayoutPrimaryLine()` on every update. This is reflected in
+the `CreatePrimaryLineLayout()` snippet in §5.2 and confirmed as resolved.
 
 ---
 
