@@ -100,6 +100,22 @@ function Money.Element:new(...)
 		return
 	end
 
+	if element.quantity < 0 then
+		element.r = 1
+		element.g = 0
+		element.b = 0
+	end
+
+	-- Recompute color based on net quantity when an existing row is updated.
+	-- The net is (existing accumulated amount) + (this element's quantity).
+	element.colorFn = function(netQuantity)
+		if netQuantity < 0 then
+			return 1, 0, 0, 1
+		else
+			return 1, 1, 1, 1
+		end
+	end
+
 	-- Generate text elements using the new data-driven approach
 	element.textElements = Money:GenerateTextElements(element.quantity)
 

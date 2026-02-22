@@ -1555,6 +1555,10 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	self.amount = self.amount + element.quantity
 	self.itemCount = element.itemCount
 	local r, g, b, a = element.r, element.g, element.b, element.a
+	-- Allow the element to recompute color based on the net accumulated quantity
+	if element.colorFn then
+		r, g, b, a = element.colorFn(self.amount)
+	end
 
 	self:UpdateSecondaryText(element.secondaryTextFn)
 	self:UpdateItemCount()

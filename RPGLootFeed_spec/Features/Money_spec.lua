@@ -242,6 +242,51 @@ describe("Money", function()
 			-- Should show negative amount: -5g 0s 0c
 			assert.matches("%-", result) -- Should start with minus sign
 			assert.matches("5g 0s 0c", result) -- Should contain the absolute amount
+			-- Negative money should be displayed in red
+			assert.equals(1, element.r)
+			assert.equals(0, element.g)
+			assert.equals(0, element.b)
+		end)
+
+		describe("colorFn (net-quantity color for row updates)", function()
+			it("is present on positive elements", function()
+				local element = Money.Element:new(50000)
+				assert.is_function(element.colorFn)
+			end)
+
+			it("is present on negative elements", function()
+				local element = Money.Element:new(-50000)
+				assert.is_function(element.colorFn)
+			end)
+
+			it("returns white when net quantity is positive", function()
+				local element = Money.Element:new(50000)
+				local r, g, b, a = element.colorFn(100)
+				assert.equals(1, r)
+				assert.equals(1, g)
+				assert.equals(1, b)
+				assert.equals(1, a)
+			end)
+
+			it("returns red when net quantity is negative (buy then sell back for less)", function()
+				-- Scenario: spent 100, recouped 30 → net = -70 → still red
+				local element = Money.Element:new(30000)
+				local r, g, b, a = element.colorFn(-70000)
+				assert.equals(1, r)
+				assert.equals(0, g)
+				assert.equals(0, b)
+				assert.equals(1, a)
+			end)
+
+			it("returns white when a previously negative net goes positive", function()
+				-- Scenario: earned 200, spent 50 → net = +150 → white
+				local element = Money.Element:new(-50000)
+				local r, g, b, a = element.colorFn(150000)
+				assert.equals(1, r)
+				assert.equals(1, g)
+				assert.equals(1, b)
+				assert.equals(1, a)
+			end)
 		end)
 
 		it("configures sound when enabled", function()
