@@ -11,8 +11,7 @@ Notifications.Element = {}
 
 function Notifications.Element:new(...)
 	---@class Notifications.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = G_RLF.LootElementBase:new()
 
 	element.type = "Notifications"
 	element.IsEnabled = function()

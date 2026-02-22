@@ -249,7 +249,6 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		addonNamespaceMocks.retryHook = stub(ns, "retryHook")
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.FeatureInternals then
-		addonNamespaceMocks.InitializeLootDisplayProperties = stub(ns, "InitializeLootDisplayProperties")
 		ns.LootElementBase = {}
 		addonNamespaceMocks.LootElementBase = {}
 		addonNamespaceMocks.LootElementBase.new = stub(ns.LootElementBase, "new").returns({})

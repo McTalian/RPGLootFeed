@@ -4,14 +4,105 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
----@class RLF_ItemLoot: RLF_Module, AceEvent-3.0, AceBucket-3.0
-local ItemLoot = G_RLF.RLF:NewModule(G_RLF.FeatureModule.ItemLoot, "AceEvent-3.0", "AceBucket-3.0")
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's full
+-- dependency surface on G_RLF / ns is visible in one place.  Tests pass a
+-- minimal mock ns to loadfile("ItemLoot.lua") to control these at
+-- injection time without the full nsMocks framework.
+-- NOTE: G_RLF.db, G_RLF.equipSlotMap, G_RLF.armorClassMapping and
+-- G_RLF.AuctionIntegrations are intentionally absent – they rely on runtime
+-- state set after initialization or are mutable assignments by this module.
+local LootElementBase = G_RLF.LootElementBase
+local ItemQualEnum = G_RLF.ItemQualEnum
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
+local Expansion = G_RLF.Expansion
+local ItemInfo = G_RLF.ItemInfo
+local AtlasIconCoefficients = G_RLF.AtlasIconCoefficients
+local PricesEnum = G_RLF.PricesEnum
+local DbAccessor = G_RLF.DbAccessor
+local Frames = G_RLF.Frames
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogInfo = function(...)
+	G_RLF:LogInfo(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+local IsRetail = function()
+	return G_RLF:IsRetail()
+end
+local RGBAToHexFormat = function(...)
+	return G_RLF:RGBAToHexFormat(...)
+end
 
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps bare WoW globals and C.Item.* calls so tests can inject mocks without
+-- patching _G or LibStub.
 local C = LibStub("C_Everywhere")
+local ItemLootAdapter = {
+	GetExpansionLevel = function()
+		return GetExpansionLevel()
+	end,
+	UnitName = function(unit)
+		return UnitName(unit)
+	end,
+	UnitClass = function(unit)
+		return UnitClass(unit)
+	end,
+	UnitLevel = function(unit)
+		return UnitLevel(unit)
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	GetPlayerGuid = function()
+		return GetPlayerGuid()
+	end,
+	GetInventoryItemLink = function(unit, slot)
+		return GetInventoryItemLink(unit, slot)
+	end,
+	GetItemQualityColor = function(quality)
+		return C_Item.GetItemQualityColor(quality)
+	end,
+	GetCoinTextureString = function(price)
+		return C_CurrencyInfo.GetCoinTextureString(price)
+	end,
+	CreateAtlasMarkup = function(icon, w, h, x, y)
+		return CreateAtlasMarkup(icon, w, h, x, y)
+	end,
+	PlaySoundFile = function(sound)
+		return PlaySoundFile(sound)
+	end,
+	GetAHPrice = function(itemLink)
+		local ai = G_RLF.AuctionIntegrations
+		if ai and ai.activeIntegration then
+			return ai.activeIntegration:GetAHPrice(itemLink)
+		end
+		return nil
+	end,
+	GetItemInfo = function(link)
+		return C.Item.GetItemInfo(link)
+	end,
+	GetItemIDForItemInfo = function(link)
+		return C.Item.GetItemIDForItemInfo(link)
+	end,
+	GetItemCount = function(link, ...)
+		return C.Item.GetItemCount(link, ...)
+	end,
+	GetItemStatDelta = function(link1, link2)
+		return C.Item.GetItemStatDelta(link1, link2)
+	end,
+}
+
+---@class RLF_ItemLoot: RLF_Module, AceEvent-3.0, AceBucket-3.0
+local ItemLoot = FeatureBase:new(FeatureModule.ItemLoot, "AceEvent-3.0", "AceBucket-3.0")
+
+ItemLoot._itemLootAdapter = ItemLootAdapter
 
 ItemLoot.Element = {}
-
-local ItemInfo = G_RLF.ItemInfo
 
 --- Convert params into a string with an icon and price
 --- @param icon string
@@ -22,11 +113,11 @@ local function getPriceString(icon, fontSize, price)
 	if not icon or not fontSize or not price then
 		return ""
 	end
-	local sizeCoeff = G_RLF.AtlasIconCoefficients[icon] or 1
+	local sizeCoeff = AtlasIconCoefficients[icon] or 1
 	local atlasIconSize = fontSize * sizeCoeff
-	return CreateAtlasMarkup(icon, atlasIconSize, atlasIconSize, 0, 0)
+	return ItemLoot._itemLootAdapter.CreateAtlasMarkup(icon, atlasIconSize, atlasIconSize, 0, 0)
 		.. " "
-		.. C_CurrencyInfo.GetCoinTextureString(price)
+		.. ItemLoot._itemLootAdapter.GetCoinTextureString(price)
 end
 
 function ItemLoot:ItemQualityName(enumValue)
@@ -44,37 +135,37 @@ local function IsBetterThanEquipped(info)
 		local slot = G_RLF.equipSlotMap[info.itemEquipLoc]
 		if type(slot) == "table" then
 			for _, s in ipairs(slot) do
-				equippedLink = GetInventoryItemLink("player", s)
+				equippedLink = ItemLoot._itemLootAdapter.GetInventoryItemLink("player", s)
 				if equippedLink then
 					break
 				end
 			end
 		else
-			equippedLink = GetInventoryItemLink("player", slot)
+			equippedLink = ItemLoot._itemLootAdapter.GetInventoryItemLink("player", slot)
 		end
 
 		if not equippedLink then
 			return false
 		end
 
-		local equippedId = C.Item.GetItemIDForItemInfo(equippedLink)
-		local equippedInfo = ItemInfo:new(equippedId, C.Item.GetItemInfo(equippedLink))
+		local equippedId = ItemLoot._itemLootAdapter.GetItemIDForItemInfo(equippedLink)
+		local equippedInfo = ItemInfo:new(equippedId, ItemLoot._itemLootAdapter.GetItemInfo(equippedLink))
 		if not equippedInfo then
 			return false
 		end
 
-		if equippedInfo.itemQuality > G_RLF.ItemQualEnum.Poor and info.itemQuality == G_RLF.ItemQualEnum.Poor then
+		if equippedInfo.itemQuality > ItemQualEnum.Poor and info.itemQuality == ItemQualEnum.Poor then
 			-- If the equipped item is better than poor and the new item is poor, we don't consider it an upgrade
 			return false
 		end
-		if equippedInfo.itemQuality > G_RLF.ItemQualEnum.Common and info.itemQuality == G_RLF.ItemQualEnum.Common then
+		if equippedInfo.itemQuality > ItemQualEnum.Common and info.itemQuality == ItemQualEnum.Common then
 			-- If the equipped item is better than common and the new item is common, we don't consider it an upgrade
 			return false
 		end
 		if equippedInfo.itemLevel and equippedInfo.itemLevel < info.itemLevel then
 			return true
 		elseif equippedInfo.itemLevel == info.itemLevel then
-			local statDelta = C.Item.GetItemStatDelta(equippedLink, info.itemLink)
+			local statDelta = ItemLoot._itemLootAdapter.GetItemStatDelta(equippedLink, info.itemLink)
 			for k, v in pairs(statDelta) do
 				-- Has a Tertiary Stat
 				if k:find("ITEM_MOD_CR_") and v > 0 then
@@ -96,10 +187,9 @@ end
 ---@param fromLink? string
 function ItemLoot.Element:new(info, quantity, fromLink)
 	---@class ItemLoot.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = LootElementBase:new()
 
-	element.type = "ItemLoot"
+	element.type = FeatureModule.ItemLoot
 	element.IsEnabled = function()
 		return ItemLoot:IsEnabled()
 	end
@@ -113,7 +203,10 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 	local fromInfo = nil
 	if fromLink then
 		element.key = "UPGRADE_" .. element.key
-		fromInfo = ItemInfo:new(C.Item.GetItemIDForItemInfo(fromLink), C.Item.GetItemInfo(fromLink))
+		fromInfo = ItemInfo:new(
+			ItemLoot._itemLootAdapter.GetItemIDForItemInfo(fromLink),
+			ItemLoot._itemLootAdapter.GetItemInfo(fromLink)
+		)
 	end
 
 	element.icon = info.itemTexture
@@ -132,19 +225,19 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 		element.quality = info:GetDisplayQuality()
 	end
 
-	element.itemCount = C.Item.GetItemCount(info.itemLink, true, false, true, true)
+	element.itemCount = ItemLoot._itemLootAdapter.GetItemCount(info.itemLink, true, false, true, true)
 
 	element.topLeftText = nil
 	element.topLeftColor = nil
-	if info:IsEquippableItem() and info.itemQuality > G_RLF.ItemQualEnum.Poor then
+	if info:IsEquippableItem() and info.itemQuality > ItemQualEnum.Poor then
 		element.topLeftText = tostring(info.itemLevel)
-		local r, g, b = C_Item.GetItemQualityColor(info.itemQuality)
+		local r, g, b = ItemLoot._itemLootAdapter.GetItemQualityColor(info.itemQuality)
 		element.topLeftColor = { r, g, b }
 	end
 
 	function element:isPassingFilter(itemName, itemQuality)
 		if not G_RLF.db.global.item.itemQualitySettings[itemQuality].enabled then
-			G_RLF:LogDebug(
+			LogDebug(
 				itemName .. " ignored by quality: " .. ItemLoot:ItemQualityName(itemQuality),
 				addonName,
 				"ItemLoot",
@@ -174,13 +267,13 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 		if element.isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
 			local r, g, b, a = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
 			-- Replace the color in the link portion of the text with the quest color
-			text = text:gsub("|c.-|", G_RLF:RGBAToHexFormat(r, g, b, a) .. "|")
+			text = text:gsub("|c.-|", RGBAToHexFormat(r, g, b, a) .. "|")
 		end
 		return text
 	end
 
 	element.secondaryTextFn = function(...)
-		local stylingDb = G_RLF.DbAccessor:Styling(G_RLF.Frames.MAIN)
+		local stylingDb = DbAccessor:Styling(Frames.MAIN)
 		local secondaryFontSize = stylingDb.secondaryFontSize
 
 		if fromLink ~= "" and fromLink ~= nil then
@@ -208,32 +301,32 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 		if element.sellPrice and element.sellPrice > 0 then
 			vendorPrice = element.sellPrice
 		end
-		local marketPrice = G_RLF.AuctionIntegrations.activeIntegration:GetAHPrice(itemLink)
+		local marketPrice = ItemLoot._itemLootAdapter.GetAHPrice(itemLink)
 		if marketPrice and marketPrice > 0 then
 			auctionPrice = marketPrice
 		end
 		local showVendorPrice = vendorPrice > 0
 		local showAuctionPrice = auctionPrice > 0
 		local str = ""
-		if pricesForSellableItems == G_RLF.PricesEnum.Vendor and showVendorPrice then
+		if pricesForSellableItems == PricesEnum.Vendor and showVendorPrice then
 			str = str .. getPriceString(vendorIcon, secondaryFontSize, vendorPrice * effectiveQuantity)
-		elseif pricesForSellableItems == G_RLF.PricesEnum.AH and showAuctionPrice then
+		elseif pricesForSellableItems == PricesEnum.AH and showAuctionPrice then
 			str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity)
-		elseif pricesForSellableItems == G_RLF.PricesEnum.VendorAH then
+		elseif pricesForSellableItems == PricesEnum.VendorAH then
 			if showVendorPrice then
 				str = str .. getPriceString(vendorIcon, secondaryFontSize, vendorPrice * effectiveQuantity) .. "    "
 			end
 			if showAuctionPrice then
 				str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity)
 			end
-		elseif pricesForSellableItems == G_RLF.PricesEnum.AHVendor then
+		elseif pricesForSellableItems == PricesEnum.AHVendor then
 			if showAuctionPrice then
 				str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity) .. "    "
 			end
 			if showVendorPrice then
 				str = str .. getPriceString(vendorIcon, secondaryFontSize, vendorPrice * effectiveQuantity)
 			end
-		elseif pricesForSellableItems == G_RLF.PricesEnum.Highest then
+		elseif pricesForSellableItems == PricesEnum.Highest then
 			if auctionPrice > vendorPrice then
 				str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity)
 			elseif showVendorPrice then
@@ -259,22 +352,22 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 	function element:PlaySoundIfEnabled()
 		local soundsConfig = G_RLF.db.global.item.sounds
 		if self.isMount and soundsConfig.mounts.enabled and soundsConfig.mounts.sound ~= "" then
-			local willPlay, handle = PlaySoundFile(soundsConfig.mounts.sound)
+			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.mounts.sound)
 			if not willPlay then
-				G_RLF:LogWarn("Failed to play sound " .. soundsConfig.mounts.sound, addonName, ItemLoot.moduleName)
+				LogWarn("Failed to play sound " .. soundsConfig.mounts.sound, addonName, ItemLoot.moduleName)
 			else
-				G_RLF:LogDebug(
+				LogDebug(
 					"Sound queued to play " .. soundsConfig.mounts.sound .. " " .. handle,
 					addonName,
 					ItemLoot.moduleName
 				)
 			end
 		elseif self.isLegendary and soundsConfig.legendary.enabled and soundsConfig.legendary.sound ~= "" then
-			local willPlay, handle = PlaySoundFile(soundsConfig.legendary.sound)
+			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.legendary.sound)
 			if not willPlay then
-				G_RLF:LogWarn("Failed to play sound " .. soundsConfig.legendary.sound, addonName, ItemLoot.moduleName)
+				LogWarn("Failed to play sound " .. soundsConfig.legendary.sound, addonName, ItemLoot.moduleName)
 			else
-				G_RLF:LogDebug(
+				LogDebug(
 					"Sound queued to play " .. soundsConfig.legendary.sound .. " " .. handle,
 					addonName,
 					ItemLoot.moduleName
@@ -285,26 +378,26 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 			and soundsConfig.betterThanEquipped.enabled
 			and soundsConfig.betterThanEquipped.sound ~= ""
 		then
-			local willPlay, handle = PlaySoundFile(soundsConfig.betterThanEquipped.sound)
+			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.betterThanEquipped.sound)
 			if not willPlay then
-				G_RLF:LogWarn(
+				LogWarn(
 					"Failed to play sound " .. soundsConfig.betterThanEquipped.sound,
 					addonName,
 					ItemLoot.moduleName
 				)
 			else
-				G_RLF:LogDebug(
+				LogDebug(
 					"Sound queued to play " .. soundsConfig.betterThanEquipped.sound .. " " .. handle,
 					addonName,
 					ItemLoot.moduleName
 				)
 			end
 		elseif self.isNewTransmog and soundsConfig.transmog.enabled and soundsConfig.transmog.sound ~= "" then
-			local willPlay, handle = PlaySoundFile(soundsConfig.transmog.sound)
+			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.transmog.sound)
 			if not willPlay then
-				G_RLF:LogWarn("Failed to play sound " .. soundsConfig.transmog.sound, addonName, ItemLoot.moduleName)
+				LogWarn("Failed to play sound " .. soundsConfig.transmog.sound, addonName, ItemLoot.moduleName)
 			else
-				G_RLF:LogDebug(
+				LogDebug(
 					"Sound queued to play " .. soundsConfig.transmog.sound .. " " .. handle,
 					addonName,
 					ItemLoot.moduleName
@@ -325,7 +418,7 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 
 		self.highlight = reason ~= ""
 		if self.highlight then
-			G_RLF:LogDebug("Highlighted because of " .. reason, addonName, ItemLoot.moduleName, self.key)
+			LogDebug("Highlighted because of " .. reason, addonName, ItemLoot.moduleName, self.key)
 		end
 	end
 
@@ -349,14 +442,17 @@ end
 function ItemLoot:OnEnable()
 	self:RegisterEvent("CHAT_MSG_LOOT")
 	self:RegisterEvent("GET_ITEM_INFO_RECEIVED")
-	G_RLF:LogDebug("OnEnable", addonName, self.moduleName)
-	if GetExpansionLevel() >= G_RLF.Expansion.CATA and GetExpansionLevel() <= G_RLF.Expansion.MOP then
+	LogDebug("OnEnable", addonName, self.moduleName)
+	if
+		ItemLoot._itemLootAdapter.GetExpansionLevel() >= Expansion.CATA
+		and ItemLoot._itemLootAdapter.GetExpansionLevel() <= Expansion.MOP
+	then
 		self:SetEquippableArmorClass()
 	end
 end
 
 function ItemLoot:SetEquippableArmorClass()
-	local _, playerClass = UnitClass("player")
+	local _, playerClass = ItemLoot._itemLootAdapter.UnitClass("player")
 
 	if
 		playerClass == "ROGUE"
@@ -368,7 +464,7 @@ function ItemLoot:SetEquippableArmorClass()
 		return
 	end
 
-	local playerLevel = UnitLevel("player")
+	local playerLevel = ItemLoot._itemLootAdapter.UnitLevel("player")
 	if playerLevel < 40 then
 		if not self.armorLevelListener then
 			self.armorLevelListener = self:RegisterBucketEvent("PLAYER_LEVEL_UP", 1, "SetEquippableArmorClass")
@@ -397,16 +493,16 @@ function ItemLoot:OnItemReadyToShow(info, amount, fromLink)
 end
 
 function ItemLoot:GET_ITEM_INFO_RECEIVED(eventName, itemID, success)
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName .. " " .. itemID)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName .. " " .. itemID)
 	if self.pendingItemRequests[itemID] then
 		local itemLink, amount, fromLink = unpack(self.pendingItemRequests[itemID])
 
 		if not success then
 			error("Failed to load item: " .. itemID .. " " .. itemLink .. " x" .. amount)
 		else
-			local info = ItemInfo:new(itemID, C.Item.GetItemInfo(itemLink))
+			local info = ItemInfo:new(itemID, ItemLoot._itemLootAdapter.GetItemInfo(itemLink))
 			if info == nil then
-				G_RLF:LogDebug("ItemInfo is nil for " .. itemLink, addonName, self.moduleName)
+				LogDebug("ItemInfo is nil for " .. itemLink, addonName, self.moduleName)
 				return
 			end
 			self:OnItemReadyToShow(info, amount, fromLink)
@@ -416,9 +512,9 @@ end
 
 function ItemLoot:ShowItemLoot(msg, itemLink, fromLink)
 	local amount = tonumber(msg:match("r ?x(%d+)") or 1) or 1
-	local itemId = C.Item.GetItemIDForItemInfo(itemLink)
+	local itemId = ItemLoot._itemLootAdapter.GetItemIDForItemInfo(itemLink)
 	self.pendingItemRequests[itemId] = { itemLink, amount, fromLink }
-	local info = ItemInfo:new(itemId, C.Item.GetItemInfo(itemLink))
+	local info = ItemInfo:new(itemId, ItemLoot._itemLootAdapter.GetItemInfo(itemLink))
 	if info ~= nil then
 		self:OnItemReadyToShow(info, amount, fromLink)
 	end
@@ -435,36 +531,31 @@ end
 
 function ItemLoot:CHAT_MSG_LOOT(eventName, ...)
 	local msg, playerName, _, _, playerName2, _, _, _, _, _, _, guid = ...
-	if issecretvalue and issecretvalue(msg) then
-		G_RLF:LogWarn(
-			"(" .. eventName .. ") Secret value detected, ignoring chat message",
-			"WOWEVENT",
-			self.moduleName,
-			""
-		)
+	if ItemLoot._itemLootAdapter.IssecretValue(msg) then
+		LogWarn("(" .. eventName .. ") Secret value detected, ignoring chat message", "WOWEVENT", self.moduleName, "")
 		return
 	end
 
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName .. " " .. msg)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName .. " " .. msg)
 
 	local raidLoot = msg:match("HlootHistory:")
 	if raidLoot then
 		-- Ignore this message as it's a raid loot message
-		G_RLF:LogDebug("Raid Loot Ignored", "WOWEVENT", self.moduleName, "", msg)
+		LogDebug("Raid Loot Ignored", "WOWEVENT", self.moduleName, "", msg)
 		return
 	end
 
 	local me = false
-	if G_RLF:IsRetail() then
-		me = guid == GetPlayerGuid()
+	if IsRetail() then
+		me = guid == ItemLoot._itemLootAdapter.GetPlayerGuid()
 	-- So far, MoP Classic and below doesn't work with GetPlayerGuid()
 	else
-		me = playerName2 == UnitName("player")
+		me = playerName2 == ItemLoot._itemLootAdapter.UnitName("player")
 	end
 
 	-- Only process our own loot now, party loot is handled by PartyLoot module
 	if not me then
-		G_RLF:LogDebug("Loot ignored, not me", "WOWEVENT", self.moduleName, "", msg)
+		LogDebug("Loot ignored, not me", "WOWEVENT", self.moduleName, "", msg)
 		return
 	end
 
@@ -480,7 +571,7 @@ function ItemLoot:CHAT_MSG_LOOT(eventName, ...)
 	end
 
 	if itemLink then
-		self:fn(self.ShowItemLoot, self, msg, itemLink, fromLink)
+		self:ShowItemLoot(msg, itemLink, fromLink)
 	end
 end
 

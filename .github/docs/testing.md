@@ -67,16 +67,18 @@ Feature modules expose their full dependency surface as locals at the top of the
 
 **Fully migrated reference implementations** (in rough order of complexity):
 
-| Spec file                        | Pattern highlights                                                              |
-| -------------------------------- | ------------------------------------------------------------------------------- |
-| `TravelPoints_spec.lua`          | Canonical baseline — simplest pattern                                           |
-| `Transmog_spec.lua`              | Canonical baseline                                                              |
-| `Experience_spec.lua`            | Bare WoW global fn adapter (`UnitXP` etc.)                                      |
-| `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine                       |
-| `Professions_spec.lua`           | `GetProfessions/GetProfessionInfo`, locale globals                              |
-| `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin |
-| `PartyLoot_spec.lua`             | UnitName/UnitClass, GUID, expansion-gate, nameUnitMap                           |
-| `Currency_spec.lua`              | C_Everywhere + bare global fallbacks, Classic locale patterns, adapter factory  |
+| Spec file                        | Pattern highlights                                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `TravelPoints_spec.lua`          | Canonical baseline — simplest pattern                                                                                  |
+| `Transmog_spec.lua`              | Canonical baseline                                                                                                     |
+| `Experience_spec.lua`            | Bare WoW global fn adapter (`UnitXP` etc.)                                                                             |
+| `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine                                                              |
+| `Professions_spec.lua`           | `GetProfessions/GetProfessionInfo`, locale globals                                                                     |
+| `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin                                        |
+| `PartyLoot_spec.lua`             | UnitName/UnitClass, GUID, expansion-gate, nameUnitMap                                                                  |
+| `Currency_spec.lua`              | C_Everywhere + bare global fallbacks, Classic locale patterns, adapter factory                                         |
+| `ItemLoot_spec.lua`              | Most complex: AceBucket mixin, `_itemLootAdapter` with 14 methods, `Enum` global, classical/Retail branching, 49 tests |
+| `Money_spec.lua`                 | `colorFn` hook on `Element:new()` for net-quantity-aware row color on update                                           |
 
 **Inline utility stub pattern** — for modules with large utility deps having deep WoW API chains (e.g. `RepUtils` → `C_Reputation` / `C_GossipInfo` / `C_MajorFactions`), stub the entire utility table inline on `ns` rather than loading the real file:
 
