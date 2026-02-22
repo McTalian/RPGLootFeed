@@ -61,10 +61,20 @@ RPGLootFeed/
 │       ├── RLF_Notifications.lua
 │       └── RLF_Communications.lua
 ├── LootDisplay/             # UI display layer
-│   ├── LootDisplay.lua      # Main display manager
-│   ├── LootDisplayFrame.lua # Frame mixin
-│   ├── LootDisplayRow.lua   # Row mixin
-│   └── LootHistory.lua      # Loot history tracking
+│   ├── LootDisplay.lua      # Main display manager (Ace module, queue management)
+│   ├── LootDisplay.xml      # XML include chain entrypoint
+│   ├── LootHistory.lua      # Loot history tracking
+│   └── LootDisplayFrame/    # Frame mixin and row templates
+│       ├── LootDisplayFrame.lua    # Frame mixin (RLF_LootDisplayFrameTemplate)
+│       ├── LootDisplayFrame.xml
+│       └── LootDisplayRow/  # Row sub-component mixins (WoW mixin pattern)
+│           ├── LootDisplayRowTemplate.xml   # Virtual frame template, composes all row mixins
+│           ├── LootDisplayRow.lua           # LootDisplayRowMixin — coordinator/lifecycle
+│           ├── RowAnimationMixin.lua        # RLF_RowAnimationMixin — all enter/exit/hover anims
+│           ├── RowAnimationMixin.xml
+│           ├── RowTooltipMixin.lua          # RLF_RowTooltipMixin — tooltip + click handling
+│           └── RowTooltipMixin.xml
+│           (planned: RowTextMixin, RowBackdropMixin, RowScriptedEffectsMixin, RowIconMixin, RowUnitPortraitMixin)
 ├── utils/                    # Utility modules
 │   ├── Enums.lua            # Enumerations and constants
 │   ├── Logger.lua           # Logging utilities
@@ -173,7 +183,7 @@ RPGLootFeed/
 - Manage row animations (fade in/out, slide)
 - Track loot history for the history panel
 
-**Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior
+**Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior. `LootDisplayRow` is being decomposed into focused sub-mixins (`RLF_RowAnimationMixin`, `RLF_RowTooltipMixin`, and more planned) following the WoW XML mixin composition pattern.
 
 **Does NOT contain**: Feature-specific logic (that belongs in Features/)
 
@@ -237,7 +247,7 @@ All addon code uses a shared namespace (`G_RLF`) passed via `local addonName, ns
 
 ### Mixin Pattern
 
-UI frames use mixins (`LootDisplayFrame`, `LootDisplayRow`) to encapsulate frame-specific behavior.
+UI frames use mixins to encapsulate frame-specific behavior. `LootDisplayFrame` and `LootDisplayRow` are the primary frame mixins. `LootDisplayRow` is being further decomposed into sub-mixins (e.g. `RLF_RowAnimationMixin`, `RLF_RowTooltipMixin`) declared in the XML `mixin=` attribute — matching the pattern used by Blizzard's own UI frames (see `wow-ui-source` reference). All row sub-mixin globals are prefixed `RLF_` to reduce global namespace collisions.
 
 ### Feature Module Pattern (established in TravelPoints spike)
 
