@@ -14,6 +14,13 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.29.0
+-- L["Row Text Spacing"] = "Row Text Spacing"
+-- L["RowTextSpacingDesc"] = "The pixel gap between text elements (item link, quantity suffix, count badge). Set to 0 for auto (scales with icon size: iconSize / 4)."
+-- L["Text Alignment"] = "Text Alignment"
+-- L["TextAlignmentDesc"] = "How row content is aligned within the feed. Left and Center place the icon on the left; Right places it on the right."
+--#endregion
+
 --#region 1.28.0
 -- L["Unknown Faction"] = "Unknown Faction"
 --#endregion
@@ -250,6 +257,8 @@ end
 -- L["JoinDiscordDesc"] = "Join the RPGLootFeed Discord Community for support, feedback, suggestions, and for news on the latest updates."
 -- L["LauncherLeftClick"] = "|cffeda55fClick|r to open addon config menu."
 -- L["LauncherRightClick"] = "|cffeda55fRight-click|r to open a quick-menu."
+-- L["Left Align"] = "Left Align"
+-- L["LeftAlignDesc"] = "Left align row content (right align if unchecked)"
 -- L["Legendary Sound"] = "Legendary Sound"
 -- L["LegendarySoundDesc"] = "The sound to play when a legendary item is looted"
 -- L["Loop Update Highlight"] = "Loop Update Highlight"
@@ -462,8 +471,6 @@ L["Item Loot messages Disabled"] = "Mensajes del botín de objetos desactivados"
 L["Item Quality Filter"] = "Filtro de calidad de los objetos"
 L["ItemQualityFilterDesc"] = "Marca las calidades que te gustaría mostrar en la Fuente de botín"
 L["Left"] = "Izquierda"
-L["Left Align"] = "Alineación izquierda"
-L["LeftAlignDesc"] = "Alinear a la izquierda el contenido de la fila (se alineará a la derecha si no está marcada)"
 L["Legendary"] = "Legendario"
 L["Loot Item Height"] = "Altura de filas "
 L["Loot Item Icon Size"] = "Tamaño de icono"

@@ -54,6 +54,9 @@ local FONT = {
 	"GetStringWidth",
 	"GetStringHeight",
 	"SetJustifyH",
+	"SetWordWrap",
+	"SetWidth",
+	"IsShown",
 }
 
 --- Creates a mock Texture/Frame element with layout stubs.
@@ -63,13 +66,36 @@ end
 
 --- Creates a mock FontString element with layout + font stubs.
 --- GetStringWidth/GetStringHeight return sensible defaults.
+--- GetUnboundedStringWidth returns 80 (used by LayoutPrimaryLine).
 local function mockFontString()
 	local fs = {}
 	stubMethods(fs, LAYOUT)
 	stubMethods(fs, FONT)
 	fs.GetStringWidth:returns(100)
 	fs.GetStringHeight:returns(20)
+	fs.GetUnboundedStringWidth = function()
+		return 80
+	end
 	return fs
+end
+
+--- Creates a mock layout container that mimics the PrimaryLineLayout / SecondaryLineLayout
+--- frames produced by RLF_RowTextMixin:Create*LineLayout().
+--- Provides a Layout stub, visibility stubs, and the fields that Layout*Line() writes to.
+local function mockLayoutFrame()
+	local frame = stubMethods({}, {
+		"SetPoint",
+		"ClearAllPoints",
+		"Layout",
+		"Show",
+		"Hide",
+		"SetShown",
+		"SetAlpha",
+	})
+	frame.spacing = 0
+	frame.childLayoutDirection = nil
+	frame.fixedWidth = nil
+	return frame
 end
 
 --- Creates a mock AnimationGroup with Stop/Play/IsPlaying stubs,
@@ -164,8 +190,15 @@ function M.new(frameType)
 
 	-- ── Text sub-elements (RowTextMixin) ──────────────────────────────────
 	row.PrimaryText = mockFontString()
+	row.AmountText = mockFontString()
 	row.ItemCountText = mockFontString()
 	row.SecondaryText = mockFontString()
+
+	-- ── PrimaryLineLayout (created programmatically by CreatePrimaryLineLayout)
+	row.PrimaryLineLayout = mockLayoutFrame()
+
+	-- ── SecondaryLineLayout (created programmatically by CreateSecondaryLineLayout)
+	row.SecondaryLineLayout = mockLayoutFrame()
 
 	-- ── Portrait sub-elements (RowUnitPortraitMixin) ──────────────────────
 	row.UnitPortrait = mockTexture()

@@ -33,7 +33,7 @@ describe("RLF_RowIconMixin", function()
 
 		before_each(function()
 			sizingDb = { iconSize = 32 }
-			stylingDb = { leftAlign = true }
+			stylingDb = { textAlignment = "LEFT" }
 			stub(ns.DbAccessor, "Sizing").returns(sizingDb)
 			stub(ns.DbAccessor, "Styling").returns(stylingDb)
 		end)
@@ -68,10 +68,10 @@ describe("RLF_RowIconMixin", function()
 			assert.stub(row.Icon.SetSize).was.called(1)
 		end)
 
-		it("calls SetSize again when leftAlign changes", function()
+		it("calls SetSize again when textAlignment changes", function()
 			RLF_RowIconMixin.StyleIcon(row)
 			row.Icon.SetSize:clear()
-			stylingDb.leftAlign = false
+			stylingDb.textAlignment = "RIGHT"
 			RLF_RowIconMixin.StyleIcon(row)
 			assert.stub(row.Icon.SetSize).was.called(1)
 		end)

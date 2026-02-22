@@ -8,61 +8,13 @@ local G_RLF = ns
 -- trunk-ignore-begin(no-invalid-prints/invalid-print)
 ---@type RLF_TestMode
 local TestMode = G_RLF.RLF:GetModule(G_RLF.SupportModule.TestMode) --[[@as RLF_TestMode]]
-local tests = {}
-local prints = ""
-local successCount = 0
-local failureCount = 0
-
-local function assertEqual(actual, expected, testName, err)
-	tests[testName] = {
-		result = actual == expected,
-		expected = expected,
-		actual = actual,
-		err = err,
-	}
-	if actual == expected then
-		prints = prints .. "|cff00ff00•|r"
-		successCount = successCount + 1
-	else
-		prints = prints .. "|cffff0000x|r"
-		failureCount = failureCount + 1
-	end
-end
-
-local function runTestSafely(testFunction, testName, ...)
-	local success, err = pcall(testFunction, ...)
-	assertEqual(success, true, testName, err)
-end
-
-local function displayResults()
-	G_RLF:Print("Integration Test")
-	print(prints)
-	print("|cff00ff00Successes: " .. successCount .. "|r")
-	if failureCount > 0 then
-		print("|cffff0000Failures: " .. failureCount .. "|r")
-	end
-
-	local msg = ""
-	for testName, testData in pairs(tests) do
-		if not testData.result then
-			msg = msg
-				.. "|cffff0000Failure: "
-				.. testName
-				.. " failed: expected "
-				.. tostring(testData.expected)
-				.. ", got "
-				.. tostring(testData.actual)
-			if testData.err then
-				msg = msg .. " Error: " .. testData.err
-			end
-			msg = msg .. "|r|n\n"
-		end
-	end
-
-	if failureCount > 0 then
-		error(msg)
-	end
-end
+local runner = G_RLF.GameTestRunner:new("Integration Test", {
+	printHeader = function(msg)
+		G_RLF:Print(msg)
+	end,
+	printLine = print,
+	raiseError = error,
+})
 
 local function runExperienceIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Experience) --[[@as RLF_Experience]]
@@ -71,13 +23,13 @@ local function runExperienceIntegrationTest()
 		G_RLF:Print("Experience element not created, something went wrong")
 		return 1
 	end
-	runTestSafely(e.Show, "LootDisplay: Experience", e)
+	runner:runTestSafely(e.Show, "LootDisplay: Experience", e)
 	e = module.Element:new(1)
 	if not e then
 		G_RLF:Print("Experience update element not created, something went wrong")
 		return 1
 	end
-	runTestSafely(e.Show, "LootDisplay: Experience Update", e)
+	runner:runTestSafely(e.Show, "LootDisplay: Experience Update", e)
 	return 1
 end
 
@@ -88,7 +40,7 @@ local function runMoneyIntegrationTest()
 		G_RLF:Print("Money element not created, something went wrong")
 		return 1
 	end
-	runTestSafely(e.Show, "LootDisplay: Money", e)
+	runner:runTestSafely(e.Show, "LootDisplay: Money", e)
 	return 1
 end
 
@@ -102,10 +54,10 @@ local function runItemLootIntegrationTest()
 		G_RLF:Print("Item not cached, skipping ItemLoot test")
 	else
 		e.highlight = true
-		runTestSafely(e.Show, "LootDisplay: Item", e, info.itemName, info.itemQuality)
+		runner:runTestSafely(e.Show, "LootDisplay: Item", e, info.itemName, info.itemQuality)
 		e = module.Element:new(info, amountLooted)
 		e.highlight = true
-		runTestSafely(e.Show, "LootDisplay: Item Quantity Update", e, info.itemName, info.itemQuality)
+		runner:runTestSafely(e.Show, "LootDisplay: Item Quantity Update", e, info.itemName, info.itemQuality)
 		rowsShown = rowsShown + 1
 	end
 	return rowsShown
@@ -116,7 +68,7 @@ local function runPartyLootIntegrationTest()
 	local info = TestMode.testItems[2]
 	local amountLooted = 1
 	local e = module.Element:new(info, amountLooted, "player")
-	runTestSafely(e.Show, "LootDisplay: Party Item", e, info.itemName, info.itemQuality)
+	runner:runTestSafely(e.Show, "LootDisplay: Party Item", e, info.itemName, info.itemQuality)
 	return 1
 end
 
@@ -130,13 +82,13 @@ local function runCurrencyIntegrationTest()
 		G_RLF:Print("Currency element not created, something went wrong")
 		return 1
 	end
-	runTestSafely(e.Show, "LootDisplay: Currency", e)
+	runner:runTestSafely(e.Show, "LootDisplay: Currency", e)
 	e = module.Element:new(testObj.link, testObj.info, testObj.basicInfo)
 	if not e then
 		G_RLF:Print("Currency update element not created, something went wrong")
 		return 1
 	end
-	runTestSafely(e.Show, "LootDisplay: Currency Quantity Update", e)
+	runner:runTestSafely(e.Show, "LootDisplay: Currency Quantity Update", e)
 	return 1
 end
 
@@ -149,14 +101,14 @@ local function runReputationIntegrationTest()
 		or not C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED")
 	then
 		local testObj = TestMode.testFactions[2]
-		runTestSafely(
+		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
 			"LootDisplay: Reputation with Bonus",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
 		)
-		runTestSafely(
+		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
 			"LootDisplay: Reputation with Bonus Update",
 			module,
@@ -165,14 +117,14 @@ local function runReputationIntegrationTest()
 		)
 
 		testObj = TestMode.testFactions[1]
-		runTestSafely(
+		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
 			"LootDisplay: Reputation",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED, testObj, 1030)
 		)
-		runTestSafely(
+		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
 			"LootDisplay: Reputation Update",
 			module,
@@ -196,9 +148,9 @@ local function runProfessionIntegrationTest()
 		icon = G_RLF.DefaultIcons.PROFESSION
 	end
 	local e = module.Element:new("Cooking", "Cooking", icon, 3, nil, 1)
-	runTestSafely(e.Show, "LootDisplay: Professions", e)
+	runner:runTestSafely(e.Show, "LootDisplay: Professions", e)
 	e = module.Element:new("Cooking", "Cooking", icon, 4, nil, 2)
-	runTestSafely(e.Show, "LootDisplay: Professions Quantity Update", e)
+	runner:runTestSafely(e.Show, "LootDisplay: Professions Quantity Update", e)
 	return 1
 end
 
@@ -208,7 +160,7 @@ local function runTransmogIntegrationTest()
 		return 0
 	end
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Transmog) --[[@as RLF_Transmog]]
-	runTestSafely(
+	runner:runTestSafely(
 		module.TRANSMOG_COLLECTION_SOURCE_ADDED,
 		"LootDisplay: Transmog",
 		module,
@@ -224,13 +176,10 @@ function TestMode:IntegrationTest()
 		return
 	end
 
-	tests = {}
-	prints = ""
-	successCount = 0
-	failureCount = 0
+	runner:reset()
 	local frame = G_RLF.RLF_MainLootFrame
 	if not frame then
-		assertEqual(frame, true, "G_RLF.RLF_MainLootFrame")
+		runner:assertEqual(frame, true, "G_RLF.RLF_MainLootFrame")
 		return
 	end
 	local snapshotRowHistory = #frame.rowHistory or 0
@@ -238,7 +187,7 @@ function TestMode:IntegrationTest()
 	if G_RLF.db.global.partyLoot.enabled and G_RLF.db.global.partyLoot.separateFrame then
 		partyFrame = G_RLF.RLF_PartyLootFrame
 		if not partyFrame then
-			assertEqual(partyFrame, true, "G_RLF.RLF_PartyLootFrame")
+			runner:assertEqual(partyFrame, true, "G_RLF.RLF_PartyLootFrame")
 			return
 		end
 		snapshotRowHistory = snapshotRowHistory + #partyFrame.rowHistory
@@ -260,7 +209,7 @@ function TestMode:IntegrationTest()
 		newRowsExpected = newRowsExpected + runTransmogIntegrationTest()
 	end
 
-	assertEqual(frame ~= nil, true, "G_RLF.RLF_MainLootFrame")
+	runner:assertEqual(frame ~= nil, true, "G_RLF.RLF_MainLootFrame")
 	C_Timer.After(
 		G_RLF.db.global.animations.exit.fadeOutDelay + G_RLF.db.global.animations.exit.duration + 1,
 		function()
@@ -268,8 +217,8 @@ function TestMode:IntegrationTest()
 			if partyFrame then
 				newHistoryRows = newHistoryRows + #partyFrame.rowHistory
 			end
-			assertEqual(newHistoryRows, newRowsExpected, "G_RLF.RLF_MainLootFrame: rowHistory")
-			displayResults()
+			runner:assertEqual(newHistoryRows, newRowsExpected, "G_RLF.RLF_MainLootFrame: rowHistory")
+			runner:displayResults()
 		end
 	)
 end

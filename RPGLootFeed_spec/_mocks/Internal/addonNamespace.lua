@@ -276,7 +276,6 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 	if loadSection >= addonNamespaceMocks.LoadSections.LootDisplay then
 		assert(loadfile("RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayFrame.lua"))("TestAddon", ns)
 		assert(loadfile("RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/LootDisplayRow.lua"))("TestAddon", ns)
-		ns.tempFontString = nil
 		ns.LootDisplay = {}
 		embedLibs(ns.LootDisplay, "AceBucket-3.0", "AceEvent-3.0", "AceHook-3.0")
 		addonNamespaceMocks.LootDisplay = {}
@@ -300,8 +299,6 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		addonNamespaceMocks.LootDisplay.OnRowReturn = stub(ns.LootDisplay, "OnRowReturn")
 		addonNamespaceMocks.LootDisplay.OnPartyRowReturn = stub(ns.LootDisplay, "OnPartyRowReturn")
 		addonNamespaceMocks.LootDisplay.HideLoot = stub(ns.LootDisplay, "HideLoot")
-		addonNamespaceMocks.CalculateTextWidth = stub(ns, "CalculateTextWidth").returns(80)
-		addonNamespaceMocks.TruncateItemLink = stub(ns, "TruncateItemLink")
 	end
 	-- No namespace changes in GameTesting
 	-- if loadSection >= addonNamespaceMocks.LoadSections.GameTesting then

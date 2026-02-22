@@ -161,6 +161,13 @@ G_RLF.RowBackground = {
 	TEXTURED = 2,
 }
 
+---@enum G_RLF.TextAlignment
+G_RLF.TextAlignment = {
+	LEFT = "LEFT",
+	CENTER = "CENTER",
+	RIGHT = "RIGHT",
+}
+
 ---@enum G_RLF.Frames
 G_RLF.Frames = {
 	MAIN = "RLF_MAIN",

@@ -91,7 +91,10 @@ RPGLootFeed/
 │   ├── Queue.lua            # Queue data structure
 │   └── Utils.lua            # General utilities
 ├── GameTesting/             # In-game testing support
-│   └── TestMode.lua         # Test mode module
+│   ├── GameTestRunner.lua   # Pure-Lua test runner (busted-tested)
+│   ├── TestMode.lua         # Test data initialization & readiness
+│   ├── SmokeTest.lua        # Automated smoke tests (alpha only)
+│   └── IntegrationTest.lua  # Visual integration tests (alpha only)
 ├── locale/                   # Localization strings
 │   ├── enUS.lua             # English (base)
 │   ├── deDE.lua, esES.lua, frFR.lua, etc.
@@ -192,7 +195,44 @@ RPGLootFeed/
 - Manage row animations (fade in/out, slide)
 - Track loot history for the history panel
 
-**Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior. `LootDisplayRow` has been fully decomposed into 7 focused sub-mixins (`RLF_RowAnimationMixin`, `RLF_RowTooltipMixin`, `RLF_RowTextMixin`, `RLF_RowBackdropMixin`, `RLF_RowScriptedEffectsMixin`, `RLF_RowIconMixin`, `RLF_RowUnitPortraitMixin`) following the WoW XML mixin composition pattern. `LootDisplayRow.lua` itself is now a pure coordinator/lifecycle file (~470 lines).
+**Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior. `LootDisplayRow` has been fully decomposed into 7 focused sub-mixins (`RLF_RowAnimationMixin`, `RLF_RowTooltipMixin`, `RLF_RowTextMixin`, `RLF_RowBackdropMixin`, `RLF_RowScriptedEffectsMixin`, `RLF_RowIconMixin`, `RLF_RowUnitPortraitMixin`) following the WoW XML mixin composition pattern. `LootDisplayRow.lua` itself is now a pure coordinator/lifecycle file (~430 lines).
+
+**Primary line layout**: `RLF_RowTextMixin` creates a programmatic `PrimaryLineLayout` frame (mixed with `LayoutMixin, HorizontalLayoutMixin`) once per physical pooled frame via `CreatePrimaryLineLayout()` (guarded so it is idempotent across pool Acquire/Release cycles). Three FontStrings live inside the container as layout children:
+
+| `layoutIndex` | FontString      | Role                                     | Truncatable? |
+| ------------- | --------------- | ---------------------------------------- | ------------ |
+| 1             | `PrimaryText`   | Item/currency link only                  | Yes          |
+| 2             | `AmountText`    | Quantity suffix (`"x2"`) — non-link text | No           |
+| 3             | `ItemCountText` | Bag count / skill delta / rep level      | No           |
+
+`PrimaryText` and `ItemCountText` are re-parented from the XML template; `AmountText` is created programmatically inside the layout frame (same pattern as `PrimaryLineLayout` itself). `AmountText` is driven by the optional `element.amountTextFn(existingQuantity)` field — features that produce a quantity suffix (`ItemLoot`, `PartyLoot`, `Currency`) set this; all others leave it `nil` and `AmountText` stays hidden.
+
+The unified layout entry point `LayoutPrimaryLine()` is called from `ShowText()`, `ShowAmountText()`, and `ShowItemCountText()`:
+
+- First pass (from `ShowText()`): `AmountText` and `ItemCountText` hidden → `PrimaryText` gets `min(naturalWidth, availableWidth)`.
+- Second pass (from `ShowAmountText()`): `AmountText` shown → `PrimaryText` budget shrinks by `AmountText:GetUnboundedStringWidth() + spacing`.
+- Third pass (from `ShowItemCountText()`): `ItemCountText` shown → budget shrinks further. Engine-native truncation fires if needed (`SetWidth` + `SetWordWrap(false)`).
+
+**Text alignment**: The `textAlignment` config value (`G_RLF.TextAlignment` enum: `LEFT`, `CENTER`, `RIGHT`) replaced the legacy `leftAlign` boolean (v7 migration). `LEFT` and `CENTER` place the icon on the left; `RIGHT` places it on the right. `CENTER` currently behaves like `LEFT` for row-internal layout — full centering within the row requires a future OuterLayout container. `childLayoutDirection = "rightToLeft"` on the layout containers handles the `RIGHT` case without reordering children. `ClickableButton` geometry is owned exclusively by `LayoutPrimaryLine()` (not `SetupTooltip()`).
+
+**Secondary line layout**: `RLF_RowTextMixin` also creates a `SecondaryLineLayout` frame via `CreateSecondaryLineLayout()` (same pool-guard pattern). `SecondaryText` is re-parented into it as `layoutIndex=1`. `LayoutSecondaryLine()` applies the same `availableWidth` + engine-truncation logic as `LayoutPrimaryLine()`, without any sub-element budget splits. Additional secondary-line children can be added in the future without layout surgery.
+
+`ShowText()` shows/hides `SecondaryLineLayout` (not `SecondaryText` directly) and calls `LayoutSecondaryLine()` when the secondary text is non-empty.
+
+**Available width formula** (used by both `LayoutPrimaryLine` and `LayoutSecondaryLine`):
+
+```
+iconOffset = iconSize + 2 × (iconSize / 4)      -- gap + icon + gap
+portraitOffset (when avatar enabled) = portraitSize + (iconSize / 4)  -- portrait + gap before layout
+                                       where portraitSize = iconSize × 0.8
+availableWidth = feedWidth - iconOffset - portraitOffset
+```
+
+The portrait offset formula was corrected in this session: the old formula (`portraitSize / 2`) under-counted. The correct value accounts for the full portrait width **plus** the `iconSize/4` gap between the icon's right edge and the portrait's left anchor.
+
+**Spacing**: `PrimaryLineLayout.spacing` and `SecondaryLineLayout.spacing` are both set to the user-configurable `rowTextSpacing` DB value (under `global.styling`). `0` (default) means auto = `iconSize / 4`. The slider is in the Styling → Custom Fonts panel.
+
+`LootDisplay.lua` no longer contains `TruncateItemLink`, `CalculateTextWidth`, or `tempFontString` — all superseded by native engine truncation via `FontString:SetWidth()` + `SetWordWrap(false)`.
 
 **Does NOT contain**: Feature-specific logic (that belongs in Features/)
 
@@ -226,13 +266,16 @@ RPGLootFeed/
 
 ### `/GameTesting`
 
-**Purpose**: In-game testing utilities
+**Purpose**: In-game testing utilities (alpha builds only, guarded by `--@alpha@` preprocessor blocks)
 
 **Contains**:
 
-- Test mode for previewing loot feed
-- Sample data generation
-- Integration test support
+- `GameTestRunner.lua` — Pure-Lua test runner class (no WoW API deps); supports `section()` for grouped output, `assertEqual()`, `runTestSafely()`, and `displayResults()`. Busted-tested in `RPGLootFeed_spec/GameTesting/GameTestRunner_spec.lua`.
+- `TestMode.lua` — AceModule that initializes test data (items, currencies, factions) and coordinates readiness signals for smoke/integration tests.
+- `SmokeTest.lua` — Comprehensive programmatic validation suite (10 sections) that runs automatically on addon load. Validates WoW globals, module registration, DB structure, migrations, LootDisplay frame state, element constructors, locale keys, and event handler wiring.
+- `IntegrationTest.lua` — Visual integration tests that render sample loot rows for manual inspection. Triggered after all test data is cached and LootDisplay signals readiness.
+
+**Key Principle**: Smoke tests must not render UI or trigger side effects — they validate internal state only. Integration tests may render rows but should be idempotent and re-runnable via `/rlf test integration`.
 
 **Note**: This is for in-game testing, not unit tests (those are in `RPGLootFeed_spec/`)
 

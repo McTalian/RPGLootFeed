@@ -98,7 +98,8 @@
     "ToggleFrame",
     "GenericTraitFrame",
     "Item",
-    "GetItemStats"
+    "LayoutMixin",
+    "HorizontalLayoutMixin"
   ],
   "wowAPI.luals.frameXML": true,
   "wowAPI.luals.configurationScope": "User",

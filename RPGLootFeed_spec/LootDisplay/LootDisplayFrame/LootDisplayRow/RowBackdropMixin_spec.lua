@@ -55,7 +55,7 @@ describe("RLF_RowBackdropMixin", function()
 					rowBackgroundType = ns.RowBackground.GRADIENT,
 					rowBackgroundGradientStart = { 0, 0, 0, 1 },
 					rowBackgroundGradientEnd = { 1, 1, 1, 1 },
-					leftAlign = true,
+					textAlignment = "LEFT",
 					backdropInsets = { top = 0, right = 0, bottom = 0, left = 0 },
 				}
 				stub(ns.DbAccessor, "Styling").returns(stylingDb)
@@ -86,10 +86,10 @@ describe("RLF_RowBackdropMixin", function()
 				assert.stub(row.Background.SetGradient).was.called(1)
 			end)
 
-			it("calls SetGradient again when leftAlign changes", function()
+			it("calls SetGradient again when textAlignment changes", function()
 				RLF_RowBackdropMixin.StyleBackground(row)
 				row.Background.SetGradient:clear()
-				stylingDb.leftAlign = false
+				stylingDb.textAlignment = "RIGHT"
 				RLF_RowBackdropMixin.StyleBackground(row)
 				assert.stub(row.Background.SetGradient).was.called(1)
 			end)

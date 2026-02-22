@@ -149,5 +149,8 @@
 			"undefined-global"
 		],
 		"wowAPI.luals.frameXML": false,
+		"chat.tools.terminal.autoApprove": {
+			"make": true
+		},
 	}
 }

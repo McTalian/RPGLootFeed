@@ -14,11 +14,12 @@ function RLF_RowUnitPortraitMixin:StyleUnitPortrait()
 	---@type RLF_ConfigStyling
 	local stylingDb = G_RLF.DbAccessor:Styling(self.frameType)
 	local iconSize = sizingDb.iconSize
-	local leftAlign = stylingDb.leftAlign
+	local textAlignment = stylingDb.textAlignment
+	local iconOnLeft = textAlignment ~= G_RLF.TextAlignment.RIGHT
 
-	if self.cachedUnitIconSize ~= iconSize or self.cachedUnitLeftAlign ~= leftAlign then
+	if self.cachedUnitIconSize ~= iconSize or self.cachedUnitTextAlignment ~= textAlignment then
 		self.cachedUnitIconSize = iconSize
-		self.cachedUnitLeftAlign = leftAlign
+		self.cachedUnitTextAlignment = textAlignment
 		sizeChanged = true
 	end
 
@@ -31,7 +32,7 @@ function RLF_RowUnitPortraitMixin:StyleUnitPortrait()
 		self.RLFUser:ClearAllPoints()
 
 		local anchor, iconAnchor, xOffset = "LEFT", "RIGHT", iconSize / 4
-		if not leftAlign then
+		if not iconOnLeft then
 			anchor, iconAnchor, xOffset = "RIGHT", "LEFT", -xOffset
 		end
 

@@ -256,20 +256,20 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 			return itemLink
 		end
 		local text = truncatedLink
-		local quantityText
-		local effectiveQuantity = (existingQuantity or 0) + element.quantity
-		if effectiveQuantity == 1 and not G_RLF.db.global.misc.showOneQuantity then
-			quantityText = ""
-		else
-			quantityText = " x" .. effectiveQuantity
-		end
-		text = text .. quantityText
 		if element.isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
 			local r, g, b, a = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
 			-- Replace the color in the link portion of the text with the quest color
 			text = text:gsub("|c.-|", RGBAToHexFormat(r, g, b, a) .. "|")
 		end
 		return text
+	end
+
+	element.amountTextFn = function(existingQuantity)
+		local effectiveQuantity = (existingQuantity or 0) + element.quantity
+		if effectiveQuantity == 1 and not G_RLF.db.global.misc.showOneQuantity then
+			return ""
+		end
+		return "x" .. effectiveQuantity
 	end
 
 	element.secondaryTextFn = function(...)
