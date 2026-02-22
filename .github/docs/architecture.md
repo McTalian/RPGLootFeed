@@ -145,7 +145,7 @@ RPGLootFeed/
 4. Uses `LootElementBase:new()` inside `Module.Element:new()` to create row data
 5. Calls external API/logging functions through the captured locals, NOT through `G_RLF.*` directly
 
-**Migration status**: All feature modules except `ItemLoot/ItemLoot.lua` have been migrated to this pattern. `ItemLoot.lua` still uses `G_RLF.RLF:NewModule()` directly and its spec still relies on the old `nsMocks` framework.
+**Migration status**: All feature modules have been migrated to this pattern, including `ItemLoot/ItemLoot.lua` (migrated Feb 2026). The Migration is complete — `G_RLF.RLF:NewModule()` is no longer used in any feature module.
 
 **`fn` deprecation**: The `self:fn(func, ...)` xpcall wrapper on the module prototype is being phased out. It silently swallows errors. Features should use direct calls with explicit guard clauses instead.
 

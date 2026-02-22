@@ -4,6 +4,12 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+-- ── External dependency locals ────────────────────────────────────────────────
+local L = G_RLF.L
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+
 ---@class AuctionIntegrations
 ---@field private initialized boolean
 ---@field public activeIntegrations table<string, table>
@@ -45,7 +51,7 @@ function AuctionIntegrations:Init()
 		end
 	end
 
-	G_RLF:LogDebug("Active AH integrations: " .. self.numActiveIntegrations)
+	LogDebug("Active AH integrations: " .. self.numActiveIntegrations)
 
 	local ahSource = G_RLF.db.global.item.auctionHouseSource
 
@@ -81,7 +87,7 @@ function Integ_Base:Init()
 end
 
 function Integ_Base:ToString()
-	return G_RLF.L["None"]
+	return L["None"]
 end
 
 function Integ_Base:GetAHPrice(_)
@@ -93,7 +99,7 @@ end
 function Integ_Auctionator:Init()
 	if Auctionator and Auctionator.API and Auctionator.API.v1 and Auctionator.API.v1.GetAuctionPriceByItemLink then
 		Auctionator.API.v1.RegisterForDBUpdate(addonName, function()
-			G_RLF:LogDebug("Auctionator DB updated")
+			LogDebug("Auctionator DB updated")
 		end)
 		return true
 	end
@@ -104,7 +110,7 @@ end
 ---String representation of the Auctionator integration
 ---@return string localized "Auctionator"
 function Integ_Auctionator:ToString()
-	return G_RLF.L["Auctionator"]
+	return L["Auctionator"]
 end
 
 ---Get the AH price for an item
@@ -128,7 +134,7 @@ end
 ---String representation of the TSM integration
 ---@return string localized "TSM"
 function Integ_TSM:ToString()
-	return G_RLF.L["TSM"]
+	return L["TSM"]
 end
 
 ---Get the AH price for an item

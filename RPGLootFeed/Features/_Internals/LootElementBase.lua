@@ -16,6 +16,8 @@ G_RLF.LootElementBase = {}
 ---@return RLF_BaseLootElement
 function G_RLF.LootElementBase:new()
 	---@class RLF_BaseLootElement
+	---@field public customBehavior? fun(): nil
+	---@field public colorFn (fun(netQuantity: number): number, number, number)?
 	local element = {}
 
 	-- ── Identity / routing ─────────────────────────────────────────────────────
@@ -27,6 +29,8 @@ function G_RLF.LootElementBase:new()
 	element.isLink = false
 	element.isCustomLink = nil
 	element.highlight = false
+	element.customBehavior = nil
+	element.isSampleRow = false
 
 	-- ── Visuals ────────────────────────────────────────────────────────────────
 	element.icon = nil
@@ -51,6 +55,7 @@ function G_RLF.LootElementBase:new()
 	element.g = 1
 	element.b = 1
 	element.a = 1
+	element.colorFn = nil
 
 	-- ── Display timing ─────────────────────────────────────────────────────────
 	element.showForSeconds = G_RLF.db.global.animations.exit.fadeOutDelay
@@ -110,5 +115,8 @@ function G_RLF.LootElementBase:new()
 
 	return element
 end
+
+--- Union of all concrete loot element types used by the LootDisplay engine.
+--- @alias RLF_LootElement RLF_BaseLootElement | ItemLoot.Element | Currency.Element | Money.Element | Xp.Element | Rep.Element | Professions.Element | TravelPoints.Element | PartyLoot.Element
 
 return {}
