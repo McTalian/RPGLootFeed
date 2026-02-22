@@ -4,6 +4,10 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+---@class RLF_RowItemButton: ItemButton
+---@field elementFadeIn RLF_RowItemButtonElementFadeIn
+---@field topLeftText RLF_RowFontString
+
 ---@class RLF_RowIconMixin
 RLF_RowIconMixin = {}
 

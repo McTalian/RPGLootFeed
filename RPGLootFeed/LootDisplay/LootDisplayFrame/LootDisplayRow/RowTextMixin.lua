@@ -4,6 +4,9 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+---@class RLF_RowFontString: FontString
+---@field elementFadeIn Alpha
+
 ---@class RLF_RowTextMixin
 RLF_RowTextMixin = {}
 
