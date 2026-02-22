@@ -1,5 +1,4 @@
 ---@diagnostic disable: need-check-nil
-require("RPGLootFeed_spec._mocks.LuaCompat")
 local assert = require("luassert")
 local match = require("luassert.match")
 local busted = require("busted")

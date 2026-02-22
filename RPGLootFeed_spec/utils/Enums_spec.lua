@@ -9,8 +9,6 @@ describe("Enums", function()
 	local ns
 
 	setup(function()
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Enum")
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.UtilsList)
 		assert(loadfile("RPGLootFeed/utils/Enums.lua"))("TestAddon", ns)
 	end)

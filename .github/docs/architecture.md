@@ -61,10 +61,29 @@ RPGLootFeed/
 │       ├── RLF_Notifications.lua
 │       └── RLF_Communications.lua
 ├── LootDisplay/             # UI display layer
-│   ├── LootDisplay.lua      # Main display manager
-│   ├── LootDisplayFrame.lua # Frame mixin
-│   ├── LootDisplayRow.lua   # Row mixin
-│   └── LootHistory.lua      # Loot history tracking
+│   ├── LootDisplay.lua      # Main display manager (Ace module, queue management)
+│   ├── LootDisplay.xml      # XML include chain entrypoint
+│   ├── LootHistory.lua      # Loot history tracking
+│   └── LootDisplayFrame/    # Frame mixin and row templates
+│       ├── LootDisplayFrame.lua    # Frame mixin (RLF_LootDisplayFrameTemplate)
+│       ├── LootDisplayFrame.xml
+│       └── LootDisplayRow/  # Row sub-component mixins (WoW mixin pattern)
+│           ├── LootDisplayRowTemplate.xml   # Virtual frame template; inherits all row sub-templates
+│           ├── LootDisplayRow.lua           # LootDisplayRowMixin — coordinator/lifecycle (~437 lines)
+│           ├── RowAnimation.lua        # RLF_RowAnimationMixin — enter/exit/hover animations
+│           ├── RowAnimation.xml        # RLF_RowAnimationTemplate (virtual, script-only)
+│           ├── RowTooltip.lua          # RLF_RowTooltipMixin — tooltip + click handling
+│           ├── RowTooltip.xml          # RLF_RowTooltipTemplate (virtual; owns ClickableButton)
+│           ├── RowText.lua             # RLF_RowTextMixin — font styling, text layout, item count
+│           ├── RowText.xml             # RLF_RowTextTemplate (virtual; owns PrimaryText, ItemCountText, SecondaryText)
+│           ├── RowBackdrop.lua         # RLF_RowBackdropMixin — gradient background + backdrop border
+│           ├── RowBackdrop.xml         # RLF_RowBackdropTemplate (virtual; owns Background, border textures)
+│           ├── RowScriptedEffects.lua  # RLF_RowScriptedEffectsMixin — transmog particle effects
+│           ├── RowScriptedEffects.xml  # RLF_RowScriptedEffectsTemplate (virtual, script-only)
+│           ├── RowIcon.lua             # RLF_RowIconMixin — icon sizing, positioning, texture updates
+│           ├── RowIcon.xml             # RLF_RowIconTemplate (virtual; owns Icon ItemButton)
+│           ├── RowUnitPortrait.lua     # RLF_RowUnitPortraitMixin — party unit portrait
+│           └── RowUnitPortrait.xml     # RLF_RowUnitPortraitTemplate (virtual; owns UnitPortrait, RLFUser)
 ├── utils/                    # Utility modules
 │   ├── Enums.lua            # Enumerations and constants
 │   ├── Logger.lua           # Logging utilities
@@ -173,7 +192,7 @@ RPGLootFeed/
 - Manage row animations (fade in/out, slide)
 - Track loot history for the history panel
 
-**Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior
+**Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior. `LootDisplayRow` has been fully decomposed into 7 focused sub-mixins (`RLF_RowAnimationMixin`, `RLF_RowTooltipMixin`, `RLF_RowTextMixin`, `RLF_RowBackdropMixin`, `RLF_RowScriptedEffectsMixin`, `RLF_RowIconMixin`, `RLF_RowUnitPortraitMixin`) following the WoW XML mixin composition pattern. `LootDisplayRow.lua` itself is now a pure coordinator/lifecycle file (~470 lines).
 
 **Does NOT contain**: Feature-specific logic (that belongs in Features/)
 
@@ -237,7 +256,24 @@ All addon code uses a shared namespace (`G_RLF`) passed via `local addonName, ns
 
 ### Mixin Pattern
 
-UI frames use mixins (`LootDisplayFrame`, `LootDisplayRow`) to encapsulate frame-specific behavior.
+UI frames use mixins to encapsulate frame-specific behavior. `LootDisplayFrame` and `LootDisplayRow` are the primary frame mixins. `LootDisplayRow` has been fully decomposed into 7 focused sub-mixins declared in the XML `mixin=` attribute — matching the pattern used by Blizzard's own UI frames (see `wow-ui-source` reference).
+
+All row sub-mixin globals are prefixed `RLF_` to avoid global `_G` namespace collisions with other addons. File names are kept short (no prefix needed since they're local to this addon's directory).
+
+Each sub-mixin follows this structure:
+
+1. `local addonName, ns = ...` / `local G_RLF = ns` header
+2. Optional `---@class` annotations for helper types owned by this mixin
+3. `RLF_XxxMixin = {}` global table declaration
+4. Method definitions on that table
+5. `G_RLF.RLF_XxxMixin = RLF_XxxMixin` namespace bookkeeping line at the bottom
+
+The `LootDisplayRowTemplate.xml` `mixin=` attribute lists all mixins:
+
+```
+mixin="LootDisplayRowMixin,RLF_RowAnimationMixin,RLF_RowTooltipMixin,RLF_RowTextMixin,
+       RLF_RowBackdropMixin,RLF_RowScriptedEffectsMixin,RLF_RowIconMixin,RLF_RowUnitPortraitMixin"
+```
 
 ### Feature Module Pattern (established in TravelPoints spike)
 
