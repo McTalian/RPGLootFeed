@@ -77,6 +77,12 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		ns.RLF = {}
 		embedLibs(ns.RLF, "AceAddon-3.0")
 		ns.RLF:NewAddon("RPGLootFeed", "AceConsole-3.0", "AceEvent-3.0", "AceHook-3.0", "AceTimer-3.0")
+		-- LibPixelPerfect-1.0 — identity PScale keeps pixel math predictable in tests.
+		ns.PerfPixel = {}
+		addonNamespaceMocks.PerfPixel = {}
+		addonNamespaceMocks.PerfPixel.PScale = stub(ns.PerfPixel, "PScale", function(v)
+			return v
+		end)
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.Locale then
 		require("RPGLootFeed_spec._mocks.Libs.LibStub")
@@ -124,6 +130,10 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		addonNamespaceMocks.ParseVersion = stub(ns, "ParseVersion").returns(1, 0, 0)
 		addonNamespaceMocks.CompareWithVersion = stub(ns, "CompareWithVersion").returns(0)
 		addonNamespaceMocks.ExtractItemLinks = stub(ns, "ExtractItemLinks").returns({})
+		-- Returns predictable wrap chars so callers can format strings in tests.
+		addonNamespaceMocks.GetWrapChars = stub(ns, "GetWrapChars", function(_, _wrapChar)
+			return "(", ")"
+		end)
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.UtilsAlphaHelpers then
 		addonNamespaceMocks.dump = stub(ns, "dump")

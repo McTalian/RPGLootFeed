@@ -40,8 +40,45 @@ Contains mocks for WoW APIs and the addon namespace.
 - `WoWGlobals` — core WoW global stubs (BossBanner, EventRegistry, CreateColor, etc.)
 - `WoWGlobals/Functions` — WoW global function stubs (RunNextFrame, CreateFrame, UnitClass, etc.)
 - `WoWGlobals/Enum` — `_G.Enum` table (Enum.ItemQuality, Enum.ItemBind, etc.)
+- `WoWGlobals/Constants` — `_G.Constants` table (Constants.CurrencyConsts, etc.)
+- `WoWGlobals/namespaces/C_Item` — `_G.C_Item` stubs
+- `WoWGlobals/namespaces/C_CurrencyInfo` — `_G.C_CurrencyInfo` stubs
+- `WoWGlobals/namespaces/C_TransmogCollection` — `_G.C_TransmogCollection` stubs
+- `WoWGlobals/namespaces/C_CVar` — `_G.C_CVar` stubs
+- `WoWGlobals/namespaces/C_ClassColor` — `_G.C_ClassColor` stubs
+- `WoWGlobals/namespaces/C_GossipInfo` — `_G.C_GossipInfo` stubs
+- `WoWGlobals/namespaces/C_MajorFactions` — `_G.C_MajorFactions` stubs
+- `WoWGlobals/namespaces/C_PerksActivities` — `_G.C_PerksActivities` stubs
+- `WoWGlobals/namespaces/C_Reputation` — `_G.C_Reputation` stubs
+- `WoWGlobals/namespaces/C_DelvesUI` — `_G.C_DelvesUI` stubs
 
-Spec files **do not need** to require any of these manually. Assignments like `functionMocks = require("WoWGlobals.Functions")` for spy access are still valid (the cached module is returned).
+Spec files **do not need** to require any of these manually. Assignments like `itemMocks = require("WoWGlobals.namespaces.C_Item")` for spy access are still valid — the module cache returns the same table, so spy references resolve correctly.
+
+**`addonNamespace.lua` additions worth noting**:
+
+- `ns.PerfPixel` — stubbed at `LoadSections.Core` and above. `PerfPixel.PScale` is an identity function (returns its argument unchanged) so pixel-math in mixin methods produces predictable values in tests. Accessible as `nsMocks.PerfPixel.PScale` for call assertions.
+
+**`Internal/LootDisplayRowFrame.lua`** — factory that builds a fully-stubbed row-frame `self` table for `RowXxxMixin` unit tests. All sub-elements (`Background`, `Icon`, `PrimaryText`, `UnitPortrait`, `ClickableButton`, etc.) carry busted stubs on every WoW method, so tests can call mixin methods and immediately assert against spies without any per-test frame setup.
+
+```lua
+local rowFrameMocks = require("RPGLootFeed_spec._mocks.Internal.LootDisplayRowFrame")
+local nsMocks = require("RPGLootFeed_spec._mocks.Internal.addonNamespace")
+
+describe("RLF_RowBackdropMixin", function()
+    local ns, row
+    before_each(function()
+        ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.LootDisplay)
+        loadfile("RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowBackdropMixin.lua")("TestAddon", ns)
+        row = rowFrameMocks.new()
+    end)
+
+    it("hides Background when rowBackgroundType is not GRADIENT", function()
+        stub(ns.DbAccessor, "Styling").returns({ rowBackgroundType = ns.RowBackground.SOLID })
+        RLF_RowBackdropMixin.StyleBackground(row)
+        assert.stub(row.Background.Hide).was.called()
+    end)
+end)
+```
 
 ## Testing Patterns
 
@@ -169,7 +206,7 @@ end)
 
 **Key rules for this pattern:**
 
-- No manual `require` of `LuaCompat`, `WoWGlobals`, `WoWGlobals.Functions`, or `WoWGlobals.Enum` — all pre-loaded by `.busted` helper
+- No manual `require` of `LuaCompat`, `WoWGlobals`, `WoWGlobals.Functions`, `WoWGlobals.Enum`, `WoWGlobals.Constants`, or any `WoWGlobals.namespaces.*` — all pre-loaded by `.busted` helper
 - Build `ns` as a plain table — include only what the feature's "External dependency locals" block references
 - `SendMessage` and `LogWarn` should be `spy.new(function() end)` so event tests can assert against them without needing stub cleanup
 - Methods that some tests override (e.g. `IsRetail`) can be plain `function() end` — tests use `stub(ns, "IsRetail").returns(...)` and revert afterward

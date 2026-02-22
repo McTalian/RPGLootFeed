@@ -442,4 +442,21 @@ _G.MEMBERS_PER_RAID_GROUP = 5
 _G.GENERAL = "General"
 --#endregion
 
+--#region:RAID_CLASS_COLORS
+--- Minimal RAID_CLASS_COLORS used as fallback when expansion < BFA.
+--- Only WARRIOR is populated to match the UnitClass stub default.
+_G.RAID_CLASS_COLORS = {
+	WARRIOR = { r = 0.78, g = 0.61, b = 0.43 },
+}
+--#endregion
+
+--#region:CreateColor
+--- Minimal ColorMixin-compatible table returned by CreateColor().
+--- Tests primarily care that the return value is non-nil and can be passed
+--- to stubbed rendering methods (e.g. SetGradient, SetBackdropBorderColor).
+_G.CreateColor = function(r, g, b, a)
+	return { r = r, g = g, b = b, a = a or 1 }
+end
+--#endregion
+
 return wowGlobals

@@ -29,9 +29,6 @@ describe("AddonMethods", function()
 	local ns
 	describe("load order", function()
 		it("loads the file correctly", function()
-			-- Mocking the global environment
-			require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_CVar")
-
 			require("RPGLootFeed_spec._mocks.Libs.LibStub")
 			ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.Locale)
 			assert(loadfile("RPGLootFeed/utils/AddonMethods.lua"))("TestAddon", ns)

@@ -80,5 +80,6 @@ functions.UnitSex = stub(_G, "UnitSex").returns(2)
 functions.GetMoney = stub(_G, "GetMoney").returns(123456)
 functions.GetText = stub(_G, "GetText").returns("Test Text")
 functions.CreateAtlasMarkup = stub(_G, "CreateAtlasMarkup").returns("<AtlasMarkup>")
+functions.SetPortraitTexture = stub(_G, "SetPortraitTexture")
 
 return functions
