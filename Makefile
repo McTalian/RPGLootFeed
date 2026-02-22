@@ -77,9 +77,8 @@ test-ci:
 	@rm -rf luacov-html && rm -rf luacov.*out && mkdir -p luacov-html && $(ROCKSBIN)/busted --coverage -o=TAP RPGLootFeed_spec && $(ROCKSBIN)/luacov
 
 lua_deps:
-	@luarocks install busted --local
-	@luarocks install luacov --local
-	@luarocks install luacov-html --local
+	@luarocks install rpglootfeed-1-1.rockspec --local --force --lua-version 5.4
+	@luarocks install busted --local --force --lua-version 5.4
 
 check_untracked_files:
 	@if [ -n "$$(git ls-files --others --exclude-standard)" ]; then \
