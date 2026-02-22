@@ -4,6 +4,30 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+---@class RLF_RowItemButtonElementFadeIn
+---@field icon Alpha
+---@field IconBorder Alpha
+---@field IconOverlay Alpha
+---@field Stock Alpha
+---@field Count Alpha
+---@field TopLeftText Alpha
+
+---@class RLF_RowTexture: Texture
+---@field elementFadeIn Alpha
+
+---@class RLF_RowBorderTexture: Texture
+---@field fadeIn Alpha
+---@field fadeOut Alpha
+
+---@class RLF_RowExitAnimationGroup: AnimationGroup
+---@field noop Animation
+---@field fadeOut Alpha
+
+---@class RLF_RowEnterAnimationGroup: AnimationGroup
+---@field noop Animation
+---@field fadeIn Alpha
+---@field slideIn Translation
+
 ---@class RLF_RowAnimationMixin
 RLF_RowAnimationMixin = {}
 
