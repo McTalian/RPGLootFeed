@@ -2,8 +2,13 @@
     xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
     <Include file="RowAnimationMixin.xml"/>
     <Include file="RowTooltipMixin.xml"/>
+    <Include file="RowTextMixin.xml"/>
+    <Include file="RowBackdropMixin.xml"/>
+    <Include file="RowScriptedEffectsMixin.xml"/>
+    <Include file="RowIconMixin.xml"/>
+    <Include file="RowUnitPortraitMixin.xml"/>
     <Script file="LootDisplayRow.lua" />
-    <Frame name="LootDisplayRowTemplate" virtual="true" mixin="LootDisplayRowMixin,RLF_RowAnimationMixin,RLF_RowTooltipMixin" inherits="BackdropTemplate">
+    <Frame name="LootDisplayRowTemplate" virtual="true" mixin="LootDisplayRowMixin,RLF_RowAnimationMixin,RLF_RowTooltipMixin,RLF_RowTextMixin,RLF_RowBackdropMixin,RLF_RowScriptedEffectsMixin,RLF_RowIconMixin,RLF_RowUnitPortraitMixin" inherits="BackdropTemplate">
         <Layers>
             <!-- Background Layer -->
             <Layer level="BACKGROUND">
