@@ -5,11 +5,74 @@ local G_RLF = select(2, ...)
 ---@class LegacyRepParsing
 local LegacyRepParsing = {}
 
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Captures G_RLF methods so the full dependency surface is visible in one
+-- place and tests can inject a minimal ns without the full nsMocks framework.
+local IsRetail = function()
+	return G_RLF:IsRetail()
+end
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+local CreatePatternSegments = function(pattern)
+	return G_RLF:CreatePatternSegmentsForStringNumber(pattern)
+end
+local ExtractDynamics = function(msg, segs)
+	return G_RLF:ExtractDynamicsFromPattern(msg, segs)
+end
+
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps all bare WoW globals and C_ APIs used by LegacyChatParsingImpl so
+-- tests can inject mock implementations without patching _G directly.
+local LegacyRepParsingAdapter = {
+	GetLocale = function()
+		return GetLocale()
+	end,
+	RunNextFrame = function(fn)
+		return RunNextFrame(fn)
+	end,
+	-- Returns factionData if C_Reputation.GetFactionDataByIndex exists (Retail/MoP+), nil on Classic.
+	GetFactionDataByIndex = function(i)
+		if C_Reputation and C_Reputation.GetFactionDataByIndex then
+			return C_Reputation.GetFactionDataByIndex(i)
+		end
+		return nil
+	end,
+	-- Classic-only: bare GetFactionInfo global (pre-MoP / no C_Reputation).
+	GetFactionInfoByIndex = function(i)
+		return GetFactionInfo(i)
+	end,
+	-- Classic-only: convert bare GetFactionInfo tuple to a retail-like table.
+	ConvertFactionInfoByIndex = function(i)
+		return G_RLF.ClassicToRetail:ConvertFactionInfoByIndex(i)
+	end,
+	-- Returns true when C_Reputation.GetFactionDataByIndex is available.
+	HasRetailFactionDataAPI = function()
+		return C_Reputation ~= nil and C_Reputation.GetFactionDataByIndex ~= nil
+	end,
+	-- WoW locale globals for reputation standing change patterns.
+	GetFactionStandingIncreasePatterns = function()
+		return {
+			FACTION_STANDING_INCREASED,
+			FACTION_STANDING_INCREASED_ACH_BONUS,
+			FACTION_STANDING_INCREASED_BONUS,
+			FACTION_STANDING_INCREASED_DOUBLE_BONUS,
+		}
+	end,
+	GetFactionStandingDecreasePatterns = function()
+		return { FACTION_STANDING_DECREASED }
+	end,
+}
+LegacyRepParsing._legacyAdapter = LegacyRepParsingAdapter
+
 -- Precompute pattern segments to optimize runtime message parsing
 local function precomputePatternSegments(patterns)
 	local computedPatterns = {}
 	for _, pattern in ipairs(patterns) do
-		local segments = G_RLF:CreatePatternSegmentsForStringNumber(pattern)
+		local segments = CreatePatternSegments(pattern)
 		table.insert(computedPatterns, segments)
 	end
 	return computedPatterns
@@ -23,7 +86,7 @@ local function countMappedFactions()
 			count = count + 1
 		end
 	end
-	if G_RLF:IsRetail() then
+	if IsRetail() then
 		for k, v in pairs(G_RLF.db.locale.accountWideFactionMap) do
 			if v then
 				count = count + 1
@@ -38,11 +101,11 @@ function LegacyRepParsing.buildFactionLocaleMap(findName, isAccountWide)
 	-- Classic:GetFactionInfo(factionIndex)
 	local mappedFactions = countMappedFactions()
 	local hasMoreFactions = false
-	if C_Reputation and C_Reputation.GetFactionDataByIndex then
-		hasMoreFactions = C_Reputation.GetFactionDataByIndex(mappedFactions + 1) ~= nil
+	if LegacyRepParsing._legacyAdapter.HasRetailFactionDataAPI() then
+		hasMoreFactions = LegacyRepParsing._legacyAdapter.GetFactionDataByIndex(mappedFactions + 1) ~= nil
 	-- So far up through MoP Classic, there is no C_Reputation.GetFactionDataByIndex
 	else
-		hasMoreFactions = GetFactionInfo(mappedFactions + 1) ~= nil
+		hasMoreFactions = LegacyRepParsing._legacyAdapter.GetFactionInfoByIndex(mappedFactions + 1) ~= nil
 	end
 	if not hasMoreFactions and not findName then
 		return
@@ -54,17 +117,17 @@ function LegacyRepParsing.buildFactionLocaleMap(findName, isAccountWide)
 		local bucketSize = math.ceil(numFactions / buckets) + 1
 
 		for bucket = 1, buckets do
-			RunNextFrame(function()
+			LegacyRepParsing._legacyAdapter.RunNextFrame(function()
 				for i = 1 + (bucket - 1) * bucketSize, bucket * bucketSize do
 					local factionData
-					if C_Reputation and C_Reputation.GetFactionDataByIndex then
-						factionData = C_Reputation.GetFactionDataByIndex(i)
+					if LegacyRepParsing._legacyAdapter.HasRetailFactionDataAPI() then
+						factionData = LegacyRepParsing._legacyAdapter.GetFactionDataByIndex(i)
 					-- So far up through MoP Classic, there is no C_Reputation.GetFactionDataByIndex
 					else
-						factionData = G_RLF.ClassicToRetail:ConvertFactionInfoByIndex(i)
+						factionData = LegacyRepParsing._legacyAdapter.ConvertFactionInfoByIndex(i)
 					end
 					if factionData and factionData.name then
-						if G_RLF:IsRetail() and factionData.isAccountWide then
+						if IsRetail() and factionData.isAccountWide then
 							G_RLF.db.locale.accountWideFactionMap[factionData.name] = factionData.factionID
 						else
 							G_RLF.db.locale.factionMap[factionData.name] = factionData.factionID
@@ -79,11 +142,11 @@ function LegacyRepParsing.buildFactionLocaleMap(findName, isAccountWide)
 
 	for i = 1, numFactions do
 		local factionData
-		if G_RLF:IsRetail() then
-			factionData = C_Reputation.GetFactionDataByIndex(i)
+		if IsRetail() then
+			factionData = LegacyRepParsing._legacyAdapter.GetFactionDataByIndex(i)
 		-- So far up through MoP Classic, there is no C_Reputation.GetFactionDataByIndex
 		else
-			factionData = G_RLF.ClassicToRetail:ConvertFactionInfoByIndex(i)
+			factionData = LegacyRepParsing._legacyAdapter.ConvertFactionInfoByIndex(i)
 		end
 
 		if factionData then
@@ -111,7 +174,7 @@ local function extractFactionAndRep(message, patterns)
 	end
 
 	for _, segments in ipairs(patterns) do
-		local faction, rep = G_RLF:ExtractDynamicsFromPattern(message, segments)
+		local faction, rep = ExtractDynamics(message, segments)
 		if faction and rep then
 			return faction, rep
 		end
@@ -140,25 +203,17 @@ end
 local increasePatterns, decreasePatterns, accountWideIncreasePatterns, accountWideDecreasePatterns
 
 function LegacyRepParsing.InitializeLegacyReputationChatParsing()
-	locale = GetLocale()
+	locale = LegacyRepParsing._legacyAdapter.GetLocale()
 
-	local increase_consts = {
-		FACTION_STANDING_INCREASED,
-		FACTION_STANDING_INCREASED_ACH_BONUS,
-		FACTION_STANDING_INCREASED_BONUS,
-		FACTION_STANDING_INCREASED_DOUBLE_BONUS,
-	}
-
-	local decrease_consts = {
-		FACTION_STANDING_DECREASED,
-	}
+	local increase_consts = LegacyRepParsing._legacyAdapter.GetFactionStandingIncreasePatterns()
+	local decrease_consts = LegacyRepParsing._legacyAdapter.GetFactionStandingDecreasePatterns()
 
 	increasePatterns = precomputePatternSegments(increase_consts)
 	decreasePatterns = precomputePatternSegments(decrease_consts)
 	accountWideIncreasePatterns = {}
 	accountWideDecreasePatterns = {}
 
-	RunNextFrame(function()
+	LegacyRepParsing._legacyAdapter.RunNextFrame(function()
 		LegacyRepParsing.buildFactionLocaleMap()
 	end)
 end
@@ -170,7 +225,7 @@ function LegacyRepParsing.ParseFactionChangeMessage(message, companionFactionNam
 	-- Account-wide factions only exist in Retail, currently. And now we're getting faction
 	-- rep changes from a different event instead of CHAT_MSG events. As such, this code
 	-- will likely never be hit again, but leaving it here for posterity.
-	if G_RLF:IsRetail() and accountWideIncreasePatterns then
+	if IsRetail() and accountWideIncreasePatterns then
 		faction, repChange = extractFactionAndRep(message, accountWideIncreasePatterns)
 		if not faction and accountWideDecreasePatterns then
 			faction, repChange = extractFactionAndRep(message, accountWideDecreasePatterns)
@@ -194,7 +249,7 @@ function LegacyRepParsing.ParseFactionChangeMessage(message, companionFactionNam
 		end
 	end
 	if not faction then
-		G_RLF:LogDebug(
+		LogDebug(
 			"Checking for " .. tostring(companionFactionName) .. " in message " .. message,
 			addonName,
 			"Reputation.LegacyChatParsing"
@@ -217,7 +272,7 @@ function LegacyRepParsing.GetLocaleFactionMapData(faction, isAccountWide)
 	end
 	if factionMapEntry == nil then
 		-- attempt to find the missing faction's ID
-		G_RLF:LogDebug(faction .. " not cached for " .. locale, addonName, "Reputation.LegacyChatParsing")
+		LogDebug(faction .. " not cached for " .. locale, addonName, "Reputation.LegacyChatParsing")
 		LegacyRepParsing.buildFactionLocaleMap(faction, isAccountWide)
 		if isAccountWide then
 			factionMapEntry = G_RLF.db.locale.accountWideFactionMap[faction]
@@ -229,7 +284,7 @@ function LegacyRepParsing.GetLocaleFactionMapData(faction, isAccountWide)
 	if factionMapEntry then
 		return factionMapEntry
 	else
-		G_RLF:LogWarn(faction .. " is STILL not cached for " .. locale, addonName, "Reputation.LegacyChatParsing")
+		LogWarn(faction .. " is STILL not cached for " .. locale, addonName, "Reputation.LegacyChatParsing")
 		return nil
 	end
 end

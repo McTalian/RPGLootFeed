@@ -5,33 +5,113 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
----@class RLF_Reputation: RLF_Module, AceEvent-3.0, AceTimer-3.0, AceBucket-3.0
-local Rep = G_RLF.RLF:NewModule(G_RLF.FeatureModule.Reputation, "AceEvent-3.0", "AceTimer-3.0", "AceBucket-3.0")
-
-Rep.Element = {}
-
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's
+-- full dependency surface on G_RLF / ns is visible in one place.  Tests
+-- pass a minimal mock ns to loadfile("Reputation.lua") to control these at
+-- injection time without the full nsMocks framework.
+-- NOTE: G_RLF.db is intentionally absent – AceDB populates it in
+-- OnInitialize, so it must remain a runtime lookup inside function bodies.
+local LootElementBase = G_RLF.LootElementBase
+local ItemQualEnum = G_RLF.ItemQualEnum
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
 local RepUtils = G_RLF.RepUtils
 local RepType = RepUtils.RepType
 local LegRep = G_RLF.LegacyRepParsing
+local Expansion = G_RLF.Expansion
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogInfo = function(...)
+	G_RLF:LogInfo(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+local LogError = function(...)
+	G_RLF:LogError(...)
+end
+local RGBAToHexFormat = function(...)
+	return G_RLF:RGBAToHexFormat(...)
+end
+local IsRetail = function()
+	return G_RLF:IsRetail()
+end
 
 local CURRENT_SEASON_DELVE_JOURNEY = 0
 local DELVER_JOURNEY_LABEL = nil
 
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps all C_ APIs and bare WoW globals used by Reputation.lua so tests
+-- can inject mocks without patching _G directly.
+local RepAdapter = {
+	GetExpansionLevel = function()
+		return GetExpansionLevel()
+	end,
+	RunNextFrame = function(fn)
+		return RunNextFrame(fn)
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	IsEventValid = function(event)
+		return C_EventUtils and C_EventUtils.IsEventValid and C_EventUtils.IsEventValid(event)
+	end,
+	GetFactionForCompanion = function()
+		return C_DelvesUI.GetFactionForCompanion()
+	end,
+	GetFactionDataByID = function(id)
+		return C_Reputation.GetFactionDataByID(id)
+	end,
+	GetDelvesFactionForSeason = function()
+		return C_DelvesUI and C_DelvesUI.GetDelvesFactionForSeason and C_DelvesUI.GetDelvesFactionForSeason() or 0
+	end,
+	GetMajorFactionRenownInfo = function(id)
+		return C_MajorFactions.GetMajorFactionRenownInfo(id)
+	end,
+	GetNumFactions = function()
+		return C_Reputation and C_Reputation.GetNumFactions and C_Reputation.GetNumFactions() or nil
+	end,
+	GetFactionDataByIndex = function(i)
+		return C_Reputation and C_Reputation.GetFactionDataByIndex and C_Reputation.GetFactionDataByIndex(i) or nil
+	end,
+	HasRetailReputationAPIAvailable = function()
+		return C_Reputation ~= nil and C_Reputation.GetNumFactions ~= nil and C_Reputation.GetFactionDataByIndex ~= nil
+	end,
+	GetAccountWideFontColor = function()
+		return ACCOUNT_WIDE_FONT_COLOR
+	end,
+	GetDelveReputationBarTitle = function()
+		return _G["DELVES_REPUTATION_BAR_TITLE_NO_SEASON"]
+	end,
+	Strtrim = function(str)
+		return strtrim(str)
+	end,
+}
+
+---@class RLF_Reputation: RLF_Module, AceEvent-3.0, AceTimer-3.0, AceBucket-3.0
+local Rep = FeatureBase:new(FeatureModule.Reputation, "AceEvent-3.0", "AceTimer-3.0", "AceBucket-3.0")
+
+Rep._repAdapter = RepAdapter
+
+Rep.Element = {}
+
 local function buildCachedFactionDetails()
 	-- This should only be called from Retail, but just in case
-	if not C_Reputation.GetNumFactions or not C_Reputation.GetFactionDataByIndex then
+	if not Rep._repAdapter.HasRetailReputationAPIAvailable() then
 		return
 	end
 
 	local numCachedFactions = RepUtils.GetCount()
-	local numFactions = C_Reputation.GetNumFactions()
+	local numFactions = Rep._repAdapter.GetNumFactions()
 	local hasMoreFactions = numFactions > numCachedFactions
 	if not hasMoreFactions then
 		return
 	end
 
 	for i = 1, numFactions do
-		local factionData = C_Reputation.GetFactionDataByIndex(i)
+		local factionData = Rep._repAdapter.GetFactionDataByIndex(i)
 		if factionData and factionData.name then
 			local repType = RepUtils.DetermineRepType(factionData.factionID)
 			local detailedFactionData = RepUtils.GetFactionData(factionData.factionID, repType)
@@ -53,8 +133,7 @@ end
 function Rep.Element:new(...)
 	---@class Rep.Element: RLF_BaseLootElement
 	---@field public repType RepType
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = LootElementBase:new()
 
 	element.type = "Reputation"
 	element.IsEnabled = function()
@@ -92,7 +171,7 @@ function Rep.Element:new(...)
 			return str
 		end
 
-		local color = G_RLF:RGBAToHexFormat(element.r, element.g, element.b, G_RLF.db.global.rep.secondaryTextAlpha)
+		local color = RGBAToHexFormat(element.r, element.g, element.b, G_RLF.db.global.rep.secondaryTextAlpha)
 
 		if unifiedFactionData.contextInfo then
 			str = "    " .. color .. unifiedFactionData.contextInfo .. "|r"
@@ -109,7 +188,7 @@ function Rep.Element:new(...)
 end
 
 function Rep:OnInitialize()
-	if not G_RLF:IsRetail() then
+	if not IsRetail() then
 		LegRep.InitializeLegacyReputationChatParsing()
 	end
 
@@ -122,10 +201,10 @@ end
 
 function Rep:OnDisable()
 	self:UnregisterEvent("PLAYER_ENTERING_WORLD")
-	if GetExpansionLevel() >= G_RLF.Expansion.TWW then
+	if Rep._repAdapter.GetExpansionLevel() >= Expansion.TWW then
 		self:UnregisterAllBuckets()
 	end
-	if C_EventUtils and C_EventUtils.IsEventValid and C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED") then
+	if Rep._repAdapter.IsEventValid("FACTION_STANDING_CHANGED") then
 		self:UnregisterAllBuckets()
 	else
 		self:UnregisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE")
@@ -134,12 +213,12 @@ end
 
 function Rep:OnEnable()
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
-	if C_EventUtils and C_EventUtils.IsEventValid and C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED") then
+	if Rep._repAdapter.IsEventValid("FACTION_STANDING_CHANGED") then
 		self:RegisterBucketEvent("FACTION_STANDING_CHANGED", 0.2)
 	else
 		self:RegisterEvent("CHAT_MSG_COMBAT_FACTION_CHANGE")
 	end
-	if GetExpansionLevel() >= G_RLF.Expansion.TWW then
+	if Rep._repAdapter.GetExpansionLevel() >= Expansion.TWW then
 		--- @type FrameEvent[]
 		local delversJourneyPollEvents = {
 			"UPDATE_FACTION",
@@ -148,24 +227,24 @@ function Rep:OnEnable()
 		---@diagnostic disable-next-line: param-type-mismatch
 		self:RegisterBucketEvent(delversJourneyPollEvents, 0.5, "CheckForHiddenRenownFactions")
 	end
-	G_RLF:LogDebug("OnEnable", addonName, self.moduleName)
+	LogDebug("OnEnable", addonName, self.moduleName)
 end
 
 function Rep:ParseFactionChangeMessage(message)
-	return G_RLF.LegacyRepParsing.ParseFactionChangeMessage(message, self.companionFactionName)
+	return LegRep.ParseFactionChangeMessage(message, self.companionFactionName)
 end
 
 function Rep:PLAYER_ENTERING_WORLD(eventName, isLogin, isReload)
-	if GetExpansionLevel() >= G_RLF.Expansion.TWW then
+	if Rep._repAdapter.GetExpansionLevel() >= Expansion.TWW then
 		if not self.companionFactionId or not self.companionFactionName then
-			self.companionFactionId = C_DelvesUI.GetFactionForCompanion()
-			local factionData = C_Reputation.GetFactionDataByID(self.companionFactionId)
+			self.companionFactionId = Rep._repAdapter.GetFactionForCompanion()
+			local factionData = Rep._repAdapter.GetFactionDataByID(self.companionFactionId)
 			if factionData then
 				self.companionFactionName = factionData.name
 			end
 		end
-		self.delversJourney = C_MajorFactions.GetMajorFactionRenownInfo(CURRENT_SEASON_DELVE_JOURNEY)
-		RunNextFrame(function()
+		self.delversJourney = Rep._repAdapter.GetMajorFactionRenownInfo(CURRENT_SEASON_DELVE_JOURNEY)
+		Rep._repAdapter.RunNextFrame(function()
 			buildCachedFactionDetails()
 		end)
 	end
@@ -173,11 +252,7 @@ end
 
 function Rep:FACTION_STANDING_CHANGED(factionEvents)
 	for factionId, cnt in pairs(factionEvents) do
-		G_RLF:LogInfo(
-			cnt .. "x FACTION_STANDING_CHANGED for factionID " .. tostring(factionId),
-			addonName,
-			self.moduleName
-		)
+		LogInfo(cnt .. "x FACTION_STANDING_CHANGED for factionID " .. tostring(factionId), addonName, self.moduleName)
 		self:UpdateReputationForFaction(factionId)
 	end
 end
@@ -186,7 +261,7 @@ function Rep:UpdateReputationForFaction(factionID)
 	local repType = RepUtils.DetermineRepType(factionID)
 	local factionData = RepUtils.GetFactionData(factionID, repType)
 	if not factionData then
-		G_RLF:LogWarn(
+		LogWarn(
 			"Could not retrieve faction data for ID " .. tostring(factionID) .. " repType:" .. tostring(repType),
 			addonName,
 			self.moduleName
@@ -207,63 +282,56 @@ function Rep:UpdateReputationForFaction(factionID)
 end
 
 function Rep:CHAT_MSG_COMBAT_FACTION_CHANGE(eventName, message)
-	if issecretvalue and issecretvalue(message) then
-		G_RLF:LogWarn(
-			"(" .. eventName .. ") Secret value detected, ignoring chat message",
-			"WOWEVENT",
+	if Rep._repAdapter.IssecretValue(message) then
+		LogWarn("(" .. eventName .. ") Secret value detected, ignoring chat message", "WOWEVENT", self.moduleName, "")
+		return
+	end
+
+	LogInfo(eventName .. " " .. message, "WOWEVENT", self.moduleName)
+
+	local faction, repChange, isDelveCompanion, isAccountWide = self:ParseFactionChangeMessage(message)
+
+	if not faction or not repChange then
+		LogError(
+			"Could not determine faction and/or rep change from message",
+			addonName,
 			self.moduleName,
-			""
+			faction,
+			nil,
+			repChange
 		)
 		return
 	end
 
-	G_RLF:LogInfo(eventName .. " " .. message, "WOWEVENT", self.moduleName)
-
-	return self:fn(function()
-		local faction, repChange, isDelveCompanion, isAccountWide = self:ParseFactionChangeMessage(message)
-
-		if not faction or not repChange then
-			G_RLF:LogError(
-				"Could not determine faction and/or rep change from message",
+	local factionMapEntry = LegRep.GetLocaleFactionMapData(faction, isAccountWide)
+	local repType, fId, factionData
+	if factionMapEntry then
+		fId = factionMapEntry
+		repType = RepUtils.DetermineRepType(fId)
+		factionData = RepUtils.GetFactionData(fId, repType)
+		if not factionData then
+			LogWarn(
+				"Could not retrieve faction data for ID " .. tostring(fId) .. " repType:" .. tostring(repType),
 				addonName,
-				self.moduleName,
-				faction,
-				nil,
-				repChange
+				self.moduleName
 			)
 			return
 		end
-
-		local factionMapEntry = G_RLF.LegacyRepParsing.GetLocaleFactionMapData(faction, isAccountWide)
-		local repType, fId, factionData
-		if factionMapEntry then
-			fId = factionMapEntry
-			repType = RepUtils.DetermineRepType(fId)
-			factionData = RepUtils.GetFactionData(fId, repType)
-			if not factionData then
-				G_RLF:LogWarn(
-					"Could not retrieve faction data for ID " .. tostring(fId) .. " repType:" .. tostring(repType),
-					addonName,
-					self.moduleName
-				)
-				return
-			end
-			if factionData.name ~= faction then
-				-- In case there's a mismatch for some reason when parsing chat messages,
-				-- prefer the parsed name
-				factionData.name = faction
-			end
-			factionData.delta = repChange
+		if factionData.name ~= faction then
+			-- In case there's a mismatch for some reason when parsing chat messages,
+			-- prefer the parsed name
+			factionData.name = faction
 		end
+		factionData.delta = repChange
+	end
 
-		if factionData == nil then
-			G_RLF:LogWarn(faction .. " faction data could not be retrieved by ID", addonName, self.moduleName)
-			return
-		end
+	if factionData == nil then
+		LogWarn(faction .. " faction data could not be retrieved by ID", addonName, self.moduleName)
+		return
+	end
 
-		local e = self.Element:new(factionData)
-		e:Show()
-	end)
+	local e = self.Element:new(factionData)
+	e:Show()
 end
 
 --- @class UpdateFactionEventPayload
@@ -280,37 +348,37 @@ end
 function Rep:CheckForHiddenRenownFactions(events)
 	for k, v in pairs(events) do
 		if k then
-			G_RLF:LogDebug(
+			LogDebug(
 				"Processing MAJOR_FACTION_RENOWN_LEVEL_CHANGED event for factionID " .. tostring(k),
 				addonName,
 				self.moduleName
 			)
 		end
 	end
-	if CURRENT_SEASON_DELVE_JOURNEY == 0 and (G_RLF:IsRetail() or GetExpansionLevel() >= G_RLF.Expansion.TWW) then
-		CURRENT_SEASON_DELVE_JOURNEY = C_DelvesUI.GetDelvesFactionForSeason()
+	if CURRENT_SEASON_DELVE_JOURNEY == 0 and (IsRetail() or Rep._repAdapter.GetExpansionLevel() >= Expansion.TWW) then
+		CURRENT_SEASON_DELVE_JOURNEY = Rep._repAdapter.GetDelvesFactionForSeason()
 	end
 
 	if CURRENT_SEASON_DELVE_JOURNEY == 0 then
-		G_RLF:LogDebug("No current season delve journey faction", addonName, self.moduleName)
+		LogDebug("No current season delve journey faction", addonName, self.moduleName)
 		return
 	end
 
 	if not DELVER_JOURNEY_LABEL then
 		---@type string
-		local localeGlobalString = _G["DELVES_REPUTATION_BAR_TITLE_NO_SEASON"]
+		local localeGlobalString = Rep._repAdapter.GetDelveReputationBarTitle()
 		if not localeGlobalString or type(localeGlobalString) ~= "string" then
-			G_RLF:LogDebug("No DJ locale string found", addonName, self.moduleName)
+			LogDebug("No DJ locale string found", addonName, self.moduleName)
 			return
 		end
 		local trimIndex = localeGlobalString:find("%(")
 		if not trimIndex then
-			G_RLF:LogDebug("No trim index found for DJ locale string", addonName, self.moduleName)
+			LogDebug("No trim index found for DJ locale string", addonName, self.moduleName)
 			return
 		end
-		DELVER_JOURNEY_LABEL = strtrim(localeGlobalString:sub(1, trimIndex - 1))
+		DELVER_JOURNEY_LABEL = Rep._repAdapter.Strtrim(localeGlobalString:sub(1, trimIndex - 1))
 		if not DELVER_JOURNEY_LABEL or DELVER_JOURNEY_LABEL == "" then
-			G_RLF:LogDebug("No DJ label after trim", addonName, self.moduleName)
+			LogDebug("No DJ label after trim", addonName, self.moduleName)
 			return
 		end
 	end
@@ -323,15 +391,15 @@ function Rep:CheckForHiddenRenownFactions(events)
 		name = faction,
 		standing = 0,
 		icon = 4635200, -- Delver's Journey
-		quality = G_RLF.ItemQualEnum.Rare,
-		color = ACCOUNT_WIDE_FONT_COLOR,
+		quality = ItemQualEnum.Rare,
+		color = Rep._repAdapter.GetAccountWideFontColor(),
 		contextInfo = "",
 	}
 
-	local updated = C_MajorFactions.GetMajorFactionRenownInfo(CURRENT_SEASON_DELVE_JOURNEY)
+	local updated = Rep._repAdapter.GetMajorFactionRenownInfo(CURRENT_SEASON_DELVE_JOURNEY)
 
 	if not updated then
-		G_RLF:LogDebug("No updated DJ info", addonName, self.moduleName)
+		LogDebug("No updated DJ info", addonName, self.moduleName)
 		return
 	end
 
@@ -350,7 +418,7 @@ function Rep:CheckForHiddenRenownFactions(events)
 
 	local cacheDetails = RepUtils.GetCachedFactionDetails(CURRENT_SEASON_DELVE_JOURNEY, RepType.Warband)
 	if not cacheDetails then
-		G_RLF:LogDebug("No cached DJ info, updating", addonName, self.moduleName)
+		LogDebug("No cached DJ info, updating", addonName, self.moduleName)
 		cacheDetails = MajorFactionRenownInfoToCachedDetails(updated)
 		RepUtils.InsertNewCacheEntry(CURRENT_SEASON_DELVE_JOURNEY, cacheDetails, RepType.Warband)
 		return

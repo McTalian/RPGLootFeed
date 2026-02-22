@@ -1,102 +1,220 @@
+---@diagnostic disable: need-check-nil
+require("RPGLootFeed_spec._mocks.LuaCompat")
 local assert = require("luassert")
 local match = require("luassert.match")
 local busted = require("busted")
 local before_each = busted.before_each
 local describe = busted.describe
 local it = busted.it
-local mock = busted.mock
-local setup = busted.setup
 local spy = busted.spy
 local stub = busted.stub
 
 describe("Reputation Regressions", function()
 	local _ = match._
-	local RepModule, ns
-	local reputationMocks, gossipInfoMocks, delvesUIMocks, majorFactionMocks
-
-	setup(function()
-		require("RPGLootFeed_spec._mocks.WoWGlobals")
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Enum")
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
-		reputationMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_Reputation")
-		majorFactionMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_MajorFactions")
-		gossipInfoMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_GossipInfo")
-		delvesUIMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_DelvesUI")
-	end)
+	---@type RLF_Reputation, table
+	local RepModule, ns, sendMessageSpy
 
 	before_each(function()
-		stub(_G, "LibStub")
-		_G.WOW_PROJECT_ID = 1
-		_G.WOW_PROJECT_MISTS_CLASSIC = 1
+		sendMessageSpy = spy.new(function() end)
+
+		-- Build a minimal ns from scratch – no nsMocks framework needed.
+		-- Only the fields actually referenced by Reputation.lua and
+		-- LootElementBase.lua are included.
 		ns = {
-			RLF = {
-				SendMessage = function() end,
-				NewModule = function()
-					return {
-						Enable = function() end,
-						Disable = function() end,
-						fn = function(self, func, ...)
-							return func(...)
-						end,
-					}
-				end,
-			},
+			-- Captured as locals by Reputation.lua at load time.
+			ItemQualEnum = { Poor = 0, Common = 1, Uncommon = 2, Rare = 3, Epic = 4 },
+			FeatureModule = { Reputation = "Reputation" },
+			DefaultIcons = { REPUTATION = 236681 },
+			Expansion = { TWW = 10 },
+			-- Closure wrappers call these as G_RLF:Method(...).
+			LogDebug = function() end,
+			LogInfo = function() end,
+			LogWarn = function() end,
+			LogError = function() end,
+			IsRetail = function()
+				return false
+			end,
+			RGBAToHexFormat = function()
+				return "|cFFFFFFFF"
+			end,
+			-- Used by LegacyChatParsingImpl locals; no-op stubs since
+			-- LegacyRepParsing is stubbed inline and never actually calls these.
+			CreatePatternSegmentsForStringNumber = function()
+				return {}
+			end,
+			ExtractDynamicsFromPattern = function()
+				return nil, nil
+			end,
+			SendMessage = sendMessageSpy,
+			-- Runtime lookups by LootElementBase:new() and feature code.
 			db = {
 				global = {
-					animations = {
-						exit = {
-							fadeOutDelay = 5,
-						},
-					},
+					animations = { exit = { fadeOutDelay = 5 } },
 					rep = {
 						enabled = true,
 						defaultRepColor = { 1, 1, 1, 1 },
+						enableIcon = true,
+						secondaryTextAlpha = 1,
 					},
-					warbandFactions = {
-						count = 0,
-						cachedFactionDetailsById = {},
-					},
-				},
-				locale = {
-					factionMap = {},
-				},
-				char = {
-					repFactions = {
-						count = 0,
-						cachedFactionDetailsById = {},
-					},
+					misc = { hideAllIcons = false },
 				},
 			},
-			L = {},
 		}
 
-		assert(loadfile("RPGLootFeed/utils/AddonMethods.lua"))("TestAddon", ns)
-		assert(loadfile("RPGLootFeed/utils/Enums.lua"))("TestAddon", ns)
-		assert(loadfile("RPGLootFeed/utils/GameVersionHelpers.lua"))("TestAddon", ns)
-		assert(loadfile("RPGLootFeed/Features/_Internals/LootDisplayProperties.lua"))("TestAddon", ns)
+		-- Stub RepUtils inline – avoids loading ReputationHelpers.lua and its
+		-- chain of C_Reputation / C_Gossip / C_MajorFactions dependencies.
+		ns.RepUtils = {
+			RepType = {
+				Unknown = 0x0000,
+				BaseFaction = 0x0001,
+				MajorFaction = 0x0002,
+				DelveCompanion = 0x0004,
+				Friendship = 0x0008,
+				Guild = 0x0010,
+				DelversJourney = 0x0020,
+				Paragon = 0x1000,
+				Warband = 0x2000,
+			},
+			GetCount = function()
+				return 0
+			end,
+			DetermineRepType = function()
+				return 0x0001 -- BaseFaction
+			end,
+			-- Returns the exact shape that CHAT_MSG_COMBAT_FACTION_CHANGE expects.
+			-- The caller adds the `delta` field after this returns.
+			GetFactionData = function(factionID)
+				if factionID == 12345 then
+					return {
+						factionId = 12345,
+						name = "Рыболовы",
+						standing = 2,
+						icon = 236681,
+						quality = 3,
+						rank = "Test Text",
+						rankStandingMax = 3,
+						rankStandingMin = 2,
+						color = { r = 1, g = 0, b = 0 },
+						contextInfo = "2",
+					}
+				end
+				return nil
+			end,
+			GetDeltaAndUpdateCache = function()
+				return nil
+			end,
+			GetCachedFactionDetails = function()
+				return nil
+			end,
+			InsertNewCacheEntry = function() end,
+			UpdateCacheEntry = function() end,
+		}
 
-		ns.db.locale.factionMap["Рыболовы"] = 12345
+		-- Stub LegacyRepParsing inline – individual test cases stub the methods
+		-- they care about via busted stub().
+		ns.LegacyRepParsing = {
+			InitializeLegacyReputationChatParsing = function() end,
+			ParseFactionChangeMessage = function()
+				return nil, nil, false, false
+			end,
+			GetLocaleFactionMapData = function()
+				return nil
+			end,
+			buildFactionLocaleMap = function() end,
+		}
 
-		RepUtils = assert(loadfile("RPGLootFeed/utils/ReputationHelpers.lua"))("TestAddon", ns)
-		Legacy = assert(loadfile("RPGLootFeed/Features/Reputation/LegacyChatParsingImpl.lua"))("TestAddon", ns)
+		-- Load real LootElementBase so elements are fully constructed.
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+		assert.is_not_nil(ns.LootElementBase)
+
+		-- Mock FeatureBase – returns a minimal stub module so Reputation tests
+		-- are completely independent of AceAddon plumbing.
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterEvent = function() end,
+					RegisterBucketEvent = function() end,
+					UnregisterAllBuckets = function() end,
+				}
+			end,
+		}
+
+		-- Load Reputation – the FeatureBase mock above is captured at load time.
+		-- RepUtils and LegacyRepParsing stubs set above are also captured here.
 		RepModule = assert(loadfile("RPGLootFeed/Features/Reputation/Reputation.lua"))("TestAddon", ns)
+
+		-- Inject a fresh mock adapter so tests control external WoW API calls
+		-- without patching _G directly.
+		RepModule._repAdapter = {
+			GetExpansionLevel = function()
+				return 8 -- below TWW (10), skips all Delvers Journey / TWW paths
+			end,
+			RunNextFrame = function(fn)
+				fn()
+			end,
+			IssecretValue = function()
+				return false
+			end,
+			IsEventValid = function()
+				return false -- Classic path: use CHAT_MSG_COMBAT_FACTION_CHANGE
+			end,
+			GetFactionForCompanion = function()
+				return 2640
+			end,
+			GetFactionDataByID = function()
+				return nil
+			end,
+			GetDelvesFactionForSeason = function()
+				return 0
+			end,
+			GetMajorFactionRenownInfo = function()
+				return nil
+			end,
+			GetNumFactions = function()
+				return nil
+			end,
+			GetFactionDataByIndex = function()
+				return nil
+			end,
+			HasRetailReputationAPIAvailable = function()
+				return false
+			end,
+			GetAccountWideFontColor = function()
+				return {
+					GetRGBA = function()
+						return 1, 1, 1, 1
+					end,
+				}
+			end,
+			GetDelveReputationBarTitle = function()
+				return nil
+			end,
+			Strtrim = function(str)
+				return str
+			end,
+		}
 	end)
 
 	it("handles The Anglers in MOP Classic, ruRU", function()
 		local spyElementNew = spy.on(RepModule.Element, "new")
-		_G.FACTION_STANDING_INCREASED_ACH_BONUS =
-			'Отношение фракции "%s" к вам улучшилось на %d (+%.1f дополнительно).'
 
-		-- Mock ParseFactionChangeMessage to return faction name and repChange
+		-- Stub ParseFactionChangeMessage to return faction name and repChange.
 		stub(RepModule, "ParseFactionChangeMessage").returns("Рыболовы", 1100, false, false)
 
-		-- Mock GetLocaleFactionMapData to return the faction ID for "Рыболовы"
+		-- Stub GetLocaleFactionMapData to return the faction ID for "Рыболовы".
 		stub(ns.LegacyRepParsing, "GetLocaleFactionMapData").returns(12345)
 
 		RepModule:OnInitialize()
-		RepModule:PLAYER_ENTERING_WORLD(true, false)
+		RepModule:PLAYER_ENTERING_WORLD("PLAYER_ENTERING_WORLD", true, false)
 
-		local success = RepModule:CHAT_MSG_COMBAT_FACTION_CHANGE(
+		RepModule:CHAT_MSG_COMBAT_FACTION_CHANGE(
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			'Отношение фракции "Рыболовы" к вам улучшилось на 1100 (+550.0 дополнительно).'
 		)
