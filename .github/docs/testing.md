@@ -63,7 +63,33 @@ end)
 
 ### Lightweight Feature Module Tests (preferred pattern)
 
-Feature modules expose their full dependency surface as locals at the top of the file and use `FeatureBase:new()` instead of `G_RLF.RLF:NewModule()` directly. This means tests can build `ns` as a plain hand-crafted table with **zero reliance on the `nsMocks` framework**. See `TravelPoints_spec.lua` and `Transmog_spec.lua` as reference implementations.
+Feature modules expose their full dependency surface as locals at the top of the file and use `FeatureBase:new()` instead of `G_RLF.RLF:NewModule()` directly. This means tests can build `ns` as a plain hand-crafted table with **zero reliance on the `nsMocks` framework**.
+
+**Fully migrated reference implementations** (in rough order of complexity):
+
+| Spec file                        | Pattern highlights                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| `TravelPoints_spec.lua`          | Canonical baseline — simplest pattern                                           |
+| `Transmog_spec.lua`              | Canonical baseline                                                              |
+| `Experience_spec.lua`            | Bare WoW global fn adapter (`UnitXP` etc.)                                      |
+| `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine                       |
+| `Professions_spec.lua`           | `GetProfessions/GetProfessionInfo`, locale globals                              |
+| `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin |
+| `PartyLoot_spec.lua`             | UnitName/UnitClass, GUID, expansion-gate, nameUnitMap                           |
+| `Currency_spec.lua`              | C_Everywhere + bare global fallbacks, Classic locale patterns, adapter factory  |
+
+**Inline utility stub pattern** — for modules with large utility deps having deep WoW API chains (e.g. `RepUtils` → `C_Reputation` / `C_GossipInfo` / `C_MajorFactions`), stub the entire utility table inline on `ns` rather than loading the real file:
+
+```lua
+ns.RepUtils = {
+    RepType = { BaseFaction = 0x0001, ... },
+    GetCount = function() return 0 end,
+    DetermineRepType = function() return 0x0001 end,
+    ...
+}
+```
+
+This completely isolates the module under test from transitive WoW dependencies.
 
 ```lua
 require("RPGLootFeed_spec._mocks.LuaCompat") -- unpack, format polyfills

@@ -56,7 +56,7 @@ RPGLootFeed/
 │   └── _Internals/          # Internal feature utilities
 │       ├── FeatureBase.lua       # AceModule factory (wraps G_RLF.RLF:NewModule)
 │       ├── LootElementBase.lua   # Mixin factory for loot row data
-│       ├── LootDisplayProperties.lua  # Legacy initializer (being phased out)
+│       ├── LootDisplayProperties.lua  # ⚠️ DEPRECATED — use LootElementBase:new() instead
 │       ├── TextTemplateEngine.lua
 │       ├── RLF_Notifications.lua
 │       └── RLF_Communications.lua
@@ -144,6 +144,8 @@ RPGLootFeed/
 3. Defines WoW API / `_G` string access in local adapter tables (`_perksActivitiesAdapter`, `_globalStringsAdapter`, etc.) exposed on the module for test injection
 4. Uses `LootElementBase:new()` inside `Module.Element:new()` to create row data
 5. Calls external API/logging functions through the captured locals, NOT through `G_RLF.*` directly
+
+**Migration status**: All feature modules except `ItemLoot/ItemLoot.lua` have been migrated to this pattern. `ItemLoot.lua` still uses `G_RLF.RLF:NewModule()` directly and its spec still relies on the old `nsMocks` framework.
 
 **`fn` deprecation**: The `self:fn(func, ...)` xpcall wrapper on the module prototype is being phased out. It silently swallows errors. Features should use direct calls with explicit guard clauses instead.
 
