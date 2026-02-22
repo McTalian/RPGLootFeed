@@ -46,6 +46,7 @@ RPGLootFeed/
 │   ├── Currency/            # Currency gains
 │   │   └── Currency.lua
 │   ├── Reputation/          # Reputation gains
+│   │   ├── LegacyChatParsingImpl.lua  # Classic/non-Retail chat parsing for faction rep
 │   │   └── Reputation.lua
 │   ├── Experience.lua       # XP gains
 │   ├── Money.lua            # Gold/money looting
