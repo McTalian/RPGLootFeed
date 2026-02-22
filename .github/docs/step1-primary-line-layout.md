@@ -302,52 +302,15 @@ Setting `childLayoutDirection` is done in `StyleText()` alongside the existing
 
 ### 5.1 [RowText.xml](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowText.xml)
 
-**Remove** `ItemCountText` from the `<Layers>` block (it becomes a programmatic child
-of `PrimaryLineLayout`, not an XML-defined sibling of `PrimaryText`).
+**Remove** `ItemCountText` from the `<Layers>` block — it becomes a programmatic child
+of `PrimaryLineLayout` via `SetParent()` in `CreatePrimaryLineLayout()`.
 
-**Add** `PrimaryLineLayout` as an XML frame or create it programmatically in `OnLoad`.
+`PrimaryLineLayout` is **created programmatically** in `RLF_RowTextMixin:CreatePrimaryLineLayout()`
+called from `OnLoad`. No XML changes are needed to introduce the layout frame.
 
-Option A — XML (preferred for clarity):
-
-```xml
-<Frame name="RLF_RowTextTemplate" mixin="RLF_RowTextMixin" virtual="true">
-    <Frames>
-        <Frame parentKey="PrimaryLineLayout" mixin="HorizontalLayoutMixin">
-            <Layers>
-                <Layer level="ARTWORK">
-                    <FontString parentKey="PrimaryText"
-                                inherits="GameFontNormal"
-                                layoutIndex="1" />
-                    <FontString parentKey="ItemCountText"
-                                inherits="GameFontNormal"
-                                hidden="true"
-                                layoutIndex="2"
-                                includeAsLayoutChildWhenHidden="true" />
-                </Layer>
-            </Layers>
-        </Frame>
-    </Frames>
-    <Layers>
-        <Layer level="ARTWORK">
-            <FontString parentKey="SecondaryText" inherits="GameFontNormal" hidden="true" />
-        </Layer>
-    </Layers>
-</Frame>
-```
-
-> **Note on `includeAsLayoutChildWhenHidden`**: `ItemCountText` is hidden when no
-> count is shown. Setting this flag means `HorizontalLayoutMixin:GetLayoutChildren()`
-> still includes it so its (zero) width is allocated — only needed if we always want
-> the slot reserved. More likely we want to **exclude** it when hidden so `PrimaryText`
-> gets the full width. Leave this flag off (default); when `ItemCountText` is hidden,
-> `GetLayoutChildren()` omits it, and we recalculate `PrimaryText` width accordingly.
-
-Option B — Programmatic in `RLF_RowTextMixin:CreatePrimaryLineLayout()` called from
-`OnLoad`. More testable without XML parsing.
-
-**Decision needed**: XML vs programmatic. XML makes hierarchy visible at a glance;
-programmatic is easier to test in busted specs. Given existing mixin pattern,
-**programmatic is recommended** for consistency with how `RowIconMixin`, etc. work.
+> **Decision (confirmed)**: Programmatic creation is preferred over XML for consistency
+> with how `RowIconMixin` and other mixins work, and because it is easier to stub in
+> busted unit specs without an XML parser.
 
 ### 5.2 [RowTextMixin.lua](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua)
 
@@ -356,7 +319,11 @@ programmatic is easier to test in busted specs. Given existing mixin pattern,
 ```lua
 function RLF_RowTextMixin:CreatePrimaryLineLayout()
     local layout = CreateFrame("Frame", nil, self)
-    Mixin(layout, HorizontalLayoutMixin)
+    -- Both mixins are required: LayoutMixin provides Layout() / GetLayoutChildren();
+    -- HorizontalLayoutMixin provides LayoutChildren() (the horizontal positioning logic).
+    -- This mirrors the XML template: mixin="LayoutMixin, HorizontalLayoutMixin"
+    -- See: Blizzard_SharedXML/LayoutFrame.xml (HorizontalLayoutFrame template)
+    Mixin(layout, LayoutMixin, HorizontalLayoutMixin)
     layout.spacing = 0  -- set after icon size is known; see StyleText()
 
     -- PrimaryText moves from being a direct child of the row to being a child
@@ -409,6 +376,9 @@ self.rawPrimaryText = rawText
 self.PrimaryText:SetText(rawText)  -- initial render; LayoutPrimaryLine refines
 ```
 
+Remove the existing `if self.link then self.ClickableButton:SetSize(...) end` block —
+`LayoutPrimaryLine()` now owns button geometry.
+
 At the end of `ShowText()`, call `self:LayoutPrimaryLine()`. This handles all
 non-deferred rows (Money, XP, Reputation, etc.) that never reach `ShowItemCountText()`.
 `ItemCountText` is hidden at this point so `primaryTextWidth = availableWidth`.
@@ -446,10 +416,25 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 
     self.PrimaryLineLayout.fixedWidth = availableWidth
     self.PrimaryLineLayout:Layout()
+
+    -- ClickableButton geometry is owned here, not in ShowText() or SetupTooltip()
+    if self.link then
+        self.ClickableButton:ClearAllPoints()
+        self.ClickableButton:SetPoint("LEFT", self.PrimaryText, "LEFT")
+        self.ClickableButton:SetSize(
+            self.PrimaryText:GetStringWidth(),
+            self.PrimaryText:GetStringHeight()
+        )
+    end
 end
 ```
 
 No truncation helper function is needed — the engine handles it.
+
+`ClickableButton` geometry (anchor + size) is set **only** in `LayoutPrimaryLine()`. The
+calls previously in `ShowText()` and `SetupTooltip()` are removed (see §5.2 and §5.5).
+After `Layout()` the engine has applied truncation, so `GetStringWidth()` returns the
+correct visible width.
 
 #### Modified: `ShowItemCountText()`
 
@@ -490,7 +475,25 @@ Remove (after confirming no other callers):
 - [`G_RLF:CalculateTextWidth(...)`](../../RPGLootFeed/LootDisplay/LootDisplay.lua#L481) function
 - [`G_RLF.tempFontString`](../../RPGLootFeed/LootDisplay/LootDisplay.lua#L23) initialization
 
-### 5.5 No new utility file needed
+### 5.5 [RowTooltipMixin.lua](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTooltipMixin.lua)
+
+#### Modified: `SetupTooltip()`
+
+Remove the three lines that position and size `ClickableButton`:
+
+```lua
+-- REMOVE these three lines:
+self.ClickableButton:ClearAllPoints()
+self.ClickableButton:SetPoint("LEFT", self.PrimaryText, "LEFT")
+self.ClickableButton:SetSize(self.PrimaryText:GetStringWidth(), self.PrimaryText:GetStringHeight())
+```
+
+`LayoutPrimaryLine()` is called (from `ShowText()` / `ShowItemCountText()`) before
+`SetupTooltip()` in the row lifecycle, so the button is already correctly sized when
+`SetupTooltip()` runs. `SetupTooltip()` retains only the `self.ClickableButton:Show()`
+call and all tooltip event handler registration.
+
+### 5.6 No new utility file needed
 
 Native FontString truncation via `SetWidth` + `SetWordWrap(false)` replaces all
 custom truncation logic. No `Utils/TextLayout.lua` is required.
@@ -499,16 +502,16 @@ custom truncation logic. No `Utils/TextLayout.lua` is required.
 
 ## 6. Invariants — What Does NOT Change in Step 1
 
-| Thing                                               | Reason unchanged                                                      |
-| --------------------------------------------------- | --------------------------------------------------------------------- |
-| `SecondaryText` anchoring                           | Not in scope; still anchored manually to Icon                         |
-| `Icon` position logic (`RowIconMixin`)              | Unchanged                                                             |
-| `leftAlign` config value and meaning                | Still drives anchor point; now also drives `childLayoutDirection`     |
-| `StyleText()` caching logic                         | Cache keys may need `childLayoutDirection` added; rest unchanged      |
-| `UpdateItemCount()` dispatch logic per feature type | Still calls `ShowItemCountText`                                       |
-| All feature modules (`ItemLoot`, `Currency`, etc.)  | `textFn` contract unchanged — only callers in `LootDisplayRow` change |
-| `SecondaryText` font styling                        | Unchanged                                                             |
-| History mode / `LootDisplayFrame` data capture      | Reads from `PrimaryText:GetText()` — still valid after layout         |
+| Thing                                               | Reason unchanged                                                                                                                |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `SecondaryText` anchoring                           | Not in scope; still anchored manually to Icon                                                                                   |
+| `Icon` position logic (`RowIconMixin`)              | Unchanged                                                                                                                       |
+| `leftAlign` config value and meaning                | Still drives anchor point; now also drives `childLayoutDirection`                                                               |
+| `StyleText()` caching logic                         | Cache keys may need `childLayoutDirection` added; rest unchanged                                                                |
+| `UpdateItemCount()` dispatch logic per feature type | Still calls `ShowItemCountText`                                                                                                 |
+| All feature modules (`ItemLoot`, `Currency`, etc.)  | `textFn` contract unchanged — only callers in `LootDisplayRow` change                                                           |
+| `SecondaryText` font styling                        | Unchanged                                                                                                                       |
+| History mode / `LootDisplayFrame` data capture      | `PrimaryText:GetText()` returns the **full set text** (`rawPrimaryText`), not the visually truncated display — no change needed |
 
 > **No database or configuration changes** are introduced in Step 1. This is a purely
 > internal layout refactor — no migration script, no new config options, and no schema
@@ -558,34 +561,50 @@ validated in-game.
 
 ## 8. Open Questions / Risks
 
-### 8.1 Is `HorizontalLayoutMixin` available without XML inheritance?
+### 8.1 Is `HorizontalLayoutMixin` available without XML inheritance? ✅ Resolved
 
-Blizzard's layout mixins are defined in `Blizzard_SharedXML` (loaded for all addons).
-`HorizontalLayoutMixin` should be a global. Verify by `print(type(HorizontalLayoutMixin))`
-in-game before relying on it.
+`HorizontalLayoutMixin` is a global table — verified in-game on **Retail, Classic Era
+(Vanilla), Classic (Mists of Pandaria), and Classic (Burning Crusade Anniversary)**.
+All clients pass all checks; no version-specific branching or shims are needed.
 
-If not available as a global (unlikely but possible in some game versions), we can
-copy the relevant `LayoutChildren` logic as a local mixin — it's ~30 lines.
+`HorizontalLayoutMixin` provides **only** `LayoutChildren()` — the horizontal-positioning
+implementation. `Layout()`, `GetLayoutChildren()`, `CalculateFrameSize()` etc. live on
+`LayoutMixin` (which is `CreateFromMixins(BaseLayoutMixin)`).
 
-### 8.2 `FontString` as child of a `Frame` — does `SetParent` work correctly?
+The correct programmatic setup (mirroring the XML `HorizontalLayoutFrame` template
+which uses `mixin="LayoutMixin, HorizontalLayoutMixin"`) is:
 
-`PrimaryText` and `ItemCountText` are currently siblings of `Icon` on the row frame.
-After Step 1 they become children of `PrimaryLineLayout`. `FontString:SetParent()`
-should work, but verify that `GetLayoutChildren()` via `GetChildren()` and
-`GetRegions()` picks them up correctly.
+```lua
+Mixin(layout, LayoutMixin, HorizontalLayoutMixin)
+```
 
-> LayoutMixin's `GetLayoutChildren()` calls both `self:GetChildren()` (Frames) and
-> `self:GetRegions()` (FontStrings, Textures). FontStrings are **regions**, not
-> children, so they should be returned by `GetRegions()`. Confirm `layoutIndex` is
-> respected on regions, not only on child Frames.
+Using only `Mixin(layout, HorizontalLayoutMixin)` results in `Layout` being nil at
+call time — confirmed by in-game test. Both mixins are required. Both are globals
+across all tested clients.
 
-### 8.3 `ClickableButton` sizing after truncation
+### 8.2 `FontString` as child of a `Frame` — does `SetParent` work correctly? ✅ Resolved
 
-`ClickableButton:SetSize(self.PrimaryText:GetStringWidth(), ...)` in [`ShowText()`](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua#L369).
-This must be called **after** `LayoutPrimaryLine()` sets the final text. Move
-`ClickableButton` sizing into `LayoutPrimaryLine()`.
+Verified in-game:
 
-### 8.4 History mode bypass
+- `GetRegions()` returns both FontStrings (count = 2) ✅
+- `Layout()` completes without error ✅
+- `layoutIndex` order is respected (fs1 laid out left of fs2) ✅
+- Hidden child (`fs2:Hide()`) is excluded from layout — `fs1.left` is unchanged, meaning `PrimaryText` correctly claims the full width when `ItemCountText` is hidden ✅
+
+FontStrings created via `CreateFontString` are owned as regions by their parent frame and are correctly picked up by `GetLayoutChildren()` via `GetRegions()`. `layoutIndex` is honoured on regions, not only child Frames.
+
+### 8.3 `ClickableButton` sizing after truncation ✅ Resolved
+
+`ClickableButton:SetSize()` appeared in **two** places:
+
+- [`ShowText()` line 382](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua#L382)
+- [`SetupTooltip()` line 17](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTooltipMixin.lua#L17)
+
+Both are removed. `LayoutPrimaryLine()` now exclusively owns `ClickableButton` geometry
+(anchor + size), called after `Layout()` when `GetStringWidth()` reflects the final
+truncated display width. See §5.2 (`ShowText()` modifications) and §5.5 for details.
+
+### 8.4 History mode bypass ✅ Resolved — non-issue
 
 `LootDisplayFrame` saves row data for history replay via:
 
@@ -593,9 +612,14 @@ This must be called **after** `LayoutPrimaryLine()` sets the final text. Move
 rowText = row.PrimaryText:GetText()
 ```
 
-After this change, `PrimaryText:GetText()` returns the **truncated** text, not the
-original item link. For history, we want the original. Consider adding
-`row.rawPrimaryText` to the saved history data.
+This is **not affected** by native engine truncation. `FontString:GetText()` always
+returns the exact string passed to `SetText()` — the WoW engine truncates the
+**display rendering** (via `SetWidth` + `SetWordWrap(false)`) but does not mutate the
+internally stored text value. Since `LayoutPrimaryLine()` calls
+`self.PrimaryText:SetText(self.rawPrimaryText)`, `GetText()` continues to return the
+full original text after layout, which is correct for history replay.
+
+No `row.rawPrimaryText` field is needed in the history data struct.
 
 ### 8.5 `SetWordWrap(false)` is set once during frame setup
 
@@ -603,9 +627,42 @@ original item link. For history, we want the original. Consider adding
 is re-parented, not in `LayoutPrimaryLine()` on every update. This is reflected in
 the `CreatePrimaryLineLayout()` snippet in §5.2 and confirmed as resolved.
 
+### 8.6 Double `RunNextFrame` causes a 2-frame flash for `ItemLoot` / `Professions`
+
+For `ItemLoot` and `Professions`, the call chain is:
+
+```
+ShowText()                  → LayoutPrimaryLine()  (frame N: initial layout, full-width text)
+  └─ RunNextFrame:
+       UpdateItemCount()
+         └─ RunNextFrame:
+              ShowItemCountText()  → LayoutPrimaryLine()  (frame N+2: refined layout)
+```
+
+`ShowItemCountText()` fires **2 frames** after `ShowText()`. This means the row
+displays for two frames with the text at full available width before the count
+string is factored in and the final `PrimaryText` truncation is applied.
+
+For most item names this is imperceptible, but for very long names in narrow feeds
+the text may momentarily extend past its budget. This is a **known timing artefact**
+of Step 1 — it is not introduced by this change (the single `RunNextFrame` in
+`UpdateItemCount()` already causes a deferred update today), but the second nesting
+makes it one frame later than it could be. Fix is deferred to a later step if the
+flash is visually noticeable in testing.
+
 ---
 
 ## 9. Implementation Order
+
+### Step 0 — In-Game Pre-Checks (before writing any layout code)
+
+**0a. (Addresses §8.1 — Resolved)** Both `LayoutMixin` and `HorizontalLayoutMixin` are
+confirmed globals. Use `Mixin(layout, LayoutMixin, HorizontalLayoutMixin)` — using only
+`HorizontalLayoutMixin` leaves `Layout()` nil at runtime.
+
+**0b. (Addresses §8.2 — Resolved)** FontStrings are picked up by `GetRegions()`,
+`layoutIndex` ordering is honoured on regions, and hidden FontStrings are correctly
+excluded from layout. All verified in-game.
 
 1. **Add `PrimaryLineLayout` frame + `CreatePrimaryLineLayout()`** — introduce the
    container structure. At this point it's an inert wrapper; nothing changes visually.
