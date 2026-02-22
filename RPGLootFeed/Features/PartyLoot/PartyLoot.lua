@@ -4,11 +4,81 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
----@class RLF_PartyLoot: RLF_Module, AceEvent-3.0
-local PartyLoot = G_RLF.RLF:NewModule(G_RLF.FeatureModule.PartyLoot, "AceEvent-3.0")
-
-local C = LibStub("C_Everywhere")
+-- ── External dependency locals ────────────────────────────────────────────────
+-- Every reference to the addon namespace is captured here so the module's full
+-- dependency surface on G_RLF / ns is visible in one place.  Tests pass a
+-- minimal mock ns to loadfile("PartyLoot.lua") to control these at
+-- injection time without the full nsMocks framework.
+-- NOTE: G_RLF.db is intentionally absent – AceDB populates it in
+-- OnInitialize, so it must remain a runtime lookup inside function bodies.
+local LootElementBase = G_RLF.LootElementBase
+local ItemQualEnum = G_RLF.ItemQualEnum
+local FeatureBase = G_RLF.FeatureBase
+local FeatureModule = G_RLF.FeatureModule
+local Expansion = G_RLF.Expansion
 local ItemInfo = G_RLF.ItemInfo
+local LogDebug = function(...)
+	G_RLF:LogDebug(...)
+end
+local LogInfo = function(...)
+	G_RLF:LogInfo(...)
+end
+local LogWarn = function(...)
+	G_RLF:LogWarn(...)
+end
+local LogError = function(...)
+	G_RLF:LogError(...)
+end
+local IsRetail = function()
+	return G_RLF:IsRetail()
+end
+
+-- ── WoW API / Global abstraction adapters ────────────────────────────────────
+-- Wraps UnitName, UnitClass, IsInRaid, IsInInstance, GetNumGroupMembers,
+-- GetExpansionLevel, GetPlayerGuid, C_ClassColor, RAID_CLASS_COLORS, and the
+-- C_Everywhere item query so tests can inject mocks without patching _G.
+local C = LibStub("C_Everywhere")
+local PartyLootAdapter = {
+	UnitName = function(unit)
+		return UnitName(unit)
+	end,
+	UnitClass = function(unit)
+		return UnitClass(unit)
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	GetNumGroupMembers = function()
+		return GetNumGroupMembers()
+	end,
+	IsInRaid = function()
+		return IsInRaid()
+	end,
+	IsInInstance = function()
+		return IsInInstance()
+	end,
+	GetExpansionLevel = function()
+		return GetExpansionLevel()
+	end,
+	GetPlayerGuid = function()
+		return GetPlayerGuid()
+	end,
+	GetClassColor = function(className)
+		return C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(className)
+	end,
+	GetRaidClassColor = function(className)
+		return RAID_CLASS_COLORS and RAID_CLASS_COLORS[className]
+	end,
+	GetItemInfo = function(itemLink)
+		return C.Item.GetItemInfo(itemLink)
+	end,
+}
+
+---@class RLF_PartyLoot: RLF_Module, AceEvent-3.0
+local PartyLoot = FeatureBase:new(FeatureModule.PartyLoot, "AceEvent-3.0")
+
+PartyLoot._partyLootAdapter = PartyLootAdapter
+
 local onlyEpicPartyLoot = false
 
 -- Create PartyLoot.Element namespace
@@ -16,8 +86,7 @@ PartyLoot.Element = {}
 
 function PartyLoot.Element:new(...)
 	---@class PartyLoot.Element: RLF_BaseLootElement
-	local element = {}
-	G_RLF.InitializeLootDisplayProperties(element)
+	local element = LootElementBase:new()
 
 	element.type = "PartyLoot"
 	element.IsEnabled = function()
@@ -40,26 +109,19 @@ function PartyLoot.Element:new(...)
 	end
 
 	if info.keystoneInfo ~= nil then
-		element.quality = G_RLF.ItemQualEnum.Epic
+		element.quality = ItemQualEnum.Epic
 	end
 
 	function element:isPassingFilter(itemName, itemQuality)
 		if not G_RLF.db.global.partyLoot.itemQualityFilter[itemQuality] then
-			G_RLF:LogDebug(
-				itemName .. " ignored by quality in party loot",
-				addonName,
-				"PartyLoot",
-				"",
-				nil,
-				self.quantity
-			)
+			LogDebug(itemName .. " ignored by quality in party loot", addonName, "PartyLoot", "", nil, self.quantity)
 			return false
 		end
 
 		local ignoredIds = G_RLF.db.global.partyLoot.ignoreItemIds
 
 		if #ignoredIds == 0 then
-			G_RLF:LogDebug(
+			LogDebug(
 				itemName .. " passed because there are no configured ignored item ids",
 				addonName,
 				PartyLoot.moduleName,
@@ -72,7 +134,7 @@ function PartyLoot.Element:new(...)
 
 		for _, id in ipairs(G_RLF.db.global.partyLoot.ignoreItemIds) do
 			if tonumber(id) == tonumber(self.itemId) then
-				G_RLF:LogDebug(
+				LogDebug(
 					itemName .. " ignored by item id in party loot",
 					addonName,
 					PartyLoot.moduleName,
@@ -82,7 +144,7 @@ function PartyLoot.Element:new(...)
 				)
 				return false
 			else
-				G_RLF:LogDebug(
+				LogDebug(
 					itemName .. " passed because it does not match the configured ignored item id: " .. id,
 					addonName,
 					PartyLoot.moduleName,
@@ -113,7 +175,7 @@ function PartyLoot.Element:new(...)
 	end
 
 	element.secondaryText = "A former party member"
-	local name, server = UnitName(element.unit)
+	local name, server = PartyLoot._partyLootAdapter.UnitName(element.unit)
 	if name then
 		if server and G_RLF.db.global.partyLoot.hideServerNames == false then
 			element.secondaryText = "    " .. name .. "-" .. server
@@ -127,11 +189,14 @@ function PartyLoot.Element:new(...)
 		element.secondaryText = element.secondaryText .. equipmentTypeText
 	end
 
-	element.unitClass = select(2, UnitClass(element.unit))
-	if GetExpansionLevel() >= G_RLF.Expansion.BFA then
-		element.secondaryTextColor = C_ClassColor.GetClassColor(select(2, UnitClass(element.unit)))
+	element.unitClass = select(2, PartyLoot._partyLootAdapter.UnitClass(element.unit))
+	if PartyLoot._partyLootAdapter.GetExpansionLevel() >= Expansion.BFA then
+		element.secondaryTextColor =
+			PartyLoot._partyLootAdapter.GetClassColor(select(2, PartyLoot._partyLootAdapter.UnitClass(element.unit)))
 	else
-		element.secondaryTextColor = RAID_CLASS_COLORS[select(2, UnitClass(element.unit))]
+		element.secondaryTextColor = PartyLoot._partyLootAdapter.GetRaidClassColor(
+			select(2, PartyLoot._partyLootAdapter.UnitClass(element.unit))
+		)
 	end
 
 	element.secondaryTextFn = function()
@@ -164,13 +229,13 @@ function PartyLoot:OnEnable()
 	self:RegisterEvent("GROUP_ROSTER_UPDATE")
 	self:SetNameUnitMap()
 	self:SetPartyLootFilters()
-	G_RLF:LogDebug("OnEnable", addonName, self.moduleName)
+	LogDebug("OnEnable", addonName, self.moduleName)
 end
 
 function PartyLoot:SetNameUnitMap()
 	local units = {}
-	local groupMembers = GetNumGroupMembers()
-	if IsInRaid() then
+	local groupMembers = PartyLoot._partyLootAdapter.GetNumGroupMembers()
+	if PartyLoot._partyLootAdapter.IsInRaid() then
 		for i = 1, groupMembers do
 			table.insert(units, "raid" .. i)
 		end
@@ -184,22 +249,22 @@ function PartyLoot:SetNameUnitMap()
 
 	self.nameUnitMap = {}
 	for _, unit in ipairs(units) do
-		local name, server = UnitName(unit)
+		local name, server = PartyLoot._partyLootAdapter.UnitName(unit)
 		if name then
 			self.nameUnitMap[name] = unit
 		else
-			G_RLF:LogError("Failed to get name for unit: " .. unit, addonName, self.moduleName)
+			LogError("Failed to get name for unit: " .. unit, addonName, self.moduleName)
 		end
 	end
 end
 
 function PartyLoot:SetPartyLootFilters()
-	if IsInRaid() and G_RLF.db.global.partyLoot.onlyEpicAndAboveInRaid then
+	if PartyLoot._partyLootAdapter.IsInRaid() and G_RLF.db.global.partyLoot.onlyEpicAndAboveInRaid then
 		onlyEpicPartyLoot = true
 		return
 	end
 
-	if IsInInstance() and G_RLF.db.global.partyLoot.onlyEpicAndAboveInInstance then
+	if PartyLoot._partyLootAdapter.IsInInstance() and G_RLF.db.global.partyLoot.onlyEpicAndAboveInInstance then
 		onlyEpicPartyLoot = true
 		return
 	end
@@ -211,7 +276,7 @@ function PartyLoot:OnPartyReadyToShow(info, amount, unit)
 	if not unit then
 		return
 	end
-	if onlyEpicPartyLoot and info.itemQuality < G_RLF.ItemQualEnum.Epic then
+	if onlyEpicPartyLoot and info.itemQuality < ItemQualEnum.Epic then
 		return
 	end
 	if G_RLF.db.global.partyLoot.itemQualityFilter[info.itemQuality] == false then
@@ -228,7 +293,7 @@ function PartyLoot:ShowPartyLoot(msg, itemLink, unit)
 	local amount = tonumber(msg:match("r ?x(%d+)") or 1)
 	local itemId = itemLink:match("Hitem:(%d+)")
 	self.pendingPartyRequests[itemId] = { itemLink, amount, unit }
-	local info = ItemInfo:new(itemId, C.Item.GetItemInfo(itemLink))
+	local info = ItemInfo:new(itemId, PartyLoot._partyLootAdapter.GetItemInfo(itemLink))
 	if info ~= nil then
 		self:OnPartyReadyToShow(info, amount, unit)
 	end
@@ -249,17 +314,12 @@ function PartyLoot:CHAT_MSG_LOOT(eventName, ...)
 	end
 
 	local msg, playerName, _, _, playerName2, _, _, _, _, _, _, guid = ...
-	if issecretvalue and issecretvalue(msg) then
-		G_RLF:LogWarn(
-			"(" .. eventName .. ") Secret value detected, ignoring chat message",
-			"WOWEVENT",
-			self.moduleName,
-			""
-		)
+	if PartyLoot._partyLootAdapter.IssecretValue(msg) then
+		LogWarn("(" .. eventName .. ") Secret value detected, ignoring chat message", "WOWEVENT", self.moduleName, "")
 		return
 	end
 
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName .. " " .. msg)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName .. " " .. msg)
 
 	local raidLoot = msg:match("HlootHistory:")
 	if raidLoot then
@@ -268,11 +328,11 @@ function PartyLoot:CHAT_MSG_LOOT(eventName, ...)
 	end
 
 	local me = false
-	if G_RLF:IsRetail() then
-		me = guid == GetPlayerGuid()
+	if IsRetail() then
+		me = guid == PartyLoot._partyLootAdapter.GetPlayerGuid()
 	-- So far, MoP Classic and below doesn't work with GetPlayerGuid()
 	else
-		me = playerName2 == UnitName("player")
+		me = playerName2 == PartyLoot._partyLootAdapter.UnitName("player")
 	end
 
 	if me then
@@ -287,7 +347,7 @@ function PartyLoot:CHAT_MSG_LOOT(eventName, ...)
 	local sanitizedPlayerName = name:gsub("%-.+", "")
 	local unit = self.nameUnitMap[sanitizedPlayerName]
 	if not unit then
-		G_RLF:LogDebug(
+		LogDebug(
 			"Party Loot Ignored - no matching party member (" .. sanitizedPlayerName .. ")",
 			"WOWEVENT",
 			self.moduleName,
@@ -302,7 +362,7 @@ function PartyLoot:CHAT_MSG_LOOT(eventName, ...)
 
 	if #itemLinks == 2 then
 		-- Item upgrades are not supported for party members currently
-		G_RLF:LogDebug(
+		LogDebug(
 			"Party item upgrades are apparently captured in CHAT_MSG_LOOT. TODO: may need to support this.",
 			addonName,
 			self.moduleName
@@ -311,7 +371,7 @@ function PartyLoot:CHAT_MSG_LOOT(eventName, ...)
 	end
 
 	if itemLink then
-		self:fn(self.ShowPartyLoot, self, msg, itemLink, unit)
+		self.ShowPartyLoot(self, msg, itemLink, unit)
 	end
 end
 
@@ -322,14 +382,14 @@ function PartyLoot:GET_ITEM_INFO_RECEIVED(eventName, itemID, success)
 		if not success then
 			error("Failed to load item: " .. itemID .. " " .. itemLink .. " x" .. amount .. " for " .. unit)
 		else
-			local info = ItemInfo:new(itemID, C.Item.GetItemInfo(itemLink))
+			local info = ItemInfo:new(itemID, PartyLoot._partyLootAdapter.GetItemInfo(itemLink))
 			self:OnPartyReadyToShow(info, amount, unit)
 		end
 	end
 end
 
 function PartyLoot:GROUP_ROSTER_UPDATE(eventName, ...)
-	G_RLF:LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, nil, eventName)
 	self:SetNameUnitMap()
 	self:SetPartyLootFilters()
 end
