@@ -1,0 +1,15 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
+    <Script file="RowTextMixin.lua"/>
+    <Frame name="RLF_RowTextTemplate" mixin="RLF_RowTextMixin" virtual="true">
+        <Layers>
+            <!-- Amount Text Layer -->
+            <Layer level="ARTWORK">
+                <FontString parentKey="PrimaryText" inherits="GameFontNormal" />
+                <FontString parentKey="ItemCountText" inherits="GameFontNormal" hidden="true" />
+                <FontString parentKey="SecondaryText" inherits="GameFontNormal" hidden="true" />
+            </Layer>
+        </Layers>
+    </Frame>
+</Ui>
