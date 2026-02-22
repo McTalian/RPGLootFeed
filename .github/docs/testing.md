@@ -214,6 +214,35 @@ end)
 - Inline `ns.FeatureBase` stub so AceAddon is never invoked
 - Inject fresh adapter tables _after_ `loadfile` (they're module-level fields, not captured locals)
 - `G_RLF.db` is intentionally excluded from dependency locals in feature files — always runtime
+- **Always capture the module from the `loadfile` return value** — see [Module Return Convention](#module-return-convention) below
+
+### Module Return Convention
+
+Every implementation module **must** end with a `return` of its public table in addition to (or instead of) registering itself on `G_RLF`. WoW ignores file return values at runtime, so the `return` statement has zero in-game cost — it exists solely to support testing via `loadfile`.
+
+**Implementation side** (`*.lua`):
+
+```lua
+-- Register on the namespace for runtime WoW access:
+G_RLF.MyModule = MyModule
+
+-- Return for test loadfile capture:
+return MyModule
+```
+
+**Spec side** (`*_spec.lua`) — always capture directly from `loadfile`, never read back off `ns`:
+
+```lua
+-- Correct: capture from return value
+MyModule = assert(loadfile("RPGLootFeed/path/to/MyModule.lua"))("TestAddon", ns)
+
+-- Wrong: reading off ns after the fact obscures intent and breaks if the
+-- registration key ever changes
+assert(loadfile("RPGLootFeed/path/to/MyModule.lua"))("TestAddon", ns)
+MyModule = ns.MyModule  -- ← avoid this
+```
+
+All existing feature modules (`Reputation.lua`, `Currency.lua`, `LegacyChatParsingImpl.lua`, etc.) already follow this convention.
 
 ### FeatureBase Tests
 
