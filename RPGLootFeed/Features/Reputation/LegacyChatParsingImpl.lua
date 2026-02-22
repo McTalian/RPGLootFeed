@@ -290,3 +290,5 @@ function LegacyRepParsing.GetLocaleFactionMapData(faction, isAccountWide)
 end
 
 G_RLF.LegacyRepParsing = LegacyRepParsing
+
+return LegacyRepParsing

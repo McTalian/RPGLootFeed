@@ -34,6 +34,8 @@ These documents should be consulted when:
 - Finding API documentation or usage examples
 - Writing or running tests
 
+**Golden Rule**: Any changes to the database schema must be accompanied by a corresponding migration script in the `config/Migrations` directory. This ensures that all database changes are properly tracked and can be applied to existing installations of the addon without data loss or corruption. Any database changes must also be accompanied by configuration options, documentation updates, and tests to ensure that the changes are properly integrated into the addon and do not introduce bugs or issues for users. This is a critical part of maintaining the integrity and stability of the addon, and must be followed for all database-related changes.
+
 ## Tools and Libraries
 
 The project is built using Lua, the scripting language used for World of Warcraft addons. It also utilizes the Ace3 framework, which provides a set of libraries for addon development, including configuration management, event handling, and UI creation.
@@ -61,7 +63,15 @@ The coding style for this project follows standard Lua conventions, with some sp
 
 While this project has automated tests, they are severely limited due to the reliance on World of Warcraft's API and environment. There are also automated in-game integration tests that can be run from an in-game slash command. Ideally, more automated tests would be added with the ability to measure coverage (we measure coverage for the existing tests, but it's not very meaningful given the limitations). We should look into using wowless for testing, but it is in probably considered a pre-alpha tool. Still may be worth exploring for the future to improve our testing capabilities.
 
+**Running tests**: Always use Makefile targets — never invoke `busted` directly (it is not on `$PATH`). Key commands:
+
+- `make test` — run all tests
+- `make test-file FILE=path/to/spec.lua` — run a single spec file
+- `make test-pattern PATTERN="description"` — run tests matching a pattern
+- `make test-cov` — run with coverage report
+- `make help` — list all available targets
+
 ## Workspace References
 
-- wow-ui-source is present within the code workspace and can be used as a reference for WoW API functions and UI elements. It is generated from the World of Warcraft client and contains the source code for the game's UI, which makes it the most accurate reference for WoW addon development. It can be used to look up API functions, understand how the game's UI works, and see examples of how to implement various features in the addon.
+- wow-ui-source is present within the code workspace and can be used as a reference for WoW API functions and UI elements. It is generated from the World of Warcraft client and contains the source code for the game's UI, which makes it the most accurate reference for WoW addon development. It can be used to look up API functions, understand how the game's UI works, and see examples of how to implement various features in the addon. **Always reference wow-ui-source files using workspace-relative paths** (e.g. `../wow-ui-source/Interface/AddOns/...`) rather than external GitHub URLs — the full source tree is available locally and should be read directly with file tools rather than fetched from the web.
 - RPGLootFeed.wiki is also present within the code workspace and can be used as a reference for addon-specific documentation and guides. It contains detailed information about the addon's features, configuration options, and usage instructions, which can help developers understand how to interact with the addon and extend its functionality. When features are added to the addon, the wiki should be updated with relevant documentation to ensure that it remains a useful resource for developers and users alike.

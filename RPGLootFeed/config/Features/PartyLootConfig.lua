@@ -7,12 +7,12 @@ local G_RLF = ns
 ---@class PartyLootConfig : RLF_StylingConfigHandlerBase
 local PartyLootConfig = {}
 
-function PartyLootConfig:GetLeftAlign()
-	return G_RLF.db.global.partyLoot.styling.leftAlign
+function PartyLootConfig:GetTextAlignment()
+	return G_RLF.db.global.partyLoot.styling.textAlignment
 end
 
-function PartyLootConfig:SetLeftAlign(_, value)
-	G_RLF.db.global.partyLoot.styling.leftAlign = value
+function PartyLootConfig:SetTextAlignment(_, value)
+	G_RLF.db.global.partyLoot.styling.textAlignment = value
 	G_RLF.LootDisplay:UpdateRowStyles()
 	G_RLF.LootDisplay:ReInitQueueLabel()
 end
@@ -279,6 +279,15 @@ function PartyLootConfig:SetSecondaryFontSize(_, value)
 	G_RLF.db.global.partyLoot.styling.secondaryFontSize = value
 	G_RLF.LootDisplay:UpdateRowStyles()
 	G_RLF.LootDisplay:ReInitQueueLabel()
+end
+
+function PartyLootConfig:GetRowTextSpacing()
+	return G_RLF.db.global.partyLoot.styling.rowTextSpacing
+end
+
+function PartyLootConfig:SetRowTextSpacing(_, value)
+	G_RLF.db.global.partyLoot.styling.rowTextSpacing = value
+	G_RLF.LootDisplay:UpdateRowStyles()
 end
 
 function PartyLootConfig:GetFontFlags(_, key)

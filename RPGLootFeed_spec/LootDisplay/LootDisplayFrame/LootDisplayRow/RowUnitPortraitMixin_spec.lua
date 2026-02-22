@@ -32,7 +32,7 @@ describe("RLF_RowUnitPortraitMixin", function()
 
 		before_each(function()
 			sizingDb = { iconSize = 40 }
-			stylingDb = { leftAlign = true }
+			stylingDb = { textAlignment = "LEFT" }
 			stub(ns.DbAccessor, "Sizing").returns(sizingDb)
 			stub(ns.DbAccessor, "Styling").returns(stylingDb)
 		end)
@@ -68,10 +68,10 @@ describe("RLF_RowUnitPortraitMixin", function()
 			assert.stub(row.UnitPortrait.SetSize).was.called(1)
 		end)
 
-		it("calls SetSize again when leftAlign changes", function()
+		it("calls SetSize again when textAlignment changes", function()
 			RLF_RowUnitPortraitMixin.StyleUnitPortrait(row)
 			row.UnitPortrait.SetSize:clear()
-			stylingDb.leftAlign = false
+			stylingDb.textAlignment = "RIGHT"
 			RLF_RowUnitPortraitMixin.StyleUnitPortrait(row)
 			assert.stub(row.UnitPortrait.SetSize).was.called(1)
 		end)

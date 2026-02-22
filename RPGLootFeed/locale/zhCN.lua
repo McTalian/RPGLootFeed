@@ -14,6 +14,13 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.29.0
+-- L["Row Text Spacing"] = "Row Text Spacing"
+-- L["RowTextSpacingDesc"] = "The pixel gap between text elements (item link, quantity suffix, count badge). Set to 0 for auto (scales with icon size: iconSize / 4)."
+-- L["Text Alignment"] = "Text Alignment"
+-- L["TextAlignmentDesc"] = "How row content is aligned within the feed. Left and Center place the icon on the left; Right places it on the right."
+--#endregion
+
 --#region 1.28.0
 -- L["Unknown Faction"] = "Unknown Faction"
 --#endregion
@@ -119,6 +126,8 @@ L["ShowMoneyIconDesc"] = "如果勾选，在拾取信息流中的金钱数额旁
 --#endregion
 
 --#region 1.0.0 - 1.22.0
+-- L["Left Align"] = "Left Align"
+-- L["LeftAlignDesc"] = "Left align row content (right align if unchecked)"
 L["Abbreviate Total"] = "缩写总计"
 L["AbbreviateTotalDesc"] = "缩写拾取通报中的金币总额 (金币超过1000时)"
 L["About"] = "关于"
@@ -329,8 +338,6 @@ L["JoinDiscordDesc"] = "加入 RPGLootFeed Discord 社区以获取支持、反�
 L["LauncherLeftClick"] = "|cffeda55f点击|r 打开插件配置菜单。"
 L["LauncherRightClick"] = "|cffeda55f右键点击|r 打开快捷菜单。"
 L["Left"] = "左侧"
-L["Left Align"] = "左对齐"
-L["LeftAlignDesc"] = "左对齐行内容 (如果未勾选则右对齐)"
 L["Legendary"] = "传说"
 L["Legendary Sound"] = "传说音效"
 L["LegendarySoundDesc"] = "拾取传说物品时播放的音效"

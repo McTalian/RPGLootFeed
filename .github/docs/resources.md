@@ -18,6 +18,8 @@ The `wow-ui-source` repository contains WoW client-generated UI source code. Thi
 
 **Always reference this repository** when working on the addon to ensure changes are compatible with the WoW client and follow best practices.
 
+> **Path convention**: Reference wow-ui-source files using workspace-relative paths (e.g. `../wow-ui-source/Interface/AddOns/Blizzard_SharedXML/LayoutFrame.lua`) rather than external GitHub URLs. The full source tree is available locally — use file tools to read it directly without fetching from the web.
+
 ## Key Files in wow-ui-source
 
 ### Loot Frame

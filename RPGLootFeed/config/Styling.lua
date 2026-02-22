@@ -14,12 +14,12 @@ G_RLF.ConfigCommon.StylingBase.CloneDefaultDb("global.styling")
 ---@class RLF_ConfigStyling
 G_RLF.defaults.global.styling = G_RLF.defaults.global.styling or {}
 
-function Styling:GetLeftAlign()
-	return G_RLF.db.global.styling.leftAlign
+function Styling:GetTextAlignment()
+	return G_RLF.db.global.styling.textAlignment
 end
 
-function Styling:SetLeftAlign(_, value)
-	G_RLF.db.global.styling.leftAlign = value
+function Styling:SetTextAlignment(_, value)
+	G_RLF.db.global.styling.textAlignment = value
 	G_RLF.LootDisplay:UpdateRowStyles()
 	G_RLF.LootDisplay:ReInitQueueLabel()
 end
@@ -326,6 +326,15 @@ function Styling:SetShadowOffsetY(_, value)
 	G_RLF.db.global.styling.fontShadowOffsetY = value
 	G_RLF.LootDisplay:UpdateRowStyles()
 	G_RLF.LootDisplay:ReInitQueueLabel()
+end
+
+function Styling:GetRowTextSpacing()
+	return G_RLF.db.global.styling.rowTextSpacing
+end
+
+function Styling:SetRowTextSpacing(_, value)
+	G_RLF.db.global.styling.rowTextSpacing = value
+	G_RLF.LootDisplay:UpdateRowStyles()
 end
 
 G_RLF.options.args.styles = G_RLF.ConfigCommon.StylingBase.CreateStylingGroup(Styling, G_RLF.level1OptionsOrder.styling)

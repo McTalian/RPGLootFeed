@@ -1,6 +1,7 @@
 <Ui xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
   <Script file="TestMode.lua"/>
   <!--@alpha@-->
+  <Script file="GameTestRunner.lua"/>
   <Script file="SmokeTest.lua"/>
   <Script file="IntegrationTest.lua"/>
   <Script file="Profiling.lua"/>

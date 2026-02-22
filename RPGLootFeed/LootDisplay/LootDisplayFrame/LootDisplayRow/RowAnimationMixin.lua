@@ -128,6 +128,16 @@ function RLF_RowAnimationMixin:StyleElementFadeIn()
 	end
 	self.PrimaryText.elementFadeIn:SetDuration(fadeInDuration)
 
+	-- AmountText (quantity suffix — must fade in sync with PrimaryText)
+	if not self.AmountText.elementFadeIn then
+		self.AmountText.elementFadeIn = self.ElementFadeInAnimation:CreateAnimation("Alpha")
+		self.AmountText.elementFadeIn:SetTarget(self.AmountText)
+		self.AmountText.elementFadeIn:SetFromAlpha(0)
+		self.AmountText.elementFadeIn:SetToAlpha(1)
+		self.AmountText.elementFadeIn:SetSmoothing(fadeInSmoothing)
+	end
+	self.AmountText.elementFadeIn:SetDuration(fadeInDuration)
+
 	-- ItemCountText
 	if not self.ItemCountText.elementFadeIn then
 		self.ItemCountText.elementFadeIn = self.ElementFadeInAnimation:CreateAnimation("Alpha")
@@ -483,6 +493,7 @@ end
 function RLF_RowAnimationMixin:ElementsVisible()
 	self.Icon:SetAlpha(1)
 	self.PrimaryText:SetAlpha(1)
+	self.AmountText:SetAlpha(1)
 	self.ItemCountText:SetAlpha(1)
 	self.SecondaryText:SetAlpha(1)
 	self.UnitPortrait:SetAlpha(1)
@@ -491,6 +502,7 @@ end
 function RLF_RowAnimationMixin:ElementsInvisible()
 	self.Icon:SetAlpha(0)
 	self.PrimaryText:SetAlpha(0)
+	self.AmountText:SetAlpha(0)
 	self.ItemCountText:SetAlpha(0)
 	self.SecondaryText:SetAlpha(0)
 	self.UnitPortrait:SetAlpha(0)

@@ -35,13 +35,8 @@ describe("RLF_RowTooltipMixin", function()
 
 			it("returns early without touching ClickableButton", function()
 				RLF_RowTooltipMixin.SetupTooltip(row)
-				assert.stub(row.ClickableButton.ClearAllPoints).was_not.called()
-				assert.stub(row.ClickableButton.SetScript).was_not.called()
-			end)
-
-			it("does not show ClickableButton", function()
-				RLF_RowTooltipMixin.SetupTooltip(row)
 				assert.stub(row.ClickableButton.Show).was_not.called()
+				assert.stub(row.ClickableButton.SetScript).was_not.called()
 			end)
 		end)
 
@@ -50,20 +45,16 @@ describe("RLF_RowTooltipMixin", function()
 				row.link = "|Hitem:18803|h[Finkle's Lava Dredger]|h"
 			end)
 
-			it("clears existing anchors on ClickableButton", function()
+			-- ClickableButton geometry (ClearAllPoints/SetPoint/SetSize) is now
+			-- owned by LayoutPrimaryLine(), not SetupTooltip().
+			it("does NOT call ClearAllPoints on ClickableButton (owned by LayoutPrimaryLine)", function()
 				RLF_RowTooltipMixin.SetupTooltip(row)
-				assert.stub(row.ClickableButton.ClearAllPoints).was.called(1)
+				assert.stub(row.ClickableButton.ClearAllPoints).was_not.called()
 			end)
 
-			it("sets ClickableButton position via SetPoint", function()
+			it("does NOT call SetSize on ClickableButton (owned by LayoutPrimaryLine)", function()
 				RLF_RowTooltipMixin.SetupTooltip(row)
-				assert.stub(row.ClickableButton.SetPoint).was.called(1)
-			end)
-
-			it("sizes ClickableButton to match PrimaryText dimensions", function()
-				-- PrimaryText:GetStringWidth() returns 100, GetStringHeight() returns 20.
-				RLF_RowTooltipMixin.SetupTooltip(row)
-				assert.stub(row.ClickableButton.SetSize).was.called(1)
+				assert.stub(row.ClickableButton.SetSize).was_not.called()
 			end)
 
 			it("shows ClickableButton", function()

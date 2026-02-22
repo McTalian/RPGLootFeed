@@ -15,6 +15,13 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.29.0
+-- L["Row Text Spacing"] = "Row Text Spacing"
+-- L["RowTextSpacingDesc"] = "The pixel gap between text elements (item link, quantity suffix, count badge). Set to 0 for auto (scales with icon size: iconSize / 4)."
+-- L["Text Alignment"] = "Text Alignment"
+-- L["TextAlignmentDesc"] = "How row content is aligned within the feed. Left and Center place the icon on the left; Right places it on the right."
+--#endregion
+
 --#region 1.28.0
 -- L["Unknown Faction"] = "Unknown Faction"
 --#endregion

@@ -750,9 +750,20 @@ describe("Currency Module", function()
 			assert.equals(link, e.textFn(nil, nil))
 		end)
 
-		it("textFn appends quantity when quantity > 1", function()
+		it("textFn returns only the link when quantity > 1 (no suffix)", function()
 			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 2 })
-			assert.equals("[Currency] x2", e.textFn(0, "[Currency]"))
+			assert.equals("[Currency]", e.textFn(0, "[Currency]"))
+		end)
+
+		it("amountTextFn returns quantity suffix when quantity > 1", function()
+			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 2 })
+			assert.equals("x2", e.amountTextFn(0))
+		end)
+
+		it("amountTextFn returns empty string when quantity is 1 and showOneQuantity is false", function()
+			ns.db.global.misc.showOneQuantity = false
+			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 1 })
+			assert.equals("", e.amountTextFn(0))
 		end)
 
 		it("secondaryTextFn returns empty string when cappedQuantity is 0", function()

@@ -28,12 +28,13 @@ function RLF_RowBackdropMixin:StyleBackground()
 	local leftInset = insets.left or 0
 	local gradientStart = stylingDb.rowBackgroundGradientStart
 	local gradientEnd = stylingDb.rowBackgroundGradientEnd
-	local leftAlign = stylingDb.leftAlign
+	local textAlignment = stylingDb.textAlignment
+	local iconOnLeft = textAlignment ~= G_RLF.TextAlignment.RIGHT
 
 	if
 		self.cachedGradientStart ~= gradientStart
 		or self.cachedGradientEnd ~= gradientEnd
-		or self.cachedBackgoundLeftAlign ~= leftAlign
+		or self.cachedBackgroundTextAlignment ~= textAlignment
 		or self.cachedTopInset ~= topInset
 		or self.cachedRightInset ~= rightInset
 		or self.cachedBottomInset ~= bottomInset
@@ -41,7 +42,7 @@ function RLF_RowBackdropMixin:StyleBackground()
 	then
 		self.cachedGradientStart = gradientStart
 		self.cachedGradientEnd = gradientEnd
-		self.cachedBackgoundLeftAlign = leftAlign
+		self.cachedBackgroundTextAlignment = textAlignment
 		self.cachedTopInset = topInset
 		self.cachedRightInset = rightInset
 		self.cachedBottomInset = bottomInset
@@ -52,7 +53,7 @@ function RLF_RowBackdropMixin:StyleBackground()
 	if changed then
 		local leftColor = CreateColor(unpack(gradientStart))
 		local rightColor = CreateColor(unpack(gradientEnd))
-		if not leftAlign then
+		if not iconOnLeft then
 			leftColor, rightColor = rightColor, leftColor
 		end
 		self.Background:SetGradient("HORIZONTAL", leftColor, rightColor)
