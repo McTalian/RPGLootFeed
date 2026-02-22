@@ -42,7 +42,6 @@ describe("Communications module", function()
 		---@type test_G_RLF, RLF_Communications
 		local ns, module, globalMocks
 		before_each(function()
-			require("RPGLootFeed_spec._mocks.WoWGlobals")
 			globalMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 			ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
 			module = assert(loadfile("RPGLootFeed/Features/_Internals/RLF_Communications.lua"))("TestAddon", ns)
