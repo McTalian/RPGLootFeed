@@ -16,3 +16,19 @@ require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 
 -- _G.Enum table (Enum.ItemQuality, Enum.ItemBind, etc.)
 require("RPGLootFeed_spec._mocks.WoWGlobals.Enum")
+
+-- _G.Constants table (Constants.CurrencyConsts, etc.)
+require("RPGLootFeed_spec._mocks.WoWGlobals.Constants")
+
+-- WoW C_* namespace stubs (available as cache hits when specs capture
+-- return values for spy access, e.g. itemMocks = require(...)).
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_Item")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_CurrencyInfo")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_TransmogCollection")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_CVar")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_ClassColor")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_GossipInfo")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_MajorFactions")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_PerksActivities")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_Reputation")
+require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_DelvesUI")
