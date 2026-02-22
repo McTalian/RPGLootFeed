@@ -18,7 +18,7 @@ describe("Core module", function()
 		-- Mocking the global environment
 		require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_CVar")
 		require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_Item")
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
+
 		libStubReturn = require("RPGLootFeed_spec._mocks.Libs.LibStub")
 	end)
 

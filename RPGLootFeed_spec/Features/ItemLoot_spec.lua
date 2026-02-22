@@ -168,9 +168,6 @@ describe("ItemLoot Module", function()
 			},
 		}
 
-		-- Enum global is accessed by ItemLoot:ItemQualityName (iterates Enum.ItemQuality).
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Enum")
-
 		-- LibStub must be available before loadfile: ItemLoot.lua calls
 		-- LibStub("C_Everywhere") at module root to capture the C library into the
 		-- ItemLootAdapter closure.  The adapter's API methods are replaced after

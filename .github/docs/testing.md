@@ -34,6 +34,15 @@ Contains mocks for WoW APIs and the addon namespace.
 
 **Key Mock**: `Internal/addonNamespace.lua` - Provides a mock version of `G_RLF` with controlled load order simulation.
 
+**Suite-wide helper**: `.busted` (project root) configures busted to auto-run `RPGLootFeed_spec/_mocks/helper.lua` once before any spec. It pre-loads:
+
+- `LuaCompat` — `unpack` / `format` global polyfills for Lua 5.2+
+- `WoWGlobals` — core WoW global stubs (BossBanner, EventRegistry, CreateColor, etc.)
+- `WoWGlobals/Functions` — WoW global function stubs (RunNextFrame, CreateFrame, UnitClass, etc.)
+- `WoWGlobals/Enum` — `_G.Enum` table (Enum.ItemQuality, Enum.ItemBind, etc.)
+
+Spec files **do not need** to require any of these manually. Assignments like `functionMocks = require("WoWGlobals.Functions")` for spy access are still valid (the cached module is returned).
+
 ## Testing Patterns
 
 ### Basic Test Structure
@@ -94,7 +103,6 @@ ns.RepUtils = {
 This completely isolates the module under test from transitive WoW dependencies.
 
 ```lua
-require("RPGLootFeed_spec._mocks.LuaCompat") -- unpack, format polyfills
 local assert = require("luassert")
 local busted = require("busted")
 local spy = busted.spy
@@ -161,7 +169,7 @@ end)
 
 **Key rules for this pattern:**
 
-- `require("RPGLootFeed_spec._mocks.LuaCompat")` at the top — provides `unpack` / `format` polyfills without loading anything else
+- No manual `require` of `LuaCompat`, `WoWGlobals`, `WoWGlobals.Functions`, or `WoWGlobals.Enum` — all pre-loaded by `.busted` helper
 - Build `ns` as a plain table — include only what the feature's "External dependency locals" block references
 - `SendMessage` and `LogWarn` should be `spy.new(function() end)` so event tests can assert against them without needing stub cleanup
 - Methods that some tests override (e.g. `IsRetail`) can be plain `function() end` — tests use `stub(ns, "IsRetail").returns(...)` and revert afterward

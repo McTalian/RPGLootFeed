@@ -11,7 +11,6 @@ describe("AlphaHelpers", function()
 	local ns
 
 	setup(function()
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
 		assert(loadfile("RPGLootFeed/utils/AlphaHelpers.lua"))("TestAddon", ns)
 	end)
