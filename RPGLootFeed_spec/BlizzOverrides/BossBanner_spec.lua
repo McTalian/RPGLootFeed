@@ -12,8 +12,6 @@ local stub = busted.stub
 describe("BossBanner module", function()
 	local ns, BossBannerOverride
 	before_each(function()
-		require("RPGLootFeed_spec._mocks.WoWGlobals")
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
 
 		BossBannerOverride = assert(loadfile("RPGLootFeed/BlizzOverrides/BossBanner.lua"))("TestAddon", ns)

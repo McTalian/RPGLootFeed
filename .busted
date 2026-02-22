@@ -4,6 +4,6 @@ return {
 	default = {
 		-- LuaCompat runs once before the whole suite, setting unpack / format
 		-- globals that WoW provides natively but stock Lua 5.2+ does not.
-		helper = "RPGLootFeed_spec/_mocks/LuaCompat.lua",
+		helper = "RPGLootFeed_spec/_mocks/helper.lua",
 	},
 }

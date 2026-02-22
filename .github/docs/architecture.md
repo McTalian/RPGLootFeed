@@ -68,22 +68,22 @@ RPGLootFeed/
 │       ├── LootDisplayFrame.lua    # Frame mixin (RLF_LootDisplayFrameTemplate)
 │       ├── LootDisplayFrame.xml
 │       └── LootDisplayRow/  # Row sub-component mixins (WoW mixin pattern)
-│           ├── LootDisplayRowTemplate.xml   # Virtual frame template, composes all row mixins
-│           ├── LootDisplayRow.lua           # LootDisplayRowMixin — coordinator/lifecycle (~470 lines)
-│           ├── RowAnimationMixin.lua        # RLF_RowAnimationMixin — enter/exit/hover animations
-│           ├── RowAnimationMixin.xml
-│           ├── RowTooltipMixin.lua          # RLF_RowTooltipMixin — tooltip + click handling
-│           ├── RowTooltipMixin.xml
-│           ├── RowTextMixin.lua             # RLF_RowTextMixin — font styling, text layout, item count
-│           ├── RowTextMixin.xml
-│           ├── RowBackdropMixin.lua         # RLF_RowBackdropMixin — gradient background + backdrop border
-│           ├── RowBackdropMixin.xml
-│           ├── RowScriptedEffectsMixin.lua  # RLF_RowScriptedEffectsMixin — transmog particle effects
-│           ├── RowScriptedEffectsMixin.xml
-│           ├── RowIconMixin.lua             # RLF_RowIconMixin — icon sizing, positioning, texture updates
-│           ├── RowIconMixin.xml
-│           ├── RowUnitPortraitMixin.lua     # RLF_RowUnitPortraitMixin — party unit portrait
-│           └── RowUnitPortraitMixin.xml
+│           ├── LootDisplayRowTemplate.xml   # Virtual frame template; inherits all row sub-templates
+│           ├── LootDisplayRow.lua           # LootDisplayRowMixin — coordinator/lifecycle (~437 lines)
+│           ├── RowAnimation.lua        # RLF_RowAnimationMixin — enter/exit/hover animations
+│           ├── RowAnimation.xml        # RLF_RowAnimationTemplate (virtual, script-only)
+│           ├── RowTooltip.lua          # RLF_RowTooltipMixin — tooltip + click handling
+│           ├── RowTooltip.xml          # RLF_RowTooltipTemplate (virtual; owns ClickableButton)
+│           ├── RowText.lua             # RLF_RowTextMixin — font styling, text layout, item count
+│           ├── RowText.xml             # RLF_RowTextTemplate (virtual; owns PrimaryText, ItemCountText, SecondaryText)
+│           ├── RowBackdrop.lua         # RLF_RowBackdropMixin — gradient background + backdrop border
+│           ├── RowBackdrop.xml         # RLF_RowBackdropTemplate (virtual; owns Background, border textures)
+│           ├── RowScriptedEffects.lua  # RLF_RowScriptedEffectsMixin — transmog particle effects
+│           ├── RowScriptedEffects.xml  # RLF_RowScriptedEffectsTemplate (virtual, script-only)
+│           ├── RowIcon.lua             # RLF_RowIconMixin — icon sizing, positioning, texture updates
+│           ├── RowIcon.xml             # RLF_RowIconTemplate (virtual; owns Icon ItemButton)
+│           ├── RowUnitPortrait.lua     # RLF_RowUnitPortraitMixin — party unit portrait
+│           └── RowUnitPortrait.xml     # RLF_RowUnitPortraitTemplate (virtual; owns UnitPortrait, RLFUser)
 ├── utils/                    # Utility modules
 │   ├── Enums.lua            # Enumerations and constants
 │   ├── Logger.lua           # Logging utilities

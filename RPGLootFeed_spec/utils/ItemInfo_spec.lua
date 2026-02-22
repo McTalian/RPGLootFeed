@@ -12,7 +12,6 @@ describe("ItemInfo", function()
 
 	before_each(function()
 		functionMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Enum")
 		itemMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_Item")
 		transmogCollectionMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.namespaces.C_TransmogCollection")
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)

@@ -9,7 +9,6 @@ local spy = busted.spy
 describe("LootDisplay module", function()
 	local LootDisplayModule, ns
 	before_each(function()
-		require("RPGLootFeed_spec._mocks.WoWGlobals")
 		-- Define the global G_RLF
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
 		local mockQueue = {

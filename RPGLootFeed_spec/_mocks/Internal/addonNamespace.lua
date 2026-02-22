@@ -139,8 +139,6 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		addonNamespaceMocks.list.iterate = stub(ns.list, "iterate")
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.UtilsEnums then
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Enum")
 		assert(loadfile("RPGLootFeed/utils/Enums.lua"))("TestAddon", ns)
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.UtilsGameVersionHelpers then

@@ -29,7 +29,6 @@ describe("LootDisplayFrameMixin", function()
 
 	local frame, mockSizing, mockPositioning, mockStyling, mockGlobalFns
 	before_each(function()
-		require("RPGLootFeed_spec._mocks.WoWGlobals")
 		mockGlobalFns = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 		-- Define the global G_RLF
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)

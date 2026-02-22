@@ -12,8 +12,6 @@ describe("Logger module", function()
 	local _ = match._
 
 	before_each(function()
-		-- Load the mock WoW globals
-		require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 		require("RPGLootFeed_spec._mocks.Libs.LibStub")
 		-- Define the global G_RLF
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
