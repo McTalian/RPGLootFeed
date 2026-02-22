@@ -34,6 +34,8 @@ These documents should be consulted when:
 - Finding API documentation or usage examples
 - Writing or running tests
 
+**Golden Rule**: Any changes to the database schema must be accompanied by a corresponding migration script in the `config/Migrations` directory. This ensures that all database changes are properly tracked and can be applied to existing installations of the addon without data loss or corruption. Any database changes must also be accompanied by configuration options, documentation updates, and tests to ensure that the changes are properly integrated into the addon and do not introduce bugs or issues for users. This is a critical part of maintaining the integrity and stability of the addon, and must be followed for all database-related changes.
+
 ## Tools and Libraries
 
 The project is built using Lua, the scripting language used for World of Warcraft addons. It also utilizes the Ace3 framework, which provides a set of libraries for addon development, including configuration management, event handling, and UI creation.
