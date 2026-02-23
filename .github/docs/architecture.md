@@ -194,10 +194,21 @@ RPGLootFeed/
 
 **Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior. `LootDisplayRow` has been fully decomposed into 7 focused sub-mixins (`RLF_RowAnimationMixin`, `RLF_RowTooltipMixin`, `RLF_RowTextMixin`, `RLF_RowBackdropMixin`, `RLF_RowScriptedEffectsMixin`, `RLF_RowIconMixin`, `RLF_RowUnitPortraitMixin`) following the WoW XML mixin composition pattern. `LootDisplayRow.lua` itself is now a pure coordinator/lifecycle file (~430 lines).
 
-**Primary line layout**: `RLF_RowTextMixin` creates a programmatic `PrimaryLineLayout` frame (mixed with `LayoutMixin, HorizontalLayoutMixin`) during `Init()` via `CreatePrimaryLineLayout()`. `PrimaryText` and `ItemCountText` are re-parented from the XML template into this container as layout children (`layoutIndex=1` and `2` respectively). The unified layout entry point `LayoutPrimaryLine()` is called from both `ShowText()` and `ShowItemCountText()`:
+**Primary line layout**: `RLF_RowTextMixin` creates a programmatic `PrimaryLineLayout` frame (mixed with `LayoutMixin, HorizontalLayoutMixin`) once per physical pooled frame via `CreatePrimaryLineLayout()` (guarded so it is idempotent across pool Acquire/Release cycles). Three FontStrings live inside the container as layout children:
 
-- First pass (from `ShowText()`): `ItemCountText` is hidden → `PrimaryText` gets `min(naturalWidth, availableWidth)` so it only consumes what it needs.
-- Second pass (from `ShowItemCountText()`): `ItemCountText` is shown → `PrimaryText` budget shrinks by `ItemCountText:GetUnboundedStringWidth() + spacing`. If the primary text is now too wide, engine-native truncation kicks in (`SetWidth` + `SetWordWrap(false)`).
+| `layoutIndex` | FontString      | Role                                     | Truncatable? |
+| ------------- | --------------- | ---------------------------------------- | ------------ |
+| 1             | `PrimaryText`   | Item/currency link only                  | Yes          |
+| 2             | `AmountText`    | Quantity suffix (`"x2"`) — non-link text | No           |
+| 3             | `ItemCountText` | Bag count / skill delta / rep level      | No           |
+
+`PrimaryText` and `ItemCountText` are re-parented from the XML template; `AmountText` is created programmatically inside the layout frame (same pattern as `PrimaryLineLayout` itself). `AmountText` is driven by the optional `element.amountTextFn(existingQuantity)` field — features that produce a quantity suffix (`ItemLoot`, `PartyLoot`, `Currency`) set this; all others leave it `nil` and `AmountText` stays hidden.
+
+The unified layout entry point `LayoutPrimaryLine()` is called from `ShowText()`, `ShowAmountText()`, and `ShowItemCountText()`:
+
+- First pass (from `ShowText()`): `AmountText` and `ItemCountText` hidden → `PrimaryText` gets `min(naturalWidth, availableWidth)`.
+- Second pass (from `ShowAmountText()`): `AmountText` shown → `PrimaryText` budget shrinks by `AmountText:GetUnboundedStringWidth() + spacing`.
+- Third pass (from `ShowItemCountText()`): `ItemCountText` shown → budget shrinks further. Engine-native truncation fires if needed (`SetWidth` + `SetWordWrap(false)`).
 
 `childLayoutDirection = "rightToLeft"` on the container handles the right-align (icon-right) case without reordering children. `ClickableButton` geometry is owned exclusively by `LayoutPrimaryLine()` (not `SetupTooltip()`).
 

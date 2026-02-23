@@ -1,5 +1,8 @@
 # Step 2 Implementation Plan: AmountText FontString Separation
 
+> **Status: IMPLEMENTED** (February 22, 2026). This document describes the design
+> and records implementation notes. See §16 for post-implementation discoveries.
+
 Separates the `" x2"` quantity suffix out of `PrimaryText` into its own
 non-truncatable `AmountText` FontString as the second layout child of
 `PrimaryLineLayout` (shifting `ItemCountText` to `layoutIndex=3`).
@@ -114,6 +117,10 @@ end
 
 ```lua
 function RLF_RowTextMixin:CreatePrimaryLineLayout()
+    -- Guard: the layout frame and its children persist on the pooled frame
+    -- across Acquire/Release cycles.  Only create once per physical frame.
+    if self.PrimaryLineLayout then return end
+
     local layout = CreateFrame("Frame", nil, self)
     Mixin(layout, LayoutMixin, HorizontalLayoutMixin)
     layout.spacing = 0   -- updated in StyleText()
@@ -123,7 +130,8 @@ function RLF_RowTextMixin:CreatePrimaryLineLayout()
     self.PrimaryText:SetWordWrap(false)
 
     -- NEW: AmountText — quantity suffix, non-truncatable, initially hidden.
-    local amountText = layout:CreateFontString(nil, "OVERLAY")
+    -- Inherits "GameFontNormal" so SetText/Hide are safe before StyleText() runs.
+    local amountText = layout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     amountText.layoutIndex = 2
     amountText:SetWordWrap(false)
     amountText:Hide()
@@ -356,6 +364,40 @@ when AmountText is shown
 when AmountText is hidden
   AmountText width does not affect primaryText budget (same as before)
 ```
+
+---
+
+## 16. Post-Implementation Notes
+
+### Pool guard is essential
+
+`CreatePrimaryLineLayout()` is called from `Init()`, which runs on every pool
+`Acquire()`. Without the `if self.PrimaryLineLayout then return end` guard,
+a fresh `AmountText` would be created each cycle. Because the font cache
+(`cachedFontFace` etc.) survives across pool releases, `StyleText()` would see a
+cache hit and skip `ApplyFontStyle` on the new FontString — leaving it with
+`GameFontNormal` defaults (no shadow, wrong size). The guard makes
+`CreatePrimaryLineLayout()` idempotent, matching the pattern used by
+`StyleElementFadeIn()` and other one-time setup helpers.
+
+The `"GameFontNormal"` template in `CreateFontString` is a belt-and-suspenders
+safety net: if `SetText(nil)` is ever called before the first `StyleText()` (e.g.
+from `Reset()` on a freshly acquired row), the engine does not throw
+`"Font not set"`.
+
+### `ElementsVisible` / `ElementsInvisible` must include `AmountText`
+
+`RowAnimationMixin:ElementsInvisible()` manually sets alpha to 0 on each element
+before `ElementFadeInAnimation:Play()`. `RowAnimationMixin:ElementsVisible()` is
+the complementary restore. Both must include `self.AmountText:SetAlpha(0/1)` so
+`AmountText` participates in the fade-in at the same alpha as the rest of the row.
+
+### Portrait offset bug (deferred)
+
+`LayoutPrimaryLine()` subtracts a `portraitOffset` from `availableWidth` when
+`self.unit` is set and `enablePartyAvatar` is true. The offset formula
+(`portraitSize - portraitSize/2 = portraitSize/2`) may not correctly account for
+the actual rendered portrait width. This is a known open item for the next session.
 
 ---
 

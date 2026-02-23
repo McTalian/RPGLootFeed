@@ -62,7 +62,7 @@ Spec files **do not need** to require any of these manually. Assignments like `i
 
 Key mock details:
 
-- `row.PrimaryText` / `row.ItemCountText` / `row.SecondaryText` — `mockFontString()` with stubs for all layout + font methods. `GetUnboundedStringWidth` returns `80` (a plain function, not a busted stub, since `LayoutPrimaryLine` calls it in the hot path).
+- `row.PrimaryText` / `row.AmountText` / `row.ItemCountText` / `row.SecondaryText` — `mockFontString()` with stubs for all layout + font methods. `GetUnboundedStringWidth` returns `80` (a plain function, not a busted stub, since `LayoutPrimaryLine` calls it in the hot path). `IsShown` is also a plain function (returns `false` by default) for the same reason — tests that need a different return value reassign it directly: `row.AmountText.IsShown = function() return true end`.
 - `row.PrimaryLineLayout` — `mockLayoutFrame()` with a `Layout` stub and writable `spacing`, `childLayoutDirection`, `fixedWidth` fields. Represents the `HorizontalLayoutMixin` container created programmatically by `CreatePrimaryLineLayout()`.
 - `row.ClickableButton` — `mockButton()` with `SetSize`, `SetPoint`, `ClearAllPoints`, `Show`, `Hide`, `SetScript`, `RegisterEvent`, `UnregisterEvent` stubs.
 
