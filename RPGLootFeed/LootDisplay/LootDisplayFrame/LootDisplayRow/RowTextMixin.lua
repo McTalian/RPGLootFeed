@@ -16,6 +16,13 @@ local defaultColor = { 1, 1, 1, 1 }
 --- PrimaryText and ItemCountText as layout children.
 --- Must be called once during row frame initialisation (from Init()).
 function RLF_RowTextMixin:CreatePrimaryLineLayout()
+	-- Guard: the layout frame and its children persist on the pooled frame across
+	-- Acquire/Release cycles, exactly like the XML-defined PrimaryText/ItemCountText.
+	-- Only create once per physical frame object.
+	if self.PrimaryLineLayout then
+		return
+	end
+
 	local layout = CreateFrame("Frame", nil, self)
 	-- Both mixins are required:
 	--   LayoutMixin        → provides Layout(), GetLayoutChildren(), CalculateFrameSize()
