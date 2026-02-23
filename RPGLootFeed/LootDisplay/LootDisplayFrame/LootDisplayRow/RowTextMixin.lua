@@ -31,9 +31,19 @@ function RLF_RowTextMixin:CreatePrimaryLineLayout()
 	-- wrapping.  Not repeated in the hot-path LayoutPrimaryLine().
 	self.PrimaryText:SetWordWrap(false)
 
-	-- ItemCountText is likewise re-parented into the layout container.
+	-- AmountText holds the quantity suffix (e.g. "x2") as a separate non-truncatable
+	-- FontString at layoutIndex=2.  Hidden by default; shown by ShowAmountText().
+	-- Inherits "GameFontNormal" so the engine never throws "Font not set" when
+	-- SetText/Hide are called before StyleText() runs (e.g. in Reset()).
+	local amountText = layout:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	amountText.layoutIndex = 2
+	amountText:SetWordWrap(false)
+	amountText:Hide()
+	self.AmountText = amountText
+
+	-- ItemCountText shifts to layoutIndex=3 (bag count / skill delta / rep level).
 	self.ItemCountText:SetParent(layout)
-	self.ItemCountText.layoutIndex = 2
+	self.ItemCountText.layoutIndex = 3
 
 	self.PrimaryLineLayout = layout
 end
@@ -125,6 +135,7 @@ function RLF_RowTextMixin:StyleText()
 	if fontChanged then
 		if useFontObjects or not fontFace then
 			self.PrimaryText:SetFontObject(font)
+			self.AmountText:SetFontObject(font)
 			self.ItemCountText:SetFontObject(font)
 			self.SecondaryText:SetFontObject(font)
 			self.Icon.topLeftText:SetFontObject(font)
@@ -132,6 +143,15 @@ function RLF_RowTextMixin:StyleText()
 			local fontPath = G_RLF.lsm:Fetch(G_RLF.lsm.MediaType.FONT, fontFace)
 			ApplyFontStyle(
 				self.PrimaryText,
+				fontPath,
+				fontSize,
+				fontFlagsString,
+				fontShadowColor,
+				fontShadowOffsetX,
+				fontShadowOffsetY
+			)
+			ApplyFontStyle(
+				self.AmountText,
 				fontPath,
 				fontSize,
 				fontFlagsString,
@@ -374,6 +394,25 @@ function RLF_RowTextMixin:UpdateItemCount()
 	end
 end
 
+--- Show or hide the AmountText (quantity suffix) FontString.
+--- Calls LayoutPrimaryLine() at the end so the updated visibility is reflected
+--- in PrimaryText's budget — mirrors ShowItemCountText's pattern exactly.
+--- @param amountText string|nil  Formatted suffix e.g. "x2", or "" / nil to hide.
+--- @param r number Red channel — matches PrimaryText color.
+--- @param g number Green channel.
+--- @param b number Blue channel.
+--- @param a number Alpha channel.
+function RLF_RowTextMixin:ShowAmountText(amountText, r, g, b, a)
+	if amountText and amountText ~= "" then
+		self.AmountText:SetText(amountText)
+		self.AmountText:SetTextColor(r, g, b, a)
+		self.AmountText:Show()
+	else
+		self.AmountText:Hide()
+	end
+	self:LayoutPrimaryLine()
+end
+
 function RLF_RowTextMixin:ShowItemCountText(itemCount, options)
 	local WrapChar = G_RLF.WrapCharEnum
 	options = options or {}
@@ -430,6 +469,13 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 	local iconOffset = iconSize + 2 * (iconSize / 4)
 	local availableWidth = feedWidth - iconOffset - portraitOffset
 
+	-- When AmountText (quantity suffix) is visible its width (plus spacing) is
+	-- subtracted from the budget first.
+	local amountTextWidth = 0
+	if self.AmountText:IsShown() then
+		amountTextWidth = self.AmountText:GetUnboundedStringWidth() + self.PrimaryLineLayout.spacing
+	end
+
 	-- When ItemCountText is visible its width (plus the layout spacing gap) is
 	-- subtracted from the budget so PrimaryText knows how much room it has.
 	local itemCountWidth = 0
@@ -438,8 +484,8 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 	end
 
 	-- PrimaryText takes only the space it naturally needs, truncating only when
-	-- its intrinsic width would push ItemCountText (or future AmountText) off-row.
-	local maxPrimaryWidth = math.max(1, availableWidth - itemCountWidth)
+	-- its intrinsic width would push AmountText or ItemCountText off-row.
+	local maxPrimaryWidth = math.max(1, availableWidth - amountTextWidth - itemCountWidth)
 	local naturalWidth = self.PrimaryText:GetUnboundedStringWidth()
 	local primaryTextWidth = math.min(naturalWidth, maxPrimaryWidth)
 	self.PrimaryText:SetWidth(primaryTextWidth)

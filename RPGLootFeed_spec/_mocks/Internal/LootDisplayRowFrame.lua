@@ -186,6 +186,7 @@ function M.new(frameType)
 
 	-- ── Text sub-elements (RowTextMixin) ──────────────────────────────────
 	row.PrimaryText = mockFontString()
+	row.AmountText = mockFontString()
 	row.ItemCountText = mockFontString()
 	row.SecondaryText = mockFontString()
 

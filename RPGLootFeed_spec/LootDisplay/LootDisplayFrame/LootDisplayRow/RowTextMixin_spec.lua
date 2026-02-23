@@ -54,6 +54,7 @@ describe("RLF_RowTextMixin", function()
 			assert.is_not_nil(_G.RLF_RowTextMixin)
 			assert.is_function(RLF_RowTextMixin.StyleText)
 			assert.is_function(RLF_RowTextMixin.ShowText)
+			assert.is_function(RLF_RowTextMixin.ShowAmountText)
 			assert.is_function(RLF_RowTextMixin.ShowItemCountText)
 			assert.is_function(RLF_RowTextMixin.UpdateSecondaryText)
 			assert.is_function(RLF_RowTextMixin.CreatePrimaryLineLayout)
@@ -77,6 +78,7 @@ describe("RLF_RowTextMixin", function()
 		it("calls SetFont on all font strings on the first call", function()
 			RLF_RowTextMixin.StyleText(row)
 			assert.stub(row.PrimaryText.SetFont).was.called(1)
+			assert.stub(row.AmountText.SetFont).was.called(1)
 			assert.stub(row.ItemCountText.SetFont).was.called(1)
 			assert.stub(row.SecondaryText.SetFont).was.called(1)
 		end)
@@ -113,9 +115,10 @@ describe("RLF_RowTextMixin", function()
 				assert.stub(row.PrimaryText.SetFont).was_not.called()
 			end)
 
-			it("calls SetFontObject on all three text elements", function()
+			it("calls SetFontObject on all four text elements", function()
 				RLF_RowTextMixin.StyleText(row)
 				assert.stub(row.PrimaryText.SetFontObject).was.called(1)
+				assert.stub(row.AmountText.SetFontObject).was.called(1)
 				assert.stub(row.ItemCountText.SetFontObject).was.called(1)
 				assert.stub(row.SecondaryText.SetFontObject).was.called(1)
 			end)
@@ -218,7 +221,55 @@ describe("RLF_RowTextMixin", function()
 			assert.stub(row.SecondaryText.Hide).was.called(1)
 		end)
 	end)
+	-- ── ShowAmountText ───────────────────────────────────────────────────────
 
+	describe("ShowAmountText", function()
+		before_each(function()
+			stub(ns.DbAccessor, "Sizing").returns({ iconSize = 32, feedWidth = 200 })
+			-- Isolate ShowAmountText from LayoutPrimaryLine.
+			stub(row, "LayoutPrimaryLine")
+			row.AmountText.IsShown = function()
+				return false
+			end
+			row.ItemCountText.IsShown = function()
+				return false
+			end
+			row.rawPrimaryText = "Some Item"
+		end)
+
+		it("shows AmountText and sets text when amountText is non-empty", function()
+			RLF_RowTextMixin.ShowAmountText(row, "x3", 1, 1, 1, 1)
+			assert.stub(row.AmountText.Show).was.called(1)
+			assert.stub(row.AmountText.SetText).was.called_with(row.AmountText, "x3")
+		end)
+
+		it("sets text color matching the provided r/g/b/a", function()
+			RLF_RowTextMixin.ShowAmountText(row, "x2", 0.5, 0.2, 0.8, 1)
+			assert.stub(row.AmountText.SetTextColor).was.called_with(row.AmountText, 0.5, 0.2, 0.8, 1)
+		end)
+
+		it("hides AmountText when amountText is an empty string", function()
+			RLF_RowTextMixin.ShowAmountText(row, "", 1, 1, 1, 1)
+			assert.stub(row.AmountText.Hide).was.called(1)
+			assert.stub(row.AmountText.Show).was_not.called()
+		end)
+
+		it("hides AmountText when amountText is nil", function()
+			RLF_RowTextMixin.ShowAmountText(row, nil, 1, 1, 1, 1)
+			assert.stub(row.AmountText.Hide).was.called(1)
+			assert.stub(row.AmountText.Show).was_not.called()
+		end)
+
+		it("calls LayoutPrimaryLine after updating visibility", function()
+			RLF_RowTextMixin.ShowAmountText(row, "x2", 1, 1, 1, 1)
+			assert.stub(row.LayoutPrimaryLine).was.called(1)
+		end)
+
+		it("calls LayoutPrimaryLine even when hiding", function()
+			RLF_RowTextMixin.ShowAmountText(row, "", 1, 1, 1, 1)
+			assert.stub(row.LayoutPrimaryLine).was.called(1)
+		end)
+	end)
 	-- ── ShowItemCountText ──────────────────────────────────────────────────
 
 	describe("ShowItemCountText", function()
@@ -292,6 +343,12 @@ describe("RLF_RowTextMixin", function()
 			row.ItemCountText.GetUnboundedStringWidth = function()
 				return 40
 			end
+			row.AmountText.IsShown = function()
+				return false
+			end
+			row.AmountText.GetUnboundedStringWidth = function()
+				return 30
+			end
 			row.PrimaryLineLayout.spacing = SPACING
 		end)
 
@@ -322,6 +379,22 @@ describe("RLF_RowTextMixin", function()
 			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, NATURAL)
 		end)
 
+		it("uses natural width when text fits with AmountText shown", function()
+			local AMOUNT_WIDTH = 30
+			local NATURAL = 80 -- fits within 152-30-8 = 114
+			row.AmountText.IsShown = function()
+				return true
+			end
+			row.AmountText.GetUnboundedStringWidth = function()
+				return AMOUNT_WIDTH
+			end
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return NATURAL
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, NATURAL)
+		end)
+
 		-- ── Natural width exceeds budget → truncate ────────────────────────
 
 		it("caps PrimaryText at availableWidth when text is wider than the row", function()
@@ -337,6 +410,47 @@ describe("RLF_RowTextMixin", function()
 			local COUNT_WIDTH = 40
 			local MAX_PRIMARY = AVAILABLE_WIDTH - COUNT_WIDTH - SPACING -- 104
 			local NATURAL = 150 -- wider than 104
+			row.ItemCountText.IsShown = function()
+				return true
+			end
+			row.ItemCountText.GetUnboundedStringWidth = function()
+				return COUNT_WIDTH
+			end
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return NATURAL
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, MAX_PRIMARY)
+		end)
+
+		it("caps PrimaryText when AmountText is shown and text overflows remaining space", function()
+			local AMOUNT_WIDTH = 30
+			local MAX_PRIMARY = AVAILABLE_WIDTH - AMOUNT_WIDTH - SPACING -- 114
+			local NATURAL = 150 -- wider than 114
+			row.AmountText.IsShown = function()
+				return true
+			end
+			row.AmountText.GetUnboundedStringWidth = function()
+				return AMOUNT_WIDTH
+			end
+			row.PrimaryText.GetUnboundedStringWidth = function()
+				return NATURAL
+			end
+			RLF_RowTextMixin.LayoutPrimaryLine(row)
+			assert.stub(row.PrimaryText.SetWidth).was.called_with(row.PrimaryText, MAX_PRIMARY)
+		end)
+
+		it("accounts for both AmountText and ItemCountText when both are shown", function()
+			local AMOUNT_WIDTH = 30
+			local COUNT_WIDTH = 40
+			local MAX_PRIMARY = AVAILABLE_WIDTH - AMOUNT_WIDTH - SPACING - COUNT_WIDTH - SPACING -- 66
+			local NATURAL = 150
+			row.AmountText.IsShown = function()
+				return true
+			end
+			row.AmountText.GetUnboundedStringWidth = function()
+				return AMOUNT_WIDTH
+			end
 			row.ItemCountText.IsShown = function()
 				return true
 			end

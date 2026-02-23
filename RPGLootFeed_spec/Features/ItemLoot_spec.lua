@@ -786,13 +786,13 @@ describe("ItemLoot Module", function()
 				assert.equals(info.itemLink, element.textFn(nil, nil))
 			end)
 
-			it("appends quantity when showOneQuantity is true and quantity > 1", function()
+			it("returns only the link with no quantity suffix", function()
 				ns.db.global.misc.showOneQuantity = true
 				local info = makeItemInfo()
 				local element = ItemLoot.Element:new(info, 3, nil)
 
 				local text = element.textFn(0, "[Link]")
-				assert.matches("x3", text)
+				assert.equals("[Link]", text)
 			end)
 
 			it("omits quantity suffix when showOneQuantity is false and quantity is 1", function()
@@ -801,7 +801,25 @@ describe("ItemLoot Module", function()
 				local element = ItemLoot.Element:new(info, 1, nil)
 
 				local text = element.textFn(0, "[Link]")
-				assert.not_matches("x1", text)
+				assert.equals("[Link]", text)
+			end)
+		end)
+
+		describe("amountTextFn", function()
+			it("returns quantity suffix when showOneQuantity is true and quantity > 1", function()
+				ns.db.global.misc.showOneQuantity = true
+				local info = makeItemInfo()
+				local element = ItemLoot.Element:new(info, 3, nil)
+
+				assert.equals("x3", element.amountTextFn(0))
+			end)
+
+			it("returns empty string when showOneQuantity is false and quantity is 1", function()
+				ns.db.global.misc.showOneQuantity = false
+				local info = makeItemInfo()
+				local element = ItemLoot.Element:new(info, 1, nil)
+
+				assert.equals("", element.amountTextFn(0))
 			end)
 		end)
 

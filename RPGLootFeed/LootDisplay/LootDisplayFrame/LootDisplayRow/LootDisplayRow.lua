@@ -116,6 +116,7 @@ function LootDisplayRowMixin:Reset()
 	self.waiting = false
 	self.isCustomLink = false
 	self.customBehavior = nil
+	self.amountTextFn = nil
 
 	-- Reset UI elements that were part of the template
 	self.TopBorder:SetAlpha(0)
@@ -156,6 +157,8 @@ function LootDisplayRowMixin:Reset()
 	self.SecondaryText:SetText(nil)
 	self.SecondaryText:SetTextColor(unpack(defaultColor))
 	self.SecondaryText:Hide()
+	self.AmountText:SetText(nil)
+	self.AmountText:Hide()
 	self.ItemCountText:SetText(nil)
 	self.ItemCountText:Hide()
 	self.ClickableButton:Hide()
@@ -210,6 +213,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self.elementSecondaryTextColor = element.secondaryTextColor or nil
 	self.isCustomLink = element.isCustomLink or false
 	self.customBehavior = element.customBehavior
+	self.amountTextFn = element.amountTextFn
 	local text
 	if element.isSampleRow or (element.showForSeconds ~= nil and element.showForSeconds ~= self.showForSeconds) then
 		self.showForSeconds = element.showForSeconds
@@ -246,6 +250,8 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self:UpdateSecondaryText(secondaryTextFn)
 	self:UpdateStyles()
 	self:ShowText(text, r, g, b, a)
+	local amountText = self.amountTextFn and self.amountTextFn(0) or ""
+	self:ShowAmountText(amountText, r or 1, g or 1, b or 1, a or 1)
 	self.highlight = highlight
 	RunNextFrame(function()
 		self:Enter()
@@ -298,6 +304,8 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	self:UpdateSecondaryText(element.secondaryTextFn)
 	self:UpdateItemCount()
 	self:ShowText(text, r, g, b, a)
+	local amountText = element.amountTextFn and element.amountTextFn(self.amount) or ""
+	self:ShowAmountText(amountText, r or 1, g or 1, b or 1, a or 1)
 
 	if not G_RLF.db.global.animations.update.disableHighlight then
 		self.HighlightAnimation:Stop()

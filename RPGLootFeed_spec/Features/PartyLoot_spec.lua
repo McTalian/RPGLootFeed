@@ -562,17 +562,21 @@ describe("PartyLoot Module", function()
 			assert.equals(info.itemLink, e.textFn(nil, nil))
 		end)
 
-		it("textFn appends quantity when quantity > 1", function()
+		it("textFn returns only the link with no quantity suffix", function()
 			local e = PartyLoot.Element:new(makeInfo(), 2, "party1")
 			local result = e.textFn(0, "[Finkle's Lava Dredger]")
-			assert.equals("[Finkle's Lava Dredger] x2", result)
+			assert.equals("[Finkle's Lava Dredger]", result)
 		end)
 
-		it("textFn omits quantity suffix for quantity 1 when showOneQuantity is false", function()
+		it("amountTextFn returns quantity suffix when quantity > 1", function()
+			local e = PartyLoot.Element:new(makeInfo(), 2, "party1")
+			assert.equals("x2", e.amountTextFn(0))
+		end)
+
+		it("amountTextFn returns empty string when quantity is 1 and showOneQuantity is false", function()
 			ns.db.global.misc.showOneQuantity = false
 			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			local result = e.textFn(0, "[Finkle's Lava Dredger]")
-			assert.equals("[Finkle's Lava Dredger]", result)
+			assert.equals("", e.amountTextFn(0))
 		end)
 
 		it("unitClass is set from second return value of UnitClass", function()

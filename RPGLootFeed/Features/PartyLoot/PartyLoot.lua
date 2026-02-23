@@ -162,16 +162,15 @@ function PartyLoot.Element:new(...)
 		if not truncatedLink then
 			return itemLink
 		end
-		local text = truncatedLink
-		local quantityText
+		return truncatedLink
+	end
+
+	element.amountTextFn = function(existingQuantity)
 		local effectiveQuantity = (existingQuantity or 0) + element.quantity
 		if effectiveQuantity == 1 and not G_RLF.db.global.misc.showOneQuantity then
-			quantityText = ""
-		else
-			quantityText = " x" .. effectiveQuantity
+			return ""
 		end
-		text = text .. quantityText
-		return text
+		return "x" .. effectiveQuantity
 	end
 
 	element.secondaryText = "A former party member"
