@@ -328,5 +328,14 @@ function Styling:SetShadowOffsetY(_, value)
 	G_RLF.LootDisplay:ReInitQueueLabel()
 end
 
+function Styling:GetRowTextSpacing()
+	return G_RLF.db.global.styling.rowTextSpacing
+end
+
+function Styling:SetRowTextSpacing(_, value)
+	G_RLF.db.global.styling.rowTextSpacing = value
+	G_RLF.LootDisplay:UpdateRowStyles()
+end
+
 G_RLF.options.args.styles = G_RLF.ConfigCommon.StylingBase.CreateStylingGroup(Styling, G_RLF.level1OptionsOrder.styling)
 G_RLF.options.args.styles.args.partyLootFrame = G_RLF.ConfigHandlers.PartyLootConfig:GetStylingOptions(10)

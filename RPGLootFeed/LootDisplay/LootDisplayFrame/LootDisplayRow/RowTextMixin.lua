@@ -55,6 +55,29 @@ function RLF_RowTextMixin:CreatePrimaryLineLayout()
 	self.PrimaryLineLayout = layout
 end
 
+--- Create the SecondaryLineLayout horizontal layout container that holds
+--- SecondaryText (and future secondary-line children) as layout children.
+--- Must be called once during row frame initialisation (from Init()).
+function RLF_RowTextMixin:CreateSecondaryLineLayout()
+	-- Guard: same pool-idempotency pattern as CreatePrimaryLineLayout().
+	if self.SecondaryLineLayout then
+		return
+	end
+
+	local layout = CreateFrame("Frame", nil, self)
+	Mixin(layout, LayoutMixin, HorizontalLayoutMixin)
+	layout.spacing = 0 -- updated in StyleText() once iconSize is known
+
+	-- SecondaryText is re-parented from the row into the layout container.
+	-- SetWordWrap(false) so the engine truncates with "..." rather than wrapping.
+	self.SecondaryText:SetParent(layout)
+	self.SecondaryText.layoutIndex = 1
+	self.SecondaryText:SetWordWrap(false)
+
+	layout:Hide()
+	self.SecondaryLineLayout = layout
+end
+
 local function ApplyFontStyle(
 	fontString,
 	fontPath,
@@ -193,9 +216,14 @@ function RLF_RowTextMixin:StyleText()
 	local iconSize = sizingDb.iconSize
 	local enabledSecondaryRowText = stylingDb.enabledSecondaryRowText
 
+	-- Compute inter-child spacing before the cache block so the check can compare
+	-- against the new value. 0 = auto (scales with icon size: iconSize/4).
+	local rowTextSpacingCfg = stylingDb.rowTextSpacing or 0
+	local spacing = (rowTextSpacingCfg == 0) and (iconSize / 4) or rowTextSpacingCfg
+
 	if
 		self.cachedRowTextLeftAlign ~= leftAlign
-		or self.cachedRowTextXOffset ~= iconSize / 4
+		or self.cachedRowTextXOffset ~= spacing
 		or self.cachedRowTextIcon ~= self.icon
 		or self.cachedEnabledSecondaryText ~= enabledSecondaryRowText
 		or self.cachedSecondaryText ~= self.secondaryText
@@ -203,7 +231,7 @@ function RLF_RowTextMixin:StyleText()
 		or self.cachedPaddingText ~= padding
 	then
 		self.cachedRowTextLeftAlign = leftAlign
-		self.cachedRowTextXOffset = iconSize / 4
+		self.cachedRowTextXOffset = spacing
 		self.cachedRowTextIcon = self.icon
 		self.cachedEnabledSecondaryText = enabledSecondaryRowText
 		self.cachedSecondaryText = self.secondaryText
@@ -212,17 +240,19 @@ function RLF_RowTextMixin:StyleText()
 
 		local anchor = "LEFT"
 		local iconAnchor = "RIGHT"
-		local xOffset = iconSize / 4
+		local xOffset = spacing
 		if not leftAlign then
 			anchor = "RIGHT"
 			iconAnchor = "LEFT"
 			xOffset = xOffset * -1
 		end
 		-- PrimaryLineLayout owns the anchor to Icon; its children (PrimaryText,
-		-- ItemCountText) are positioned by Layout().  The spacing between them
-		-- equals the icon-gap.  childLayoutDirection reverses child order for
-		-- right-align (icon on right) without changing layoutIndex values.
-		self.PrimaryLineLayout.spacing = iconSize / 4
+		-- AmountText, ItemCountText) are positioned by Layout(). The spacing is
+		-- user-configurable via rowTextSpacing (0 = auto = iconSize/4).
+		-- childLayoutDirection reverses child order for right-align (icon on right)
+		-- without changing layoutIndex values.
+		self.PrimaryLineLayout.spacing = spacing
+		self.SecondaryLineLayout.spacing = spacing
 		if leftAlign then
 			self.PrimaryLineLayout.childLayoutDirection = nil
 		else
@@ -241,14 +271,14 @@ function RLF_RowTextMixin:StyleText()
 		end
 
 		if enabledSecondaryRowText and self.secondaryText ~= nil and self.secondaryText ~= "" then
-			self.SecondaryText:ClearAllPoints()
+			self.SecondaryLineLayout:ClearAllPoints()
 			self.SecondaryText:SetJustifyH(anchor)
 			if self.icon then
 				if self.unit then
 					if G_RLF.db.global.partyLoot.enablePartyAvatar then
-						self.SecondaryText:SetPoint(anchor, self.UnitPortrait, iconAnchor, xOffset, 0)
+						self.SecondaryLineLayout:SetPoint(anchor, self.UnitPortrait, iconAnchor, xOffset, 0)
 					else
-						self.SecondaryText:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
+						self.SecondaryLineLayout:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
 					end
 					if self.elementSecondaryTextColor then
 						self.SecondaryText:SetTextColor(
@@ -259,16 +289,16 @@ function RLF_RowTextMixin:StyleText()
 						)
 					end
 				else
-					self.SecondaryText:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
+					self.SecondaryLineLayout:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
 				end
 			else
-				self.SecondaryText:SetPoint(anchor, self.Icon, anchor, 0, 0)
+				self.SecondaryLineLayout:SetPoint(anchor, self.Icon, anchor, 0, 0)
 			end
-			-- Vertical split: PrimaryLineLayout (not PrimaryText) takes the top slot;
-			-- SecondaryText takes the bottom slot.
+			-- Vertical split: PrimaryLineLayout takes the top slot;
+			-- SecondaryLineLayout takes the bottom slot.
 			self.PrimaryLineLayout:SetPoint("BOTTOM", self, "CENTER", 0, padding)
-			self.SecondaryText:SetPoint("TOP", self, "CENTER", 0, -padding)
-			self.SecondaryText:SetShown(true)
+			self.SecondaryLineLayout:SetPoint("TOP", self, "CENTER", 0, -padding)
+			self.SecondaryLineLayout:SetShown(true)
 		end
 	end
 end
@@ -464,8 +494,11 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 
 	local portraitOffset = 0
 	if self.unit and G_RLF.db.global.partyLoot.enablePartyAvatar then
+		-- UnitPortrait is anchored at Icon.RIGHT + iconSize/4 (gap) with width portraitSize.
+		-- PrimaryLineLayout is then anchored at UnitPortrait.RIGHT + iconSize/4 (gap).
+		-- Extra width consumed beyond iconOffset: portraitSize + gap between icon and portrait.
 		local portraitSize = iconSize * 0.8
-		portraitOffset = portraitSize - (portraitSize / 2)
+		portraitOffset = portraitSize + (iconSize / 4)
 	end
 
 	-- Space occupied by the icon column:
@@ -513,6 +546,33 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 	end
 end
 
+--- Compute the available text width for SecondaryText, apply it, and call Layout()
+--- on SecondaryLineLayout. Called from ShowText() whenever secondary text is shown.
+function RLF_RowTextMixin:LayoutSecondaryLine()
+	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
+	local iconSize = sizingDb.iconSize
+	local feedWidth = sizingDb.feedWidth
+
+	local portraitOffset = 0
+	if self.unit and G_RLF.db.global.partyLoot.enablePartyAvatar then
+		-- Mirrors the corrected portrait offset logic in LayoutPrimaryLine().
+		local portraitSize = iconSize * 0.8
+		portraitOffset = portraitSize + (iconSize / 4)
+	end
+
+	local iconOffset = iconSize + 2 * (iconSize / 4)
+	local availableWidth = feedWidth - iconOffset - portraitOffset
+
+	-- Constrain SecondaryText to availableWidth, then re-set its text so the
+	-- engine renders the "." ellipsis against the original (untruncated) string.
+	local naturalWidth = self.SecondaryText:GetUnboundedStringWidth()
+	self.SecondaryText:SetWidth(math.max(1, math.min(naturalWidth, availableWidth)))
+	self.SecondaryText:SetText(self.secondaryText or "")
+
+	self.SecondaryLineLayout.fixedWidth = availableWidth
+	self.SecondaryLineLayout:Layout()
+end
+
 function RLF_RowTextMixin:ShowText(rawText, r, g, b, a)
 	if a == nil then
 		a = 1
@@ -536,8 +596,11 @@ function RLF_RowTextMixin:ShowText(rawText, r, g, b, a)
 	if stylingDb.enabledSecondaryRowText and self.secondaryText ~= nil and self.secondaryText ~= "" then
 		self.SecondaryText:SetText(self.secondaryText)
 		self.SecondaryText:Show()
+		self.SecondaryLineLayout:Show()
+		self:LayoutSecondaryLine()
 	else
 		self.SecondaryText:Hide()
+		self.SecondaryLineLayout:Hide()
 	end
 
 	-- Initial layout pass with ItemCountText hidden (count text is set later via

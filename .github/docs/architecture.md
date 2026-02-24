@@ -212,6 +212,23 @@ The unified layout entry point `LayoutPrimaryLine()` is called from `ShowText()`
 
 `childLayoutDirection = "rightToLeft"` on the container handles the right-align (icon-right) case without reordering children. `ClickableButton` geometry is owned exclusively by `LayoutPrimaryLine()` (not `SetupTooltip()`).
 
+**Secondary line layout**: `RLF_RowTextMixin` also creates a `SecondaryLineLayout` frame via `CreateSecondaryLineLayout()` (same pool-guard pattern). `SecondaryText` is re-parented into it as `layoutIndex=1`. `LayoutSecondaryLine()` applies the same `availableWidth` + engine-truncation logic as `LayoutPrimaryLine()`, without any sub-element budget splits. Additional secondary-line children can be added in the future without layout surgery.
+
+`ShowText()` shows/hides `SecondaryLineLayout` (not `SecondaryText` directly) and calls `LayoutSecondaryLine()` when the secondary text is non-empty.
+
+**Available width formula** (used by both `LayoutPrimaryLine` and `LayoutSecondaryLine`):
+
+```
+iconOffset = iconSize + 2 × (iconSize / 4)      -- gap + icon + gap
+portraitOffset (when avatar enabled) = portraitSize + (iconSize / 4)  -- portrait + gap before layout
+                                       where portraitSize = iconSize × 0.8
+availableWidth = feedWidth - iconOffset - portraitOffset
+```
+
+The portrait offset formula was corrected in this session: the old formula (`portraitSize / 2`) under-counted. The correct value accounts for the full portrait width **plus** the `iconSize/4` gap between the icon's right edge and the portrait's left anchor.
+
+**Spacing**: `PrimaryLineLayout.spacing` and `SecondaryLineLayout.spacing` are both set to the user-configurable `rowTextSpacing` DB value (under `global.styling`). `0` (default) means auto = `iconSize / 4`. The slider is in the Styling → Custom Fonts panel.
+
 `LootDisplay.lua` no longer contains `TruncateItemLink`, `CalculateTextWidth`, or `tempFontString` — all superseded by native engine truncation via `FontString:SetWidth()` + `SetWordWrap(false)`.
 
 **Does NOT contain**: Feature-specific logic (that belongs in Features/)

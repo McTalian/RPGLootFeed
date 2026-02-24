@@ -79,14 +79,18 @@ local function mockFontString()
 	return fs
 end
 
---- Creates a mock layout container that mimics the PrimaryLineLayout frame
---- produced by RLF_RowTextMixin:CreatePrimaryLineLayout().
---- Provides a Layout stub and the fields that LayoutPrimaryLine() writes to.
+--- Creates a mock layout container that mimics the PrimaryLineLayout / SecondaryLineLayout
+--- frames produced by RLF_RowTextMixin:Create*LineLayout().
+--- Provides a Layout stub, visibility stubs, and the fields that Layout*Line() writes to.
 local function mockLayoutFrame()
 	local frame = stubMethods({}, {
 		"SetPoint",
 		"ClearAllPoints",
 		"Layout",
+		"Show",
+		"Hide",
+		"SetShown",
+		"SetAlpha",
 	})
 	frame.spacing = 0
 	frame.childLayoutDirection = nil
@@ -192,6 +196,9 @@ function M.new(frameType)
 
 	-- ── PrimaryLineLayout (created programmatically by CreatePrimaryLineLayout)
 	row.PrimaryLineLayout = mockLayoutFrame()
+
+	-- ── SecondaryLineLayout (created programmatically by CreateSecondaryLineLayout)
+	row.SecondaryLineLayout = mockLayoutFrame()
 
 	-- ── Portrait sub-elements (RowUnitPortraitMixin) ──────────────────────
 	row.UnitPortrait = mockTexture()

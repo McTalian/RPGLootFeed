@@ -27,6 +27,7 @@ describe("RLF_RowTextMixin", function()
 			fontShadowOffsetY = -1,
 			leftAlign = true,
 			enabledSecondaryRowText = false,
+			rowTextSpacing = 0,
 		}
 	end
 
@@ -59,6 +60,8 @@ describe("RLF_RowTextMixin", function()
 			assert.is_function(RLF_RowTextMixin.UpdateSecondaryText)
 			assert.is_function(RLF_RowTextMixin.CreatePrimaryLineLayout)
 			assert.is_function(RLF_RowTextMixin.LayoutPrimaryLine)
+			assert.is_function(RLF_RowTextMixin.CreateSecondaryLineLayout)
+			assert.is_function(RLF_RowTextMixin.LayoutSecondaryLine)
 		end)
 	end)
 
@@ -147,10 +150,14 @@ describe("RLF_RowTextMixin", function()
 			assert.equal("rightToLeft", row.PrimaryLineLayout.childLayoutDirection)
 		end)
 
-		it("sets PrimaryLineLayout.spacing to iconSize/4", function()
-			RLF_RowTextMixin.StyleText(row)
-			assert.equal(8, row.PrimaryLineLayout.spacing) -- iconSize=32, 32/4=8
-		end)
+		it(
+			"sets PrimaryLineLayout and SecondaryLineLayout spacing to iconSize/4 when rowTextSpacing is 0 (auto)",
+			function()
+				RLF_RowTextMixin.StyleText(row)
+				assert.equal(8, row.PrimaryLineLayout.spacing) -- iconSize=32, 32/4=8
+				assert.equal(8, row.SecondaryLineLayout.spacing) -- same value
+			end
+		)
 	end)
 
 	-- ── ShowText ───────────────────────────────────────────────────────────
@@ -162,8 +169,9 @@ describe("RLF_RowTextMixin", function()
 			})
 			stub(ns.DbAccessor, "Sizing").returns({ iconSize = 32, feedWidth = 200, padding = 4 })
 			-- Stub LayoutPrimaryLine so ShowText tests focus on text/color logic only.
-			-- LayoutPrimaryLine has its own dedicated describe block below.
+			-- LayoutPrimaryLine and LayoutSecondaryLine each have their own describe blocks.
 			stub(row, "LayoutPrimaryLine")
+			stub(row, "LayoutSecondaryLine")
 		end)
 
 		it("calls SetText on PrimaryText", function()
@@ -214,11 +222,13 @@ describe("RLF_RowTextMixin", function()
 			row.secondaryText = "Bonus"
 			RLF_RowTextMixin.ShowText(row, "Main")
 			assert.stub(row.SecondaryText.Show).was.called(1)
+			assert.stub(row.SecondaryLineLayout.Show).was.called(1)
 		end)
 
 		it("hides SecondaryText when enabledSecondaryRowText is false", function()
 			RLF_RowTextMixin.ShowText(row, "Main")
 			assert.stub(row.SecondaryText.Hide).was.called(1)
+			assert.stub(row.SecondaryLineLayout.Hide).was.called(1)
 		end)
 	end)
 	-- ── ShowAmountText ───────────────────────────────────────────────────────
@@ -503,7 +513,62 @@ describe("RLF_RowTextMixin", function()
 			assert.stub(row.ClickableButton.SetSize).was_not.called()
 		end)
 	end)
+	-- ── LayoutSecondaryLine ─────────────────────────────────────
 
+	describe("LayoutSecondaryLine", function()
+		-- iconSize=32, feedWidth=200
+		-- iconOffset = iconSize/4 + iconSize + iconSize/4 = 8+32+8 = 48
+		-- availableWidth = 200 - 48 = 152 (no portrait)
+		local ICON_SIZE = 32
+		local FEED_WIDTH = 200
+		local AVAILABLE_WIDTH = FEED_WIDTH - (ICON_SIZE + 2 * (ICON_SIZE / 4)) -- 152
+
+		before_each(function()
+			stub(ns.DbAccessor, "Sizing").returns({ iconSize = ICON_SIZE, feedWidth = FEED_WIDTH })
+			row.secondaryText = "Some secondary text"
+			row.SecondaryLineLayout.spacing = 0
+		end)
+
+		it("uses natural width when secondary text fits", function()
+			row.SecondaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutSecondaryLine(row)
+			assert.stub(row.SecondaryText.SetWidth).was.called_with(row.SecondaryText, 80)
+		end)
+
+		it("caps SecondaryText at availableWidth when text overflows", function()
+			row.SecondaryText.GetUnboundedStringWidth = function()
+				return 200
+			end
+			RLF_RowTextMixin.LayoutSecondaryLine(row)
+			assert.stub(row.SecondaryText.SetWidth).was.called_with(row.SecondaryText, AVAILABLE_WIDTH)
+		end)
+
+		it("re-sets secondary text after SetWidth to enable engine truncation", function()
+			row.SecondaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutSecondaryLine(row)
+			assert.stub(row.SecondaryText.SetText).was.called_with(row.SecondaryText, "Some secondary text")
+		end)
+
+		it("sets SecondaryLineLayout.fixedWidth to availableWidth", function()
+			row.SecondaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutSecondaryLine(row)
+			assert.equal(AVAILABLE_WIDTH, row.SecondaryLineLayout.fixedWidth)
+		end)
+
+		it("calls SecondaryLineLayout:Layout()", function()
+			row.SecondaryText.GetUnboundedStringWidth = function()
+				return 80
+			end
+			RLF_RowTextMixin.LayoutSecondaryLine(row)
+			assert.stub(row.SecondaryLineLayout.Layout).was.called(1)
+		end)
+	end)
 	-- ── UpdateSecondaryText ────────────────────────────────────────────────
 
 	describe("UpdateSecondaryText", function()

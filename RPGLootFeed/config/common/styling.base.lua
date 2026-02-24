@@ -59,6 +59,9 @@ StylingBase.defaultDb = {
 	fontShadowColor = { 0, 0, 0, 1 },
 	fontShadowOffsetX = 1,
 	fontShadowOffsetY = -1,
+	-- Pixel gap between PrimaryLineLayout/SecondaryLineLayout children and between
+	-- the icon and the layout container.  0 = auto (iconSize / 4, scales with icon).
+	rowTextSpacing = 0,
 }
 
 ---@param destDbPath string
@@ -136,6 +139,8 @@ end
 ---@field GetShadowOffsetY fun(): number
 ---@field SetShadowOffsetY fun(info: any, value: number)
 ---@field IsCustomFontsDisabled fun(): boolean
+---@field GetRowTextSpacing fun(): number
+---@field SetRowTextSpacing fun(info: any, value: number)
 
 ---@private
 function StylingBase.CreateLeftAlignToggle(handler)
@@ -660,6 +665,22 @@ function StylingBase.CreateFontShadowOffsetYRange()
 end
 
 ---@private
+function StylingBase.CreateRowTextSpacingRange()
+	return G_RLF.ConfigCommon.CreateRange({
+		name = G_RLF.L["Row Text Spacing"],
+		desc = G_RLF.L["RowTextSpacingDesc"],
+		get = "GetRowTextSpacing",
+		set = "SetRowTextSpacing",
+		min = 0,
+		softMax = 20,
+		max = 40,
+		bigStep = 1,
+		width = "double",
+		order = 0,
+	})
+end
+
+---@private
 function StylingBase.CreateCustomFontsGroup()
 	local group = G_RLF.ConfigCommon.CreateGroup({
 		name = G_RLF.L["Custom Fonts"],
@@ -676,6 +697,7 @@ function StylingBase.CreateCustomFontsGroup()
 	group.args.shadowHelp = StylingBase.CreateShadowHelpDescription()
 	group.args.shadowOffsetX = StylingBase.CreateFontShadowOffsetXRange()
 	group.args.shadowOffsetY = StylingBase.CreateFontShadowOffsetYRange()
+	group.args.rowTextSpacing = StylingBase.CreateRowTextSpacingRange()
 
 	return group
 end
