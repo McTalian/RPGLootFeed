@@ -10,7 +10,7 @@ locale_dir = os.path.join(base_dir, "locale")
 enUS_file = os.path.join(locale_dir, "enUS.lua")
 
 # Regex patterns
-locale_key_pattern = re.compile(r'G_RLF\.L\["(.*?)"\]')
+locale_key_pattern = re.compile(r'L\["(.*?)"\]')
 definition_pattern = re.compile(r'L\["(.*?)"\]')
 comment_pattern = re.compile(r"^\s*--")
 
