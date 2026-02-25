@@ -281,6 +281,15 @@ function PartyLootConfig:SetSecondaryFontSize(_, value)
 	G_RLF.LootDisplay:ReInitQueueLabel()
 end
 
+function PartyLootConfig:GetRowTextSpacing()
+	return G_RLF.db.global.partyLoot.styling.rowTextSpacing
+end
+
+function PartyLootConfig:SetRowTextSpacing(_, value)
+	G_RLF.db.global.partyLoot.styling.rowTextSpacing = value
+	G_RLF.LootDisplay:UpdateRowStyles()
+end
+
 function PartyLootConfig:GetFontFlags(_, key)
 	return G_RLF.db.global.partyLoot.styling.fontFlags[key]
 end
