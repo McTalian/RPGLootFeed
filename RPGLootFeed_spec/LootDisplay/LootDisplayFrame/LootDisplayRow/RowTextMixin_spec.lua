@@ -25,7 +25,7 @@ describe("RLF_RowTextMixin", function()
 			fontShadowColor = { 0, 0, 0, 1 },
 			fontShadowOffsetX = 1,
 			fontShadowOffsetY = -1,
-			leftAlign = true,
+			textAlignment = "LEFT",
 			enabledSecondaryRowText = false,
 			rowTextSpacing = 0,
 		}
@@ -137,14 +137,22 @@ describe("RLF_RowTextMixin", function()
 			assert.stub(row.PrimaryLineLayout.SetPoint).was.called()
 		end)
 
-		it("sets PrimaryLineLayout.childLayoutDirection to nil when leftAlign is true", function()
+		it("sets PrimaryLineLayout.childLayoutDirection to nil when textAlignment is LEFT", function()
 			RLF_RowTextMixin.StyleText(row)
 			assert.is_nil(row.PrimaryLineLayout.childLayoutDirection)
 		end)
 
-		it("sets PrimaryLineLayout.childLayoutDirection to rightToLeft when leftAlign is false", function()
+		it("sets PrimaryLineLayout.childLayoutDirection to nil when textAlignment is CENTER", function()
 			local db = makeDefaultStylingDb()
-			db.leftAlign = false
+			db.textAlignment = "CENTER"
+			stub(ns.DbAccessor, "Styling").returns(db)
+			RLF_RowTextMixin.StyleText(row)
+			assert.is_nil(row.PrimaryLineLayout.childLayoutDirection)
+		end)
+
+		it("sets PrimaryLineLayout.childLayoutDirection to rightToLeft when textAlignment is RIGHT", function()
+			local db = makeDefaultStylingDb()
+			db.textAlignment = "RIGHT"
 			stub(ns.DbAccessor, "Styling").returns(db)
 			RLF_RowTextMixin.StyleText(row)
 			assert.equal("rightToLeft", row.PrimaryLineLayout.childLayoutDirection)

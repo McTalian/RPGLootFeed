@@ -211,7 +211,8 @@ function RLF_RowTextMixin:StyleText()
 		end
 	end
 
-	local leftAlign = stylingDb.leftAlign
+	local textAlignment = stylingDb.textAlignment
+	local iconOnLeft = textAlignment ~= G_RLF.TextAlignment.RIGHT
 	local padding = sizingDb.padding
 	local iconSize = sizingDb.iconSize
 	local enabledSecondaryRowText = stylingDb.enabledSecondaryRowText
@@ -222,7 +223,7 @@ function RLF_RowTextMixin:StyleText()
 	local spacing = (rowTextSpacingCfg == 0) and (iconSize / 4) or rowTextSpacingCfg
 
 	if
-		self.cachedRowTextLeftAlign ~= leftAlign
+		self.cachedRowTextAlignment ~= textAlignment
 		or self.cachedRowTextXOffset ~= spacing
 		or self.cachedRowTextIcon ~= self.icon
 		or self.cachedEnabledSecondaryText ~= enabledSecondaryRowText
@@ -230,7 +231,7 @@ function RLF_RowTextMixin:StyleText()
 		or self.cachedUnitText ~= self.unit
 		or self.cachedPaddingText ~= padding
 	then
-		self.cachedRowTextLeftAlign = leftAlign
+		self.cachedRowTextAlignment = textAlignment
 		self.cachedRowTextXOffset = spacing
 		self.cachedRowTextIcon = self.icon
 		self.cachedEnabledSecondaryText = enabledSecondaryRowText
@@ -241,7 +242,7 @@ function RLF_RowTextMixin:StyleText()
 		local anchor = "LEFT"
 		local iconAnchor = "RIGHT"
 		local xOffset = spacing
-		if not leftAlign then
+		if not iconOnLeft then
 			anchor = "RIGHT"
 			iconAnchor = "LEFT"
 			xOffset = xOffset * -1
@@ -253,7 +254,7 @@ function RLF_RowTextMixin:StyleText()
 		-- without changing layoutIndex values.
 		self.PrimaryLineLayout.spacing = spacing
 		self.SecondaryLineLayout.spacing = spacing
-		if leftAlign then
+		if iconOnLeft then
 			self.PrimaryLineLayout.childLayoutDirection = nil
 		else
 			self.PrimaryLineLayout.childLayoutDirection = "rightToLeft"

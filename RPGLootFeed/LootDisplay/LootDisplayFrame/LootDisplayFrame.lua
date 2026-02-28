@@ -27,7 +27,8 @@ function LootDisplayFrameMixin:getPositioningDetails()
 	local stylingDb = G_RLF.DbAccessor:Styling(self.frameType)
 	local growUp = stylingDb.growUp
 	-- Position the new row at the bottom (or top if growing down)
-	local horizDir = stylingDb.leftAlign and "LEFT" or "RIGHT"
+	local textAlignment = stylingDb.textAlignment
+	local horizDir = (textAlignment ~= G_RLF.TextAlignment.RIGHT) and "LEFT" or "RIGHT"
 	local vertDir = growUp and "BOTTOM" or "TOP"
 	local opposite = growUp and "TOP" or "BOTTOM"
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)

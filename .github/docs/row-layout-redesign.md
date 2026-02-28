@@ -190,7 +190,7 @@ the secondary line.
 
 ## Incremental Plan
 
-### Step 1 — Primary Line HorizontalLayout + Native Truncation (do this next)
+### Step 1 — Primary Line HorizontalLayout + Native Truncation ✅ DONE
 
 **Scope**: `primaryTextFrame` only. Leave `secondaryTextFrame`, icon, outer alignment,
 and outer `HorizontalLayoutMixin` for later steps.
@@ -209,15 +209,21 @@ and outer `HorizontalLayoutMixin` for later steps.
 7. Bonus: use `PrimaryText:IsTruncated()` in `RowTooltipMixin` to show the full
    item name in the tooltip when truncated — a free UX improvement.
 
-### Step 2 — Secondary Line HorizontalLayout
+### Step 2 — Secondary Line HorizontalLayout ✅ DONE
 
 Apply the same pattern to `secondaryTextFrame`: replace left/right `FontString`s with
 a `ResizingHorizontalLayout` containing `sourceText` (and future slots).
 
-### Step 3 — Outer Layout + Alignment Config
+### Step 3 — Outer Layout + Alignment Config (partial: config done, OuterLayout deferred)
 
 Introduce `OuterLayout` as a `ResizingHorizontalLayout` wrapping icon + text area.
 Add `textAlignment` config option (`LEFT` default). Wire the single anchor change.
+
+**Status**: `textAlignment` enum (`LEFT`, `CENTER`, `RIGHT`) added, replacing the
+`leftAlign` boolean. v7 migration script converts existing settings. Config UI updated
+to a dropdown select. All mixins updated to read `textAlignment`. `CENTER` currently
+behaves like `LEFT` for row-internal layout. The **OuterLayout container** (needed for
+true centering) is deferred to a future sub-step.
 
 ### Step 4 — Icon Position Config
 

@@ -210,7 +210,7 @@ The unified layout entry point `LayoutPrimaryLine()` is called from `ShowText()`
 - Second pass (from `ShowAmountText()`): `AmountText` shown → `PrimaryText` budget shrinks by `AmountText:GetUnboundedStringWidth() + spacing`.
 - Third pass (from `ShowItemCountText()`): `ItemCountText` shown → budget shrinks further. Engine-native truncation fires if needed (`SetWidth` + `SetWordWrap(false)`).
 
-`childLayoutDirection = "rightToLeft"` on the container handles the right-align (icon-right) case without reordering children. `ClickableButton` geometry is owned exclusively by `LayoutPrimaryLine()` (not `SetupTooltip()`).
+**Text alignment**: The `textAlignment` config value (`G_RLF.TextAlignment` enum: `LEFT`, `CENTER`, `RIGHT`) replaced the legacy `leftAlign` boolean (v7 migration). `LEFT` and `CENTER` place the icon on the left; `RIGHT` places it on the right. `CENTER` currently behaves like `LEFT` for row-internal layout — full centering within the row requires a future OuterLayout container. `childLayoutDirection = "rightToLeft"` on the layout containers handles the `RIGHT` case without reordering children. `ClickableButton` geometry is owned exclusively by `LayoutPrimaryLine()` (not `SetupTooltip()`).
 
 **Secondary line layout**: `RLF_RowTextMixin` also creates a `SecondaryLineLayout` frame via `CreateSecondaryLineLayout()` (same pool-guard pattern). `SecondaryText` is re-parented into it as `layoutIndex=1`. `LayoutSecondaryLine()` applies the same `availableWidth` + engine-truncation logic as `LayoutPrimaryLine()`, without any sub-element budget splits. Additional secondary-line children can be added in the future without layout surgery.
 

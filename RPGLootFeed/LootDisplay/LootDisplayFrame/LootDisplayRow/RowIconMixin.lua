@@ -18,15 +18,16 @@ function RLF_RowIconMixin:StyleIcon()
 	---@type RLF_ConfigStyling
 	local stylingDb = G_RLF.DbAccessor:Styling(self.frameType)
 	local iconSize = sizingDb.iconSize
-	local leftAlign = stylingDb.leftAlign
+	local textAlignment = stylingDb.textAlignment
+	local iconOnLeft = textAlignment ~= G_RLF.TextAlignment.RIGHT
 
 	if self.cachedIconSize ~= iconSize then
 		self.cachedIconSize = iconSize
 		changed = true
 	end
 
-	if self.cachedIconLeftAlign ~= leftAlign then
-		self.cachedIconLeftAlign = leftAlign
+	if self.cachedIconTextAlignment ~= textAlignment then
+		self.cachedIconTextAlignment = textAlignment
 		changed = true
 	end
 
@@ -36,7 +37,7 @@ function RLF_RowIconMixin:StyleIcon()
 		self.Icon:SetSize(iconSize, iconSize)
 		self.Icon.IconBorder:SetSize(iconSize, iconSize)
 		local anchor, xOffset = "LEFT", iconSize / 4
-		if not leftAlign then
+		if not iconOnLeft then
 			anchor, xOffset = "RIGHT", -xOffset
 		end
 		if G_RLF.Masque and G_RLF.iconGroup then

@@ -23,7 +23,7 @@ local StylingBase = {}
 ---@class RLF_ConfigStyling
 StylingBase.defaultDb = {
 	enabledSecondaryRowText = false,
-	leftAlign = true,
+	textAlignment = "LEFT",
 	growUp = true,
 	rowBackgroundType = G_RLF.RowBackground.GRADIENT,
 	rowBackgroundTexture = "Solid",
@@ -72,8 +72,8 @@ function StylingBase.CloneDefaultDb(destDbPath)
 end
 
 ---@class RLF_StylingConfigHandlerBase
----@field GetLeftAlign fun(): boolean
----@field SetLeftAlign fun(info: any, value: boolean)
+---@field GetTextAlignment fun(): string
+---@field SetTextAlignment fun(info: any, value: string)
 ---@field GetGrowUp fun(): boolean
 ---@field SetGrowUp fun(info: any, value: boolean)
 ---@field GetBackgroundType fun(): number
@@ -143,15 +143,25 @@ end
 ---@field SetRowTextSpacing fun(info: any, value: number)
 
 ---@private
-function StylingBase.CreateLeftAlignToggle(handler)
-	return G_RLF.ConfigCommon.CreateToggle({
-		name = G_RLF.L["Left Align"],
-		desc = G_RLF.L["LeftAlignDesc"],
+function StylingBase.CreateTextAlignmentSelect(handler)
+	return G_RLF.ConfigCommon.CreateSelect({
+		name = G_RLF.L["Text Alignment"],
+		desc = G_RLF.L["TextAlignmentDesc"],
 		handler = handler,
-		get = "GetLeftAlign",
-		set = "SetLeftAlign",
+		get = "GetTextAlignment",
+		set = "SetTextAlignment",
 		width = "double",
 		order = 1,
+		values = {
+			[G_RLF.TextAlignment.LEFT] = G_RLF.L["Left"],
+			[G_RLF.TextAlignment.CENTER] = G_RLF.L["Center"],
+			[G_RLF.TextAlignment.RIGHT] = G_RLF.L["Right"],
+		},
+		sorting = {
+			G_RLF.TextAlignment.LEFT,
+			G_RLF.TextAlignment.CENTER,
+			G_RLF.TextAlignment.RIGHT,
+		},
 	})
 end
 
@@ -711,7 +721,7 @@ function StylingBase.CreateStylingGroup(handler, order)
 		handler = handler,
 		order = order,
 	})
-	group.args.leftAlign = StylingBase.CreateLeftAlignToggle()
+	group.args.textAlignment = StylingBase.CreateTextAlignmentSelect()
 	group.args.growUp = StylingBase.CreateGrowUpToggle()
 	group.args.background = StylingBase.CreateBackgroundGroup()
 	group.args.rowBorders = StylingBase.CreateRowBordersGroup()
