@@ -14,6 +14,8 @@ local L = LibStub("AceLocale-3.0"):NewLocale(G_RLF.localeName, "enUS", true)
 --#region 1.29.0
 L["Row Text Spacing"] = "Row Text Spacing"
 L["RowTextSpacingDesc"] = "The pixel gap between text elements (item link, quantity suffix, count badge). Set to 0 for auto (scales with icon size: iconSize / 4)."
+L["Text Alignment"] = "Text Alignment"
+L["TextAlignmentDesc"] = "How row content is aligned within the feed. Left and Center place the icon on the left; Right places it on the right."
 --#endregion
 
 --#region 1.28.0
@@ -331,6 +333,8 @@ L["JoinDiscordDesc"] = "Join the RPGLootFeed Discord Community for support, feed
 L["LauncherLeftClick"] = "|cffeda55fClick|r to open addon config menu."
 L["LauncherRightClick"] = "|cffeda55fRight-click|r to open a quick-menu."
 L["Left"] = "Left"
+L["Left Align"] = "Left Align"
+L["LeftAlignDesc"] = "Left align row content (right align if unchecked)"
 L["Legendary"] = "Legendary"
 L["Legendary Sound"] = "Legendary Sound"
 L["LegendarySoundDesc"] = "The sound to play when a legendary item is looted"
@@ -465,8 +469,6 @@ L["Styling"] = "Styling"
 L["StylingDesc"] = "Style the feed and its elements with custom colors, alignment, etc."
 L["Test Mode Disabled"] = "Test Mode Disabled"
 L["Test Mode Enabled"] = "Test Mode Enabled"
-L["Text Alignment"] = "Text Alignment"
-L["TextAlignmentDesc"] = "How row content is aligned within the feed. Left and Center place the icon on the left; Right places it on the right."
 L["Thick Outline"] = "Thick Outline"
 L["ThousandAbbrev"] = "K"
 L["TipsLink"] = "Tips appreciated, never expected |T166311:0|t (copy/paste below)"

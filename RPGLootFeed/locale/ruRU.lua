@@ -16,6 +16,8 @@ end
 --#region 1.29.0
 -- L["Row Text Spacing"] = "Row Text Spacing"
 -- L["RowTextSpacingDesc"] = "The pixel gap between text elements (item link, quantity suffix, count badge). Set to 0 for auto (scales with icon size: iconSize / 4)."
+-- L["Text Alignment"] = "Text Alignment"
+-- L["TextAlignmentDesc"] = "How row content is aligned within the feed. Left and Center place the icon on the left; Right places it on the right."
 --#endregion
 
 --#region 1.28.0
@@ -123,6 +125,8 @@ L["ShowMoneyIconDesc"] = "Показывать иконку перед сумм�
 --#endregion
 
 --#region 1.0.0 - 1.22.0
+-- L["Left Align"] = "Left Align"
+-- L["LeftAlignDesc"] = "Left align row content (right align if unchecked)"
 L["Abbreviate Total"] = "Сокращать общее количество"
 L["AbbreviateTotalDesc"] = "Сокращать общее количество денег в ленте добычи (для золота свыше 1000)"
 L["About"] = "О аддоне"
@@ -333,8 +337,6 @@ L["JoinDiscordDesc"] = "Присоединяйтесь к сообществу R
 L["LauncherLeftClick"] = "|cffeda55fНажать|r чтобы открыть меню конфигурации аддона."
 L["LauncherRightClick"] = "|cffeda55fПКМ|r чтобы открыть быстрое меню."
 L["Left"] = "Лево"
-L["Left Align"] = "Выравнивание по левому краю"
-L["LeftAlignDesc"] = "Выравнивать содержимое строк по левому краю (по правому, если не отмечено)"
 L["Legendary"] = "Легендарный"
 L["Legendary Sound"] = "Легендарный звук"
 L["LegendarySoundDesc"] = "Звук, который проигрывается при получении легендарного предмета"
