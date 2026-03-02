@@ -23,7 +23,8 @@ lint:
         - .github/docs/**
         - .github/instructions/**
         - .github/prompts/**
-        - .github/copilot-instructions.md
+        - .github/parked-sessions/**
+        - .github/*.md
     - linters: [stylua]
       paths:
         - "**/locale/*"

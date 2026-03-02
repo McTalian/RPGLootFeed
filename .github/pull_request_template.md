@@ -1,5 +1,3 @@
-# RPGLootFeed PR
-
 <!-- IMPORTANT: Please review the
 [PR title rules](https://github.com/McTalian-WoW-Addons/RPGLootFeed/blob/main/docs/pr-title-rules.md)
 so the PR checks will pass. -->
