@@ -69,7 +69,7 @@ G_RLF.options.args.about = {
 			name = G_RLF.L["GitHubIssuesLink"],
 			width = "full",
 			get = function()
-				return "https://github.com/McTalian/RPGLootFeed/issues/new/choose"
+				return "https://github.com/McTalian-WoW-Addons/RPGLootFeed/issues/new/choose"
 			end,
 			order = About.argOrder.issuesLink,
 		},

@@ -308,7 +308,7 @@ end
 -- L["IconSizeDesc"] = "The size of the icons in each item 'row' in the loot feed"
 -- L["Ignore Item IDs"] = "Ignore Item IDs"
 -- L["IgnoreItemIDsDesc"] = "Enter a comma-separated list of item IDs to ignore in the Party Loot Feed"
--- L["Issues"] = "Please report this issue @ github: McTalian/RPGLootFeed"
+-- L["Issues"] = "Please report this issue @ github: McTalian-WoW-Addons/RPGLootFeed"
 -- L["IssuesAndRequests"] = "You can also report any issues or feature requests on the GitHub issues page."
 -- L["Item Count Text"] = "Item Count Text"
 -- L["Item Count Text Color"] = "Item Count Text Color"
