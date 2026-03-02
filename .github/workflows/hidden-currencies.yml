@@ -1,0 +1,48 @@
+name: Update Hidden Currencies
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 14 * * 1 # Weekly on Monday at 2pm UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  hidden-currencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Sync uv environment
+        run: uv sync
+
+      - name: Install playwright
+        run: uv run playwright install
+
+      - name: Check for hidden currencies
+        run: make generate_hidden_currencies
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GH_PAT }}
+          title: "chore: update hidden currencies list"
+          body: |
+            ## Requirements
+
+            - [ ] Review any new Hidden Currencies
+            - [ ] Verify currency display in-game
+
+            ----------------------------------------------------
+            _This PR was automatically created to update the hidden currencies list._
+          commit-message: "chore: update hidden currencies list"
+          branch: hidden-currencies
+          delete-branch: true
