@@ -93,7 +93,7 @@ jobs:
           echo "LATEST_RELEASE_LIBS_SIZE=$lib_size" >> $GITHUB_OUTPUT
 
       - name: Package
-        uses: McTalian/wow-build-tools@v1-beta
+        uses: McTalian-WoW-Addons/wow-build-tools@v1-beta
         with:
           args: -d -t ./RPGLootFeed -r ./.release --skipChangelog -n {package-name}-pr${{github.event.number}}-{nolib}{classic}
 

@@ -117,7 +117,7 @@ This layered approach ensures workflows have just the right context without over
 - Architecture diagrams (if applicable)
 - Saved plan document at `.github/plans/issue-42.md`
 
-**Note**: Create the GitHub issue first at https://github.com/McTalian/RPGLootFeed/issues/new/choose
+**Note**: Create the GitHub issue first at https://github.com/McTalian-WoW-Addons/RPGLootFeed/issues/new/choose
 
 ---
 
@@ -199,7 +199,7 @@ These prompts are designed to work together:
 **Issue-Based Development Flow** (Recommended):
 
 ```
-[Create issue]         → https://github.com/McTalian/RPGLootFeed/issues/new
+[Create issue]         → https://github.com/McTalian-WoW-Addons/RPGLootFeed/issues/new
 /plan #42              → Load issue, create implementation plan
                        → Plan saved to .github/plans/issue-42.md
 /implement #42         → Load issue + plan, execute implementation

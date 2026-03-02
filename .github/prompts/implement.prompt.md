@@ -31,7 +31,7 @@ You are implementing a feature or enhancement based on a GitHub issue. This work
 
 **Fetch the issue** using GitHub tools:
 
-1. Fetch issue content: `github-pull-request_issue_fetch(owner: "McTalian", repo: "RPGLootFeed", issue_number: 123)`
+1. Fetch issue content: `github-pull-request_issue_fetch(owner: "McTalian-WoW-Addons", repo: "RPGLootFeed", issue_number: 123)`
 2. Extract key information:
    - Issue title and description
    - Labels (complexity, priority indicators, bug/enhancement/feature)

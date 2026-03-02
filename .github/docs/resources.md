@@ -330,7 +330,7 @@ A WoW Lua environment for testing addons outside the game client (experimental).
 
 ### wow-build-tools
 
-**Repository**: https://github.com/McTalian/wow-build-tools
+**Repository**: https://github.com/McTalian-WoW-Addons/wow-build-tools
 
 Build and packaging tool for WoW addons.
 

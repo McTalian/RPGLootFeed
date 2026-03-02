@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Update TOC Interface version
-        uses: Mctalian/wow-build-tools/toc/update@v1-beta
+        uses: McTalian-WoW-Addons/wow-build-tools/toc/update@v1-beta
         with:
           args: -a ${{ env.ADDON }} -b -p
 
