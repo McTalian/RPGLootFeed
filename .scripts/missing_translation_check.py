@@ -61,7 +61,7 @@ def compare_translations(reference_dict, target_dict, locale):
         markdown_report += "|-------------|------------|\n"
         markdown_report += "\n".join(missing_keys)
         markdown_report += "\n</details>\n\n"
-        markdown_report += f"\n\n_You can even make changes for [this file](https://github.com/Mctalian/RPGLootFeed/edit/main/locale/{locale}) and open a PR directly in your browser_\n\n"
+        markdown_report += f"\n\n_You can even make changes for [this file](https://github.com/Mctalian-WoW-Addons/RPGLootFeed/edit/main/locale/{locale}) and open a PR directly in your browser_\n\n"
 
         translation_stub = "\n".join(
             [f'L["{key.split("|")[1].strip()}"] = ""' for key in missing_keys]

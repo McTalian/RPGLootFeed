@@ -28,13 +28,13 @@ Pair RPGLootFeed with Speedy AutoLoot by Yuyuli for an even better looting exper
 
 ## Installation
 
-1. Download the latest release from [GitHub](https://github.com/Mctalian/RPGLootFeed/releases/latest) or [CurseForge](https://www.curseforge.com/wow/addons/rpglootfeed).
+1. Download the latest release from [GitHub](https://github.com/Mctalian-WoW-Addons/RPGLootFeed/releases/latest) or [CurseForge](https://www.curseforge.com/wow/addons/rpglootfeed).
 2. Extract the downloaded file into your World of Warcraft `Interface/AddOns` directory.
 3. Restart World of Warcraft and enable RPGLootFeed in the AddOns menu.
 
 ## Contributing
 
-Contributions are welcome from the community! If you encounter any issues or have suggestions for improvements, please open an issue on [GitHub](https://github.com/Mctalian/RPGLootFeed/issues). Or head over to [Discussions](https://github.com/Mctalian/RPGLootFeed/discussions) if you have any questions or want to show off your UI. For the fastest response, join the [Discord Community](https://discord.gg/czRYVWhe33).
+Contributions are welcome from the community! If you encounter any issues or have suggestions for improvements, please open an issue on [GitHub](https://github.com/Mctalian-WoW-Addons/RPGLootFeed/issues). Or head over to [Discussions](https://github.com/Mctalian-WoW-Addons/RPGLootFeed/discussions) if you have any questions or want to show off your UI. For the fastest response, join the [Discord Community](https://discord.gg/czRYVWhe33).
 
 If you're interested in contributing code, please see our [Contributing Guidelines](CONTRIBUTING.md) for more information.
 

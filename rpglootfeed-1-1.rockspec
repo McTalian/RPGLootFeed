@@ -1,7 +1,7 @@
 package = "rpglootfeed"
 version = "1-1"
 source = {
-   url = "https://github.com/Mctalian/RPGLootFeed.git"
+   url = "https://github.com/Mctalian-WoW-Addons/RPGLootFeed.git"
 }
 dependencies = {
    "lua >= 5.3",
