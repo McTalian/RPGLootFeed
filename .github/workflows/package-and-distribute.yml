@@ -9,7 +9,7 @@ permissions: {}
 
 jobs:
   package-and-release:
-    uses: McTalian-WoW-Addons/.github/.github/workflows/package-and-distribute.yml@main
+    uses: McTalian-WoW-Addons/wow-build-tools/.github/workflows/package-and-distribute.yml@v1-beta
     with:
       addon-name: RPGLootFeed
       avatar-url: https://raw.githubusercontent.com/McTalian-WoW-Addons/RPGLootFeed/refs/heads/main/RPGLootFeed_logo.png

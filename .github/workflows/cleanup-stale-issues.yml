@@ -7,4 +7,4 @@ permissions: {}
 
 jobs:
   stale:
-    uses: McTalian-WoW-Addons/.github/.github/workflows/cleanup-stale-issues.yml@main
+    uses: McTalian-WoW-Addons/wow-build-tools/.github/workflows/cleanup-stale-issues.yml@v1-beta
