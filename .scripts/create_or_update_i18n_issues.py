@@ -4,7 +4,7 @@ import requests
 
 # Set up necessary constants
 GITHUB_API_URL = "https://api.github.com"
-REPO_OWNER = "Mctalian"
+REPO_OWNER = "McTalian-WoW-Addons"
 REPO_NAME = "RPGLootFeed"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
