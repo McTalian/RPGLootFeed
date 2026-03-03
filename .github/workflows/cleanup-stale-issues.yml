@@ -7,20 +7,4 @@ permissions: {}
 
 jobs:
   stale:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/stale@v9
-        with:
-          days-before-issue-stale: 14
-          stale-issue-message: ":robot: This issue has been marked as stale because the repository maintainer(s) have not received a response to the request for more information. If you are still interested in getting this implemented, please provide the requested information within the next 7 days or the issue will be automatically closed. Thank you!"
-          days-before-pr-stale: 30
-          stale-pr-message: ":robot: This pull request has been marked as stale because the repository maintainer(s) have not received a response to their comment(s)/question(s). If you are still interested in moving forward with this pull request, please provide the requested information within the next 14 days or the pull request will be automatically closed. Thank you!"
-          days-before-issue-close: 7
-          close-issue-message: ":robot: This issue was automatically closed because the repository maintainer(s) did not receive a response to the request for more information. If you are still interested in getting this implemented, please feel free to open a new issue with the requested information. Thank you!"
-          days-before-pr-close: 14
-          close-pr-message: ":robot: This pull request was automatically closed because the repository maintainer(s) did not receive a response to their comment(s)/question(s). If you are still interested in moving forward with this pull request, please feel free to open a new pull request with the requested information. Thank you!"
-          only-labels: awaiting-response
+    uses: McTalian-WoW-Addons/wow-build-tools/.github/workflows/cleanup-stale-issues.yml@v1-beta
