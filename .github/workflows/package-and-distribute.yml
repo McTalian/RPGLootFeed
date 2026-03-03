@@ -9,6 +9,8 @@ permissions: {}
 
 jobs:
   package-and-release:
+    permissions:
+      contents: write
     uses: McTalian-WoW-Addons/wow-build-tools/.github/workflows/package-and-distribute.yml@v1-beta
     with:
       addon-name: RPGLootFeed
