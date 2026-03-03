@@ -7,4 +7,8 @@ permissions: {}
 
 jobs:
   stale:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     uses: McTalian-WoW-Addons/wow-build-tools/.github/workflows/cleanup-stale-issues.yml@v1-beta
