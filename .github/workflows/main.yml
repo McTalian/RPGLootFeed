@@ -10,6 +10,11 @@ permissions: {}
 
 jobs:
   ci:
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: write
+      issues: write
     uses: McTalian-WoW-Addons/wow-build-tools/.github/workflows/ci.yml@v1-beta
     with:
       addon-name: RPGLootFeed

@@ -12,6 +12,11 @@ permissions: {}
 
 jobs:
   pr-checks:
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: write
+      checks: write
     uses: McTalian-WoW-Addons/wow-build-tools/.github/workflows/pr-checks.yml@v1-beta
     with:
       addon-name: RPGLootFeed
