@@ -249,6 +249,11 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 		self:UpdateIcon(key, icon, quality)
 	end
 
+	-- Negative amounts always shown in red
+	if self.amount ~= nil and self.amount < 0 then
+		r, g, b, a = 1, 0, 0, 0.8
+	end
+
 	self:UpdateSecondaryText(secondaryTextFn)
 	self:UpdateStyles()
 	self:ShowText(text, r, g, b, a)
@@ -294,19 +299,25 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	end
 	self.pendingElement = nil
 	-- Update existing entry
-	local text = element.textFn(self.amount, self.link)
-	self.amount = self.amount + element.quantity
+	local oldAmount = self.amount
+	local text = element.textFn(oldAmount, self.link)
 	self.itemCount = element.itemCount
 	local r, g, b, a = element.r, element.g, element.b, element.a
 	-- Allow the element to recompute color based on the net accumulated quantity
+	local netAmount = oldAmount + element.quantity
 	if element.colorFn then
-		r, g, b, a = element.colorFn(self.amount)
+		r, g, b, a = element.colorFn(netAmount)
 	end
+	-- Negative net amounts always shown in red
+	if netAmount < 0 then
+		r, g, b, a = 1, 0, 0, 0.8
+	end
+	self.amount = netAmount
 
 	self:UpdateSecondaryText(element.secondaryTextFn)
 	self:UpdateItemCount()
 	self:ShowText(text, r, g, b, a)
-	local amountText = element.amountTextFn and element.amountTextFn(self.amount) or ""
+	local amountText = element.amountTextFn and element.amountTextFn(oldAmount) or ""
 	self:ShowAmountText(amountText, r or 1, g or 1, b or 1, a or 1)
 
 	if not G_RLF.db.global.animations.update.disableHighlight then

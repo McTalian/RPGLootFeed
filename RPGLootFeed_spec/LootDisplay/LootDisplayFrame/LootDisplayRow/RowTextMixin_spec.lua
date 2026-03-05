@@ -208,7 +208,7 @@ describe("RLF_RowTextMixin", function()
 			assert.equal(1, b)
 		end)
 
-		it("uses red color when amount is negative and no color is given", function()
+		it("uses default color when amount is negative and no color is given (callers handle red override)", function()
 			local r, g, b
 			stub(row.PrimaryText, "SetTextColor", function(_, rr, gg, bb)
 				r, g, b = rr, gg, bb
@@ -216,8 +216,8 @@ describe("RLF_RowTextMixin", function()
 			row.amount = -5
 			RLF_RowTextMixin.ShowText(row, "-5g")
 			assert.equal(1, r)
-			assert.equal(0, g)
-			assert.equal(0, b)
+			assert.equal(1, g)
+			assert.equal(1, b)
 		end)
 
 		it("calls LayoutPrimaryLine to drive the layout pass", function()

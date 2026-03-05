@@ -584,9 +584,7 @@ function RLF_RowTextMixin:ShowText(rawText, r, g, b, a)
 	self.rawPrimaryText = rawText
 	self.PrimaryText:SetText(rawText)
 
-	if r == nil and g == nil and b == nil and self.amount ~= nil and self.amount < 0 then
-		r, g, b, a = 1, 0, 0, 0.8
-	elseif r == nil or g == nil or b == nil then
+	if r == nil or g == nil or b == nil then
 		r, g, b, a = unpack(defaultColor)
 	end
 
