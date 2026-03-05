@@ -322,7 +322,7 @@ function Rep:CheckForHiddenRenownFactions(events)
 		factionId = CURRENT_SEASON_DELVE_JOURNEY,
 		name = faction,
 		standing = 0,
-		icon = 4635200, -- Delver's Journey
+		icon = 6025441, -- Delver's Journey
 		quality = G_RLF.ItemQualEnum.Rare,
 		color = ACCOUNT_WIDE_FONT_COLOR,
 		contextInfo = "",
