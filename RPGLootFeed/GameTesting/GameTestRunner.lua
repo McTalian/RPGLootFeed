@@ -12,6 +12,7 @@ local G_RLF = ns
 ---@field dotSummary string
 ---@field successCount number
 ---@field failureCount number
+---@field currentSection string?
 ---@field printHeader fun(msg: string)
 ---@field printLine fun(msg: string)
 ---@field raiseError fun(msg: string)
@@ -38,6 +39,17 @@ function GameTestRunner:reset()
 	self.dotSummary = ""
 	self.successCount = 0
 	self.failureCount = 0
+	self.currentSection = nil
+end
+
+--- Start a named section. Flushes the previous section's dots (if any) and prints a label.
+---@param name string
+function GameTestRunner:section(name)
+	if self.currentSection and #self.dotSummary > 0 then
+		self.printLine(self.currentSection .. ": " .. self.dotSummary)
+	end
+	self.dotSummary = ""
+	self.currentSection = name
 end
 
 --- Record an equality assertion.
@@ -72,8 +84,17 @@ end
 
 --- Print the dot summary, counts, and raise an error listing all failures.
 function GameTestRunner:displayResults()
+	-- Flush the last section's dots if sections were used
+	if self.currentSection and #self.dotSummary > 0 then
+		self.printLine(self.currentSection .. ": " .. self.dotSummary)
+		self.dotSummary = ""
+	end
+
 	self.printHeader(self.suiteName)
-	self.printLine(self.dotSummary)
+	-- If no sections were used, print the accumulated dots in one line
+	if not self.currentSection and #self.dotSummary > 0 then
+		self.printLine(self.dotSummary)
+	end
 	self.printLine("|cff00ff00Successes: " .. self.successCount .. "|r")
 	if self.failureCount > 0 then
 		self.printLine("|cffff0000Failures: " .. self.failureCount .. "|r")

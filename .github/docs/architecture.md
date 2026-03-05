@@ -91,7 +91,10 @@ RPGLootFeed/
 │   ├── Queue.lua            # Queue data structure
 │   └── Utils.lua            # General utilities
 ├── GameTesting/             # In-game testing support
-│   └── TestMode.lua         # Test mode module
+│   ├── GameTestRunner.lua   # Pure-Lua test runner (busted-tested)
+│   ├── TestMode.lua         # Test data initialization & readiness
+│   ├── SmokeTest.lua        # Automated smoke tests (alpha only)
+│   └── IntegrationTest.lua  # Visual integration tests (alpha only)
 ├── locale/                   # Localization strings
 │   ├── enUS.lua             # English (base)
 │   ├── deDE.lua, esES.lua, frFR.lua, etc.
@@ -263,13 +266,16 @@ The portrait offset formula was corrected in this session: the old formula (`por
 
 ### `/GameTesting`
 
-**Purpose**: In-game testing utilities
+**Purpose**: In-game testing utilities (alpha builds only, guarded by `--@alpha@` preprocessor blocks)
 
 **Contains**:
 
-- Test mode for previewing loot feed
-- Sample data generation
-- Integration test support
+- `GameTestRunner.lua` — Pure-Lua test runner class (no WoW API deps); supports `section()` for grouped output, `assertEqual()`, `runTestSafely()`, and `displayResults()`. Busted-tested in `RPGLootFeed_spec/GameTesting/GameTestRunner_spec.lua`.
+- `TestMode.lua` — AceModule that initializes test data (items, currencies, factions) and coordinates readiness signals for smoke/integration tests.
+- `SmokeTest.lua` — Comprehensive programmatic validation suite (10 sections) that runs automatically on addon load. Validates WoW globals, module registration, DB structure, migrations, LootDisplay frame state, element constructors, locale keys, and event handler wiring.
+- `IntegrationTest.lua` — Visual integration tests that render sample loot rows for manual inspection. Triggered after all test data is cached and LootDisplay signals readiness.
+
+**Key Principle**: Smoke tests must not render UI or trigger side effects — they validate internal state only. Integration tests may render rows but should be idempotent and re-runnable via `/rlf test integration`.
 
 **Note**: This is for in-game testing, not unit tests (those are in `RPGLootFeed_spec/`)
 

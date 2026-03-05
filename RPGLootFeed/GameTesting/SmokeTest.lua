@@ -163,9 +163,398 @@ local function testWoWGlobals()
 	runner:assertEqual(type(FACTION_BAR_COLORS), "table", "Global: FACTION_BAR_COLORS")
 end
 
+--- Feature module name → DB config key mapping
+local featureDbKeyMap = {
+	[G_RLF.FeatureModule.ItemLoot] = "item",
+	[G_RLF.FeatureModule.PartyLoot] = "partyLoot",
+	[G_RLF.FeatureModule.Currency] = "currency",
+	[G_RLF.FeatureModule.Money] = "money",
+	[G_RLF.FeatureModule.Experience] = "xp",
+	[G_RLF.FeatureModule.Reputation] = "rep",
+	[G_RLF.FeatureModule.Profession] = "prof",
+	[G_RLF.FeatureModule.TravelPoints] = "travelPoints",
+	[G_RLF.FeatureModule.Transmog] = "transmog",
+}
+
+local function testModuleRegistration()
+	for enumKey, moduleName in pairs(G_RLF.FeatureModule) do
+		local module = G_RLF.RLF:GetModule(moduleName, true)
+		runner:assertEqual(module ~= nil, true, "FeatureModule registered: " .. moduleName)
+	end
+
+	for enumKey, moduleName in pairs(G_RLF.SupportModule) do
+		local module = G_RLF.RLF:GetModule(moduleName, true)
+		runner:assertEqual(module ~= nil, true, "SupportModule registered: " .. moduleName)
+	end
+
+	for enumKey, moduleName in pairs(G_RLF.BlizzModule) do
+		local module = G_RLF.RLF:GetModule(moduleName, true)
+		runner:assertEqual(module ~= nil, true, "BlizzModule registered: " .. moduleName)
+	end
+end
+
+local function testFeatureEnabledState()
+	for moduleName, dbKey in pairs(featureDbKeyMap) do
+		local dbEnabled = G_RLF.db.global[dbKey].enabled
+		local module = G_RLF.RLF:GetModule(moduleName, true)
+		if module then
+			local moduleEnabled = module:IsEnabled()
+			-- Some features have additional guards (e.g., expansion checks)
+			-- so moduleEnabled can be false even when dbEnabled is true.
+			-- But if dbEnabled is false, moduleEnabled must also be false.
+			if not dbEnabled then
+				runner:assertEqual(moduleEnabled, false, "Feature disabled in config is disabled: " .. moduleName)
+			else
+				runner:assertEqual(type(moduleEnabled), "boolean", "Feature enabled state is boolean: " .. moduleName)
+			end
+		end
+	end
+end
+
+local function testDbStructure()
+	runner:assertEqual(type(G_RLF.db), "table", "DB: G_RLF.db exists")
+	runner:assertEqual(type(G_RLF.db.global), "table", "DB: G_RLF.db.global exists")
+
+	-- Metadata
+	runner:assertEqual(type(G_RLF.db.global.migrationVersion), "number", "DB: migrationVersion is number")
+	runner:assertEqual(type(G_RLF.db.global.guid), "string", "DB: guid is string")
+	runner:assertEqual(#G_RLF.db.global.guid > 0, true, "DB: guid is non-empty")
+
+	-- Required top-level config tables
+	local requiredGlobalKeys = {
+		"item",
+		"partyLoot",
+		"currency",
+		"money",
+		"xp",
+		"rep",
+		"prof",
+		"travelPoints",
+		"transmog",
+		"misc",
+		"lootHistory",
+		"tooltips",
+		"minimap",
+		"positioning",
+		"sizing",
+		"styling",
+		"animations",
+		"blizzOverrides",
+	}
+	for _, key in ipairs(requiredGlobalKeys) do
+		runner:assertEqual(type(G_RLF.db.global[key]), "table", "DB: global." .. key .. " exists")
+	end
+
+	-- Each feature config has an enabled flag
+	for moduleName, dbKey in pairs(featureDbKeyMap) do
+		runner:assertEqual(type(G_RLF.db.global[dbKey].enabled), "boolean", "DB: " .. dbKey .. ".enabled is boolean")
+	end
+end
+
+local function testMigrationIntegrity()
+	-- All migration versions 1..N are registered
+	local highestVersion = 0
+	for version, migration in pairs(G_RLF.migrations) do
+		if version > highestVersion then
+			highestVersion = version
+		end
+	end
+	runner:assertEqual(highestVersion > 0, true, "Migrations: at least one migration exists")
+
+	for v = 1, highestVersion do
+		runner:assertEqual(G_RLF.migrations[v] ~= nil, true, "Migrations: v" .. v .. " registered")
+		runner:assertEqual(type(G_RLF.migrations[v].run), "function", "Migrations: v" .. v .. " has run()")
+	end
+
+	-- migrationVersion should equal the highest registered version
+	runner:assertEqual(
+		G_RLF.db.global.migrationVersion,
+		highestVersion,
+		"Migrations: DB version matches highest migration"
+	)
+end
+
+local function testLootDisplayFrame()
+	-- Main frame must exist
+	local mainFrame = G_RLF.RLF_MainLootFrame
+	runner:assertEqual(mainFrame ~= nil, true, "LootDisplay: MainLootFrame exists")
+	if not mainFrame then
+		return
+	end
+
+	runner:assertEqual(mainFrame.frameType, G_RLF.Frames.MAIN, "LootDisplay: MainLootFrame.frameType is MAIN")
+	runner:assertEqual(type(mainFrame.rowHistory), "table", "LootDisplay: MainLootFrame.rowHistory is table")
+	runner:assertEqual(type(mainFrame.rows), "table", "LootDisplay: MainLootFrame.rows is table")
+	runner:assertEqual(type(mainFrame.keyRowMap), "table", "LootDisplay: MainLootFrame.keyRowMap is table")
+
+	-- Party frame presence should match config
+	local partyEnabled = G_RLF.db.global.partyLoot.enabled
+	local separateFrame = G_RLF.db.global.partyLoot.separateFrame
+	local partyFrame = G_RLF.RLF_PartyLootFrame
+	if partyEnabled and separateFrame then
+		runner:assertEqual(partyFrame ~= nil, true, "LootDisplay: PartyLootFrame exists when configured")
+		if partyFrame then
+			runner:assertEqual(
+				partyFrame.frameType,
+				G_RLF.Frames.PARTY,
+				"LootDisplay: PartyLootFrame.frameType is PARTY"
+			)
+		end
+	else
+		runner:assertEqual(partyFrame == nil, true, "LootDisplay: PartyLootFrame nil when not configured")
+	end
+
+	-- LootDisplay module should be enabled and registered for messages
+	local lootDisplayModule = G_RLF.RLF:GetModule(G_RLF.SupportModule.LootDisplay, true)
+	runner:assertEqual(lootDisplayModule ~= nil, true, "LootDisplay: module exists")
+	if lootDisplayModule then
+		runner:assertEqual(lootDisplayModule:IsEnabled(), true, "LootDisplay: module is enabled")
+	end
+end
+
+local function testTestModeDataReadiness()
+	-- TestMode itself should be accessible
+	runner:assertEqual(type(TestMode.testItems), "table", "TestMode: testItems is table")
+	runner:assertEqual(type(TestMode.testCurrencies), "table", "TestMode: testCurrencies is table")
+	runner:assertEqual(type(TestMode.testFactions), "table", "TestMode: testFactions is table")
+
+	-- At smoke test time (RunNextFrame after OnInitialize), items may still be loading.
+	-- Validate structure of any items that ARE already cached.
+	for i, item in ipairs(TestMode.testItems) do
+		runner:assertEqual(item.itemName ~= nil, true, "TestMode: testItems[" .. i .. "].itemName")
+		runner:assertEqual(item.itemLink ~= nil, true, "TestMode: testItems[" .. i .. "].itemLink")
+		runner:assertEqual(type(item.itemQuality), "number", "TestMode: testItems[" .. i .. "].itemQuality")
+		runner:assertEqual(item.itemTexture ~= nil, true, "TestMode: testItems[" .. i .. "].itemTexture")
+	end
+
+	for i, curr in ipairs(TestMode.testCurrencies) do
+		runner:assertEqual(curr.link ~= nil, true, "TestMode: testCurrencies[" .. i .. "].link")
+		runner:assertEqual(type(curr.info), "table", "TestMode: testCurrencies[" .. i .. "].info")
+		runner:assertEqual(curr.info.currencyID ~= nil, true, "TestMode: testCurrencies[" .. i .. "].info.currencyID")
+		runner:assertEqual(curr.info.iconFileID ~= nil, true, "TestMode: testCurrencies[" .. i .. "].info.iconFileID")
+	end
+
+	for i, factionName in ipairs(TestMode.testFactions) do
+		runner:assertEqual(type(factionName), "string", "TestMode: testFactions[" .. i .. "] is string")
+		runner:assertEqual(#factionName > 0, true, "TestMode: testFactions[" .. i .. "] is non-empty")
+	end
+end
+
+local function testElementConstructors()
+	-- Test element constructors that don't require async data.
+	-- Each should return a table with valid LootElementBase fields.
+
+	-- Experience
+	local xpModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Experience, true)
+	if xpModule and xpModule:IsEnabled() then
+		local e = xpModule.Element:new(1000)
+		runner:assertEqual(e ~= nil, true, "Element: Experience created")
+		if e then
+			runner:assertEqual(e.type, "Experience", "Element: Experience.type")
+			runner:assertEqual(e.key, "EXPERIENCE", "Element: Experience.key")
+			runner:assertEqual(e.quantity, 1000, "Element: Experience.quantity")
+			runner:assertEqual(type(e.textFn), "function", "Element: Experience.textFn")
+			runner:assertEqual(type(e.IsEnabled), "function", "Element: Experience.IsEnabled")
+			runner:assertEqual(type(e.Show), "function", "Element: Experience.Show")
+		end
+	end
+
+	-- Money
+	local moneyModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Money, true)
+	if moneyModule and moneyModule:IsEnabled() then
+		local e = moneyModule.Element:new(12345)
+		runner:assertEqual(e ~= nil, true, "Element: Money created")
+		if e then
+			runner:assertEqual(e.type, "Money", "Element: Money.type")
+			runner:assertEqual(e.key, "MONEY_LOOT", "Element: Money.key")
+			runner:assertEqual(e.quantity, 12345, "Element: Money.quantity")
+			runner:assertEqual(type(e.textFn), "function", "Element: Money.textFn")
+			runner:assertEqual(type(e.IsEnabled), "function", "Element: Money.IsEnabled")
+			runner:assertEqual(type(e.Show), "function", "Element: Money.Show")
+		end
+	end
+
+	-- Professions
+	local profModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Profession, true)
+	if profModule and profModule:IsEnabled() then
+		local icon = G_RLF.DefaultIcons.PROFESSION
+		local e = profModule.Element:new("TestCooking", "Cooking", icon, 5, nil, 1)
+		runner:assertEqual(e ~= nil, true, "Element: Professions created")
+		if e then
+			runner:assertEqual(e.type, "Professions", "Element: Professions.type")
+			runner:assertEqual(e.key, "PROF_TestCooking", "Element: Professions.key")
+			runner:assertEqual(e.quantity, 1, "Element: Professions.quantity")
+			runner:assertEqual(type(e.textFn), "function", "Element: Professions.textFn")
+			runner:assertEqual(type(e.IsEnabled), "function", "Element: Professions.IsEnabled")
+			runner:assertEqual(type(e.Show), "function", "Element: Professions.Show")
+		end
+	end
+
+	-- TravelPoints (Retail only)
+	if G_RLF:IsRetail() then
+		local tpModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.TravelPoints, true)
+		if tpModule and tpModule:IsEnabled() then
+			local e = tpModule.Element:new(50)
+			runner:assertEqual(e ~= nil, true, "Element: TravelPoints created")
+			if e then
+				runner:assertEqual(e.type, "TravelPoints", "Element: TravelPoints.type")
+				runner:assertEqual(e.key, "TRAVELPOINTS", "Element: TravelPoints.key")
+				runner:assertEqual(e.quantity, 50, "Element: TravelPoints.quantity")
+				runner:assertEqual(type(e.textFn), "function", "Element: TravelPoints.textFn")
+				runner:assertEqual(type(e.IsEnabled), "function", "Element: TravelPoints.IsEnabled")
+				runner:assertEqual(type(e.Show), "function", "Element: TravelPoints.Show")
+			end
+		end
+	end
+
+	-- ItemLoot — only if test data is already cached
+	local itemModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.ItemLoot, true)
+	if itemModule and itemModule:IsEnabled() and #TestMode.testItems > 0 then
+		local info = TestMode.testItems[1]
+		local e = itemModule.Element:new(info, 1)
+		runner:assertEqual(e ~= nil, true, "Element: ItemLoot created")
+		if e then
+			runner:assertEqual(e.type, "ItemLoot", "Element: ItemLoot.type")
+			runner:assertEqual(e.isLink, true, "Element: ItemLoot.isLink")
+			runner:assertEqual(e.quantity, 1, "Element: ItemLoot.quantity")
+			runner:assertEqual(type(e.textFn), "function", "Element: ItemLoot.textFn")
+			runner:assertEqual(type(e.IsEnabled), "function", "Element: ItemLoot.IsEnabled")
+			runner:assertEqual(type(e.Show), "function", "Element: ItemLoot.Show")
+		end
+	end
+
+	-- Currency — only if test data is already cached
+	if GetExpansionLevel() >= G_RLF.Expansion.WOTLK then
+		local currModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Currency, true)
+		if currModule and currModule:IsEnabled() and #TestMode.testCurrencies > 0 then
+			local testObj = TestMode.testCurrencies[1]
+			testObj.basicInfo.displayAmount = 1
+			local e = currModule.Element:new(testObj.link, testObj.info, testObj.basicInfo)
+			runner:assertEqual(e ~= nil, true, "Element: Currency created")
+			if e then
+				runner:assertEqual(e.type, "Currency", "Element: Currency.type")
+				runner:assertEqual(e.isLink, true, "Element: Currency.isLink")
+				runner:assertEqual(type(e.textFn), "function", "Element: Currency.textFn")
+				runner:assertEqual(type(e.IsEnabled), "function", "Element: Currency.IsEnabled")
+				runner:assertEqual(type(e.Show), "function", "Element: Currency.Show")
+			end
+		end
+	end
+end
+
+local function testLocale()
+	runner:assertEqual(G_RLF.L ~= nil, true, "Locale: G_RLF.L exists")
+	if not G_RLF.L then
+		return
+	end
+
+	-- Spot-check critical locale keys used across config and features
+	local criticalKeys = {
+		"Party Loot",
+		"Loot History",
+		"Blizzard UI",
+		"Item Count Text",
+		"Pending Items",
+		"Enable Currency in Feed",
+		"Enable Money in Feed",
+		"Enable Item Loot in Feed",
+		"Enable Party Loot in Feed",
+		"Show Money Total",
+	}
+	for _, key in ipairs(criticalKeys) do
+		runner:assertEqual(G_RLF.L[key] ~= nil, true, "Locale: key '" .. key .. "' exists")
+	end
+end
+
+--- Feature module → primary event handler map
+--- Each entry is { moduleName, expectedEventHandler }
+local featureEventHandlers = {
+	{ G_RLF.FeatureModule.ItemLoot, "CHAT_MSG_LOOT" },
+	{ G_RLF.FeatureModule.Money, "PLAYER_MONEY" },
+	{ G_RLF.FeatureModule.Experience, "PLAYER_XP_UPDATE" },
+	{ G_RLF.FeatureModule.Profession, "CHAT_MSG_SKILL" },
+	{ G_RLF.FeatureModule.PartyLoot, "CHAT_MSG_LOOT" },
+}
+if G_RLF:IsRetail() then
+	table.insert(featureEventHandlers, { G_RLF.FeatureModule.Transmog, "TRANSMOG_COLLECTION_SOURCE_ADDED" })
+	table.insert(featureEventHandlers, { G_RLF.FeatureModule.TravelPoints, "PERKS_ACTIVITY_COMPLETED" })
+end
+
+local function testEventHandlers()
+	for _, entry in ipairs(featureEventHandlers) do
+		local moduleName, handlerName = entry[1], entry[2]
+		local module = G_RLF.RLF:GetModule(moduleName, true)
+		if module and module:IsEnabled() then
+			runner:assertEqual(
+				type(module[handlerName]),
+				"function",
+				"EventHandler: " .. moduleName .. "." .. handlerName
+			)
+		end
+	end
+
+	-- Reputation has expansion-dependent handlers
+	local repModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation, true)
+	if repModule and repModule:IsEnabled() then
+		if
+			not G_RLF:IsRetail()
+			or not C_EventUtils.IsEventValid
+			or not C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED")
+		then
+			runner:assertEqual(
+				type(repModule["CHAT_MSG_COMBAT_FACTION_CHANGE"]),
+				"function",
+				"EventHandler: Reputation.CHAT_MSG_COMBAT_FACTION_CHANGE"
+			)
+		end
+	end
+
+	-- Currency has expansion-dependent events
+	if GetExpansionLevel() >= G_RLF.Expansion.WOTLK then
+		local currModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Currency, true)
+		if currModule and currModule:IsEnabled() then
+			runner:assertEqual(
+				type(currModule["CURRENCY_DISPLAY_UPDATE"]),
+				"function",
+				"EventHandler: Currency.CURRENCY_DISPLAY_UPDATE"
+			)
+		end
+	end
+end
+
 function TestMode:SmokeTest()
 	runner:reset()
+
+	runner:section("WoW Globals")
 	testWoWGlobals()
+
+	runner:section("Module Registration")
+	testModuleRegistration()
+
+	runner:section("Feature Enabled State")
+	testFeatureEnabledState()
+
+	runner:section("DB Structure")
+	testDbStructure()
+
+	runner:section("Migration Integrity")
+	testMigrationIntegrity()
+
+	runner:section("LootDisplay Frame")
+	testLootDisplayFrame()
+
+	runner:section("TestMode Data")
+	testTestModeDataReadiness()
+
+	runner:section("Element Constructors")
+	testElementConstructors()
+
+	runner:section("Locale")
+	testLocale()
+
+	runner:section("Event Handlers")
+	testEventHandlers()
+
 	runner:displayResults()
 end
 

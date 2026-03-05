@@ -61,6 +61,67 @@ describe("GameTestRunner", function()
 			assert.are.equal(0, runner.failureCount)
 			assert.are.equal("", runner.dotSummary)
 			assert.are.same({}, runner.tests)
+			assert.is_nil(runner.currentSection)
+		end)
+	end)
+
+	describe("section", function()
+		it("sets the current section name", function()
+			local runner = GameTestRunner:new("Suite", {
+				printLine = function() end,
+			})
+			runner:section("WoW Globals")
+			assert.are.equal("WoW Globals", runner.currentSection)
+		end)
+
+		it("resets dotSummary for the new section", function()
+			local runner = GameTestRunner:new("Suite", {
+				printLine = function() end,
+			})
+			runner:section("First")
+			runner:assertEqual(1, 1, "t1")
+			assert.is_truthy(#runner.dotSummary > 0)
+			runner:section("Second")
+			assert.are.equal("", runner.dotSummary)
+		end)
+
+		it("flushes previous section dots with label when starting a new section", function()
+			local lines = {}
+			local runner = GameTestRunner:new("Suite", {
+				printLine = function(msg)
+					table.insert(lines, msg)
+				end,
+			})
+			runner:section("First")
+			runner:assertEqual(1, 1, "t1")
+			runner:section("Second")
+			assert.are.equal(1, #lines)
+			assert.is_truthy(lines[1]:match("^First: "))
+		end)
+
+		it("does not flush if previous section had no assertions", function()
+			local lines = {}
+			local runner = GameTestRunner:new("Suite", {
+				printLine = function(msg)
+					table.insert(lines, msg)
+				end,
+			})
+			runner:section("Empty")
+			runner:section("Second")
+			assert.are.equal(0, #lines)
+		end)
+
+		it("preserves cumulative success/failure counts across sections", function()
+			local runner = GameTestRunner:new("Suite", {
+				printLine = function() end,
+			})
+			runner:section("First")
+			runner:assertEqual(1, 1, "pass1")
+			runner:assertEqual(1, 2, "fail1")
+			runner:section("Second")
+			runner:assertEqual(2, 2, "pass2")
+			assert.are.equal(2, runner.successCount)
+			assert.are.equal(1, runner.failureCount)
 		end)
 	end)
 
@@ -158,7 +219,7 @@ describe("GameTestRunner", function()
 			assert.spy(headerSpy).was.called_with("My Tests")
 		end)
 
-		it("prints dot summary and success count", function()
+		it("prints dot summary and success count when no sections used", function()
 			local lines = {}
 			local lineSpy = spy.new(function(msg)
 				table.insert(lines, msg)
@@ -171,8 +232,29 @@ describe("GameTestRunner", function()
 			runner:assertEqual(1, 1, "t1")
 			runner:assertEqual(2, 2, "t2")
 			runner:displayResults()
-			assert.spy(lineSpy).was.called(2)
+			-- dots line, then successes line
+			assert.is_truthy(lines[1]:match("|cff00ff00"))
 			assert.is_truthy(lines[2]:match("Successes: 2"))
+		end)
+
+		it("flushes last section and does not print dots line when sections used", function()
+			local lines = {}
+			local runner = GameTestRunner:new("Suite", {
+				printHeader = function() end,
+				printLine = function(msg)
+					table.insert(lines, msg)
+				end,
+				raiseError = function() end,
+			})
+			runner:section("Group A")
+			runner:assertEqual(1, 1, "t1")
+			runner:section("Group B")
+			runner:assertEqual(2, 2, "t2")
+			runner:displayResults()
+			-- lines: "Group A: •", "Group B: •", "Successes: 2"
+			assert.is_truthy(lines[1]:match("^Group A: "))
+			assert.is_truthy(lines[2]:match("^Group B: "))
+			assert.is_truthy(lines[3]:match("Successes: 2"))
 		end)
 
 		it("does not raise error when all tests pass", function()

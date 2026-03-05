@@ -21,10 +21,14 @@ Mirrors the main addon structure with `_spec.lua` files for each module.
 **Running Tests**:
 
 ```bash
-make test        # Run all tests
-make test-watch  # Auto-run tests on file changes
-make coverage    # Generate coverage report
+make test                                  # Run all tests
+make test-cov                              # Run all tests with coverage report
+make test-file FILE=path/to/spec.lua       # Run a specific test file
+make test-pattern PATTERN="description"     # Run tests matching a pattern
+make test-only                             # Run tests tagged with 'only'
 ```
+
+> **Important**: Do not run `busted` directly — it is installed under `~/.luarocks/bin` and is not on `$PATH`. Always use the `make` targets above, which resolve the correct binary path automatically.
 
 ### Mock System
 
@@ -354,10 +358,10 @@ end)
 **Coverage Command**:
 
 ```bash
-make coverage
+make test-cov
 ```
 
-Opens an HTML report showing which lines are covered by tests.
+Generates an HTML report at `luacov-html/index.html` showing which lines are covered by tests.
 
 ## Limitations of Current Testing
 
@@ -407,6 +411,63 @@ Testing how features work together is challenging in a unit test environment.
 - Adjusting styling or positioning
 - Verifying configuration changes
 - Demonstrating features to users
+
+### GameTestRunner
+
+**Location**: `RPGLootFeed/GameTesting/GameTestRunner.lua`
+
+A pure-Lua test runner class used by both smoke and integration tests. Has no WoW API dependencies itself, so it can be fully busted-tested.
+
+**API**:
+
+```lua
+local runner = G_RLF.GameTestRunner:new("Suite Name", {
+    printHeader = function(msg) G_RLF:Print(msg) end,
+    printLine = print,
+    raiseError = error,
+})
+
+runner:reset()                                    -- Clear all state
+runner:section("Group Name")                      -- Start a named section (flushes previous section's dots)
+runner:assertEqual(actual, expected, "test name")  -- Record equality assertion
+runner:runTestSafely(fn, "test name", ...)         -- pcall wrapper that records pass/fail
+runner:displayResults()                            -- Print results, raise error if failures
+```
+
+**Sections**: When `section()` is used, each section's dot summary is printed with a label prefix. Counts accumulate across sections. Non-sectioned mode prints one flat dot line.
+
+### Smoke Tests (Alpha Only)
+
+**Location**: `RPGLootFeed/GameTesting/SmokeTest.lua`
+
+**Trigger**: Runs automatically on addon load in alpha builds (`--@alpha@` preprocessor block).
+
+**Purpose**: Quick programmatic validations that don't render UI — catch environmental and structural issues at login.
+
+**Sections**:
+
+| Section                   | What it validates                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **WoW Globals**           | WoW API functions, global strings, CVar access, item/currency info                                                                    |
+| **Module Registration**   | All FeatureModule, SupportModule, and BlizzModule enum values resolve via `GetModule()`                                               |
+| **Feature Enabled State** | If DB config says disabled, module reports `IsEnabled() == false`                                                                     |
+| **DB Structure**          | Required top-level config tables exist, metadata fields present, each feature has `enabled` boolean                                   |
+| **Migration Integrity**   | All migration versions 1..N registered with `:run()`, DB version matches highest                                                      |
+| **LootDisplay Frame**     | MainLootFrame exists with correct `frameType`, party frame presence matches config                                                    |
+| **TestMode Data**         | Structure of cached test items, currencies, factions (graceful with async loading)                                                    |
+| **Element Constructors**  | Data-free features (XP, Money, Professions, TravelPoints) return valid elements; data-dependent (ItemLoot, Currency) tested if cached |
+| **Locale**                | AceLocale table populated, critical config keys spot-checked                                                                          |
+| **Event Handlers**        | Each enabled feature module has expected WoW event handler methods                                                                    |
+
+### Integration Tests (Alpha Only)
+
+**Location**: `RPGLootFeed/GameTesting/IntegrationTest.lua`
+
+**Trigger**: Runs automatically after all test data is initialized (items cached, currencies loaded, factions resolved, LootDisplay ready).
+
+**Purpose**: Visual integration tests that render loot rows in the feed for manual inspection. Allows adjusting settings and re-running to verify visual changes.
+
+**Command**: `/rlf test integration` (re-runs on demand)
 
 ### Manual Testing Scenarios
 
@@ -459,11 +520,11 @@ When making changes, test these scenarios in-game:
 
 ### Integration Tests (Slash Command)
 
-**Command**: `/rlf test integration` (if implemented)
+**Command**: `/rlf test integration`
 
-Runs automated integration tests within the game client.
+Runs automated integration tests that render sample loot rows in the game client for visual inspection.
 
-**Status**: Currently limited. Future enhancement opportunity.
+**Status**: Functional. Uses `GameTestRunner` with shared infrastructure from smoke tests. Fires after all test data (items, currencies, factions) is cached and `LootDisplay` signals readiness.
 
 ## Testing Best Practices
 
@@ -497,11 +558,12 @@ Runs automated integration tests within the game client.
 - [ ] Add more integration tests for configuration modules
 - [ ] Improve mock system for WoW APIs
 - [ ] Document manual testing procedures more thoroughly
+- [ ] Add Reputation element constructor to smoke tests (requires Reputation data in TestMode)
 
 ### Long Term
 
 - [ ] Investigate `wowless` for WoW API simulation
-- [ ] Develop in-game automated integration test suite
+- [ ] Expand in-game integration test suite with more visual scenarios
 - [ ] Set up continuous integration (CI) for automated test runs
 - [ ] Achieve meaningful test coverage metrics (>60% for testable code)
 - [ ] Add visual regression testing for UI changes
@@ -511,29 +573,33 @@ Runs automated integration tests within the game client.
 ### Prerequisites
 
 - Lua 5.1 or LuaJIT
-- Busted (install via LuaRocks: `luarocks install busted`)
-- LuaCov (for coverage: `luarocks install luacov`)
+- LuaRocks with busted and luacov installed (run `make lua_deps` to install from the rockspec)
 
 ### Commands
+
+> **Important**: Do not run `busted` directly — it is installed under `~/.luarocks/bin` and is not on `$PATH`. Always use the `make` targets below.
 
 ```bash
 # Run all tests
 make test
 
-# Run tests in watch mode (auto-rerun on changes)
-make test-watch
+# Run all tests with coverage
+make test-cov
 
-# Generate coverage report
-make coverage
+# Run a specific test file (verbose output)
+make test-file FILE=RPGLootFeed_spec/utils/Utils_spec.lua
 
-# Run specific test file
-busted RPGLootFeed_spec/utils/Utils_spec.lua
+# Run tests matching a description pattern (verbose output)
+make test-pattern PATTERN="Currency"
 
-# Run tests with verbose output
-busted -v
+# Run only tests tagged with 'only'
+make test-only
 
-# Run tests matching a pattern
-busted --filter="Currency"
+# Run tests for CI (TAP output + coverage)
+make test-ci
+
+# See all available targets
+make help
 ```
 
 ### Interpreting Results
