@@ -41,6 +41,12 @@ local majorFactionTextureKitIconMap = {
 	["stars"] = 6351805, -- Gallagio Loyalty Rewards Club
 	["nightfall"] = 6694197, -- Flame's Radiance
 	["karesh"] = 6937965, -- Manaforge Vandals
+	["origin"] = 7505698, -- Amani Tribe
+	["sky"] = 7505702, -- The Singularity
+	["root"] = 7505704, -- Hara'ti
+	["light"] = 7505700, -- Silvermoon Court
+	["delves"] = 6025441, -- Delves
+	["prey"] = 7493985, -- Prey
 }
 
 --- A bit of a grab bag
