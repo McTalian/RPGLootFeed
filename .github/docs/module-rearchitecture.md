@@ -109,7 +109,7 @@ Modules are migrated one at a time. Each migration includes:
 | Module         | Status         | Notes                                                   |
 | -------------- | -------------- | ------------------------------------------------------- |
 | **Reputation** | ✅ Complete    | Proof-of-concept; dual event path (Retail/Classic)      |
-| Experience     | ⏳ Not Started | Simple scalar; already has adapter pattern              |
+| Experience     | ✅ Complete    | Simple scalar; adapter moved to WoWAPI.Experience       |
 | Money          | ⏳ Not Started | Simple scalar; already has adapter + TextTemplateEngine |
 | ItemLoot       | ⏳ Not Started | Complex; ItemInfo object, stat deltas, async            |
 | Currency       | ⏳ Not Started | 3-tuple API data; hidden currency filtering             |
@@ -132,7 +132,7 @@ Modules are migrated one at a time. Each migration includes:
 ### Created
 
 - `LootElementBase:fromPayload()` + `RLF_ElementPayload` type in [Features/\_Internals/LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua)
-- Shared `G_RLF.WoWAPI.Reputation` adapter in [utils/WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua)
+- Shared `G_RLF.WoWAPI.Reputation` and `G_RLF.WoWAPI.Experience` adapters in [utils/WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua)
 
 ### Modified (Reputation Migration)
 
@@ -142,6 +142,15 @@ Modules are migrated one at a time. Each migration includes:
 - [utils.xml](../../RPGLootFeed/utils/utils.xml) — Added `WoWAPIAdapters.lua` to load order
 - [Reputation_spec.lua](../../RPGLootFeed_spec/Features/Reputation_spec.lua) — Updated spies from `Element.new` to `BuildPayload`; added `repLevelColor`/`repLevelTextWrapChar` to test db config; added `WoWAPI` namespace mock
 - [ReputationRegressions_spec.lua](../../RPGLootFeed_spec/Features/ReputationRegressions_spec.lua) — Same spy updates + namespace mock
+
+### Modified (Experience Migration)
+
+- [Experience.lua](../../RPGLootFeed/Features/Experience.lua) — Removed `Xp.Element:new()`, added `Xp:BuildPayload()`, adapter changed from inline `UnitXpAdapter`/`_unitXpAdapter` to shared `G_RLF.WoWAPI.Experience`/`_xpAdapter`, added `itemCountFn` closure for current level display
+- [RowTextMixin.lua](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua) — Removed `if self.type == "Experience"` branch from legacy type-switch
+- [LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua) — Removed `Xp.Element` from `RLF_LootElement` type alias
+- [Experience_spec.lua](../../RPGLootFeed_spec/Features/Experience_spec.lua) — Updated to `BuildPayload`/`fromPayload`, `_xpAdapter` naming, `WoWAPI` mock, added `itemCountFn` tests
+- [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) — XP smoke test uses `BuildPayload` → `fromPayload`; Rep smoke test added
+- [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — XP integration test uses `BuildPayload` → `fromPayload`; Rep integration test refactored to cover Retail via direct payload construction
 
 ## Future Considerations
 

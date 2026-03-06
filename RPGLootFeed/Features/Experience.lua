@@ -26,27 +26,19 @@ end
 local LogWarn = function(...)
 	G_RLF:LogWarn(...)
 end
+local RGBAToHexFormat = function(...)
+	return G_RLF:RGBAToHexFormat(...)
+end
 
 -- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Wraps UnitXP, UnitXPMax, and UnitLevel so tests can inject mocks without
--- patching _G directly.
-local UnitXpAdapter = {
-	UnitXP = function(unit)
-		return UnitXP(unit)
-	end,
-	UnitXPMax = function(unit)
-		return UnitXPMax(unit)
-	end,
-	UnitLevel = function(unit)
-		return UnitLevel(unit)
-	end,
-}
+-- Shared adapter from G_RLF.WoWAPI; tests override Xp._xpAdapter after load.
+local UnitXpAdapter = G_RLF.WoWAPI.Experience
 
 ---@class RLF_Experience: RLF_Module, AceEvent-3.0
 local Xp = FeatureBase:new(FeatureModule.Experience, "AceEvent-3.0")
 local currentXP, currentMaxXP, currentLevel
 
-Xp._unitXpAdapter = UnitXpAdapter
+Xp._xpAdapter = UnitXpAdapter
 
 -- Context provider function to be registered when module is enabled
 local function createExperienceContextProvider()
@@ -65,52 +57,69 @@ local function createExperienceContextProvider()
 	end
 end
 
-Xp.Element = {}
-
-function Xp.Element:new(...)
-	---@class Xp.Element: RLF_BaseLootElement
-	local element = LootElementBase:new()
-
-	element.type = FeatureModule.Experience
-	element.IsEnabled = function()
-		return Xp:IsEnabled()
+--- Build a uniform payload from an XP delta.
+--- This is the service layer: it transforms the XP gain into the generic
+--- RLF_ElementPayload contract that LootElementBase:fromPayload() consumes.
+---@param quantity number The XP delta gained
+---@return RLF_ElementPayload|nil payload nil if quantity is missing or zero
+function Xp:BuildPayload(quantity)
+	if not quantity or quantity == 0 then
+		return nil
 	end
 
-	element.key = "EXPERIENCE"
-	element.quantity = ...
-	if not element.quantity or element.quantity == 0 then
-		return
-	end
-
-	element.itemCount = currentLevel
-	element.icon = DefaultIcons.XP
-	if not G_RLF.db.global.xp.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
-	end
-	element.quality = ItemQualEnum.Epic
-
-	-- Generate text elements using the new data-driven approach
-	element.textElements = Xp:GenerateTextElements(element.quantity)
+	-- Generate text elements using the data-driven approach
+	local textElements = self:GenerateTextElements(quantity)
 
 	---@type RLF_LootElementData
 	local elementData = {
-		key = element.key,
-		type = "Experience", -- Use string type for context provider lookup
-		textElements = element.textElements,
-		quantity = element.quantity,
-		icon = element.icon,
-		quality = element.quality,
+		key = "EXPERIENCE",
+		type = "Experience",
+		textElements = textElements,
+		quantity = quantity,
+		icon = (G_RLF.db.global.xp.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and DefaultIcons.XP or nil,
+		quality = ItemQualEnum.Epic,
 	}
 
-	element.textFn = function(existingXP)
-		return TextTemplateEngine:ProcessRowElements(1, elementData, existingXP)
-	end
+	---@type RLF_ElementPayload
+	local payload = {
+		-- Routing
+		key = "EXPERIENCE",
+		type = "Experience",
 
-	element.secondaryTextFn = function(existingXP)
-		return TextTemplateEngine:ProcessRowElements(2, elementData, existingXP)
-	end
+		-- Icon
+		icon = elementData.icon,
+		quality = ItemQualEnum.Epic,
 
-	return element
+		-- Primary line
+		quantity = quantity,
+		textFn = function(existingXP)
+			return TextTemplateEngine:ProcessRowElements(1, elementData, existingXP)
+		end,
+
+		-- Secondary line
+		secondaryTextFn = function(existingXP)
+			return TextTemplateEngine:ProcessRowElements(2, elementData, existingXP)
+		end,
+
+		-- Item count display (current level)
+		itemCountFn = function()
+			if not G_RLF.db.global.xp.showCurrentLevel then
+				return nil
+			end
+			return currentLevel,
+				{
+					color = RGBAToHexFormat(unpack(G_RLF.db.global.xp.currentLevelColor)),
+					wrapChar = G_RLF.db.global.xp.currentLevelTextWrapChar,
+				}
+		end,
+
+		-- Lifecycle
+		IsEnabled = function()
+			return Xp:IsEnabled()
+		end,
+	}
+
+	return payload
 end
 
 --- Generate text elements for Experience type using the new data-driven approach
@@ -149,9 +158,9 @@ function Xp:GenerateTextElements(quantity)
 end
 
 local function initXpValues()
-	currentXP = Xp._unitXpAdapter.UnitXP("player")
-	currentMaxXP = Xp._unitXpAdapter.UnitXPMax("player")
-	currentLevel = Xp._unitXpAdapter.UnitLevel("player")
+	currentXP = Xp._xpAdapter.UnitXP("player")
+	currentMaxXP = Xp._xpAdapter.UnitXPMax("player")
+	currentLevel = Xp._xpAdapter.UnitLevel("player")
 end
 
 function Xp:OnInitialize()
@@ -197,14 +206,14 @@ function Xp:PLAYER_XP_UPDATE(eventName, unitTarget)
 	local oldLevel = currentLevel
 	local oldCurrentXP = currentXP
 	local oldMaxXP = currentMaxXP
-	local newLevel = Xp._unitXpAdapter.UnitLevel(unitTarget)
+	local newLevel = Xp._xpAdapter.UnitLevel(unitTarget)
 	if newLevel == nil then
 		LogWarn("Could not get player level", addonName, self.moduleName)
 		return
 	end
 	currentLevel = newLevel
-	currentXP = Xp._unitXpAdapter.UnitXP(unitTarget)
-	currentMaxXP = Xp._unitXpAdapter.UnitXPMax(unitTarget)
+	currentXP = Xp._xpAdapter.UnitXP(unitTarget)
+	currentMaxXP = Xp._xpAdapter.UnitXPMax(unitTarget)
 	local delta = 0
 	if newLevel > oldLevel then
 		delta = (oldMaxXP - oldCurrentXP) + currentXP
@@ -213,8 +222,9 @@ function Xp:PLAYER_XP_UPDATE(eventName, unitTarget)
 	end
 
 	if delta > 0 then
-		local e = self.Element:new(delta)
-		if e then
+		local payload = self:BuildPayload(delta)
+		if payload then
+			local e = LootElementBase:fromPayload(payload)
 			e:Show()
 		end
 	else

@@ -227,6 +227,6 @@ end
 ---@field itemCount? number Backwards compat: raw count for non-migrated modules
 
 --- Union of all concrete loot element types used by the LootDisplay engine.
---- @alias RLF_LootElement RLF_BaseLootElement | ItemLoot.Element | Currency.Element | Money.Element | Xp.Element | Professions.Element | TravelPoints.Element | PartyLoot.Element
+--- @alias RLF_LootElement RLF_BaseLootElement | ItemLoot.Element | Currency.Element | Money.Element | Professions.Element | TravelPoints.Element | PartyLoot.Element
 
 return {}

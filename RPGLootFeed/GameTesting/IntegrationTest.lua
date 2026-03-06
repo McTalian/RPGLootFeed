@@ -18,18 +18,23 @@ local runner = G_RLF.GameTestRunner:new("Integration Test", {
 
 local function runExperienceIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Experience) --[[@as RLF_Experience]]
-	local e = module.Element:new(1336)
-	if not e then
-		G_RLF:Print("Experience element not created, something went wrong")
+	local LootElementBase = G_RLF.LootElementBase
+
+	local payload = module:BuildPayload(1336)
+	if not payload then
+		G_RLF:Print("Experience payload not created, something went wrong")
 		return 1
 	end
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Experience", e)
-	e = module.Element:new(1)
-	if not e then
-		G_RLF:Print("Experience update element not created, something went wrong")
+
+	local payload2 = module:BuildPayload(1)
+	if not payload2 then
+		G_RLF:Print("Experience update payload not created, something went wrong")
 		return 1
 	end
-	runner:runTestSafely(e.Show, "LootDisplay: Experience Update", e)
+	local e2 = LootElementBase:fromPayload(payload2)
+	runner:runTestSafely(e2.Show, "LootDisplay: Experience Update", e2)
 	return 1
 end
 
@@ -103,7 +108,7 @@ local function runReputationPayloadIntegrationTest()
 	local testFactionData = {
 		factionId = 99999,
 		name = TestMode.testFactions[1] or "Test Faction",
-		delta = 664,
+		delta = 668,
 		icon = 132882,
 		standing = 21000,
 		rank = "Honored",
@@ -125,6 +130,7 @@ local function runReputationPayloadIntegrationTest()
 		G_RLF:Print("Reputation update payload not created, something went wrong")
 		return 1
 	end
+	payload2.quantity = payload2.quantity + 1
 	local e2 = LootElementBase:fromPayload(payload2)
 	runner:runTestSafely(e2.Show, "LootDisplay: Reputation Update", e2)
 

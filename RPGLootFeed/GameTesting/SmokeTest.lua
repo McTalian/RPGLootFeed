@@ -344,18 +344,30 @@ local function testElementConstructors()
 	-- Test element constructors that don't require async data.
 	-- Each should return a table with valid LootElementBase fields.
 
-	-- Experience
+	-- Experience (migrated: BuildPayload → fromPayload)
 	local xpModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Experience, true)
 	if xpModule and xpModule:IsEnabled() then
-		local e = xpModule.Element:new(1000)
-		runner:assertEqual(e ~= nil, true, "Element: Experience created")
-		if e then
-			runner:assertEqual(e.type, "Experience", "Element: Experience.type")
-			runner:assertEqual(e.key, "EXPERIENCE", "Element: Experience.key")
-			runner:assertEqual(e.quantity, 1000, "Element: Experience.quantity")
-			runner:assertEqual(type(e.textFn), "function", "Element: Experience.textFn")
-			runner:assertEqual(type(e.IsEnabled), "function", "Element: Experience.IsEnabled")
-			runner:assertEqual(type(e.Show), "function", "Element: Experience.Show")
+		local payload = xpModule:BuildPayload(1000)
+		runner:assertEqual(payload ~= nil, true, "Element: Experience payload created")
+		if payload then
+			runner:assertEqual(payload.type, "Experience", "Element: Experience payload.type")
+			runner:assertEqual(payload.key, "EXPERIENCE", "Element: Experience payload.key")
+			runner:assertEqual(payload.quantity, 1000, "Element: Experience payload.quantity")
+			runner:assertEqual(type(payload.textFn), "function", "Element: Experience payload.textFn")
+			runner:assertEqual(type(payload.itemCountFn), "function", "Element: Experience payload.itemCountFn")
+			runner:assertEqual(type(payload.IsEnabled), "function", "Element: Experience payload.IsEnabled")
+
+			local e = G_RLF.LootElementBase:fromPayload(payload)
+			runner:assertEqual(e ~= nil, true, "Element: Experience element created")
+			if e then
+				runner:assertEqual(e.type, "Experience", "Element: Experience.type")
+				runner:assertEqual(e.key, "EXPERIENCE", "Element: Experience.key")
+				runner:assertEqual(e.quantity, 1000, "Element: Experience.quantity")
+				runner:assertEqual(type(e.textFn), "function", "Element: Experience.textFn")
+				runner:assertEqual(type(e.itemCountFn), "function", "Element: Experience.itemCountFn")
+				runner:assertEqual(type(e.IsEnabled), "function", "Element: Experience.IsEnabled")
+				runner:assertEqual(type(e.Show), "function", "Element: Experience.Show")
+			end
 		end
 	end
 

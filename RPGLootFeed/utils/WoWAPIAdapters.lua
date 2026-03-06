@@ -61,4 +61,20 @@ G_RLF.WoWAPI.Reputation = {
 	end,
 }
 
-return G_RLF.WoWAPI.Reputation
+-- ── Experience API Adapter ────────────────────────────────────────────────────
+-- Wraps UnitXP, UnitXPMax, and UnitLevel globals used by the Experience
+-- feature module.
+---@class RLF_WoWAPI_Experience
+G_RLF.WoWAPI.Experience = {
+	UnitXP = function(unit)
+		return UnitXP(unit)
+	end,
+	UnitXPMax = function(unit)
+		return UnitXPMax(unit)
+	end,
+	UnitLevel = function(unit)
+		return UnitLevel(unit)
+	end,
+}
+
+return G_RLF.WoWAPI

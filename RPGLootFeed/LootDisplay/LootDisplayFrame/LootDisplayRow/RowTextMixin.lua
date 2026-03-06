@@ -412,21 +412,6 @@ function RLF_RowTextMixin:UpdateItemCount()
 		end)
 		return
 	end
-
-	if self.type == "Experience" and self.itemCount then
-		---@type RLF_ConfigExperience
-		local xpDb = G_RLF.db.global.xp
-		if not xpDb.showCurrentLevel then
-			return
-		end
-		RunNextFrame(function()
-			self:ShowItemCountText(self.itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(xpDb.currentLevelColor)),
-				wrapChar = xpDb.currentLevelTextWrapChar,
-			})
-		end)
-		return
-	end
 end
 
 --- Show or hide the AmountText (quantity suffix) FontString.
