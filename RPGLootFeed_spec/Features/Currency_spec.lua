@@ -116,11 +116,10 @@ describe("Currency Module", function()
 			},
 		}
 
-		-- LibStub must be available before loadfile: Currency.lua calls
-		-- LibStub("C_Everywhere") at module root to build CurrencyAdapter.
-		-- The adapter's C-based methods are all replaced after loadfile so the
-		-- actual C_Everywhere mock content doesn't matter.
-		require("RPGLootFeed_spec._mocks.Libs.LibStub")
+		-- WoWAPIAdapters.lua provides G_RLF.WoWAPI.Currency at runtime; supply an
+		-- empty table here so Currency.lua can assign _currencyAdapter = G_RLF.WoWAPI.Currency
+		-- during loadfile without erroring.  Tests replace _currencyAdapter via makeDefaultAdapter().
+		ns.WoWAPI = { Currency = {} }
 
 		-- Load real LootElementBase so elements are fully constructed.
 		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
@@ -339,9 +338,9 @@ describe("Currency Module", function()
 			return link
 		end
 
-		local spyElementNew = spy.on(CurrencyModule.Element, "new")
+		local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 		CurrencyModule:CURRENCY_DISPLAY_UPDATE("CURRENCY_DISPLAY_UPDATE", 123, 5, 2)
-		assert.spy(spyElementNew).was.called_with(CurrencyModule.Element, link, info, basicInfo)
+		assert.spy(spyBuildPayload).was.called_with(CurrencyModule, link, info, basicInfo)
 		assert.spy(sendMessageSpy).was.called(1)
 	end)
 
@@ -353,9 +352,9 @@ describe("Currency Module", function()
 		CurrencyModule._currencyAdapter.GetCurrencyLinkFromGlobal = function()
 			return fallbackLink
 		end
-		local spyElementNew = spy.on(CurrencyModule.Element, "new")
+		local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 		CurrencyModule:CURRENCY_DISPLAY_UPDATE("CURRENCY_DISPLAY_UPDATE", 123, 5, 2)
-		assert.spy(spyElementNew).was.called_with(CurrencyModule.Element, fallbackLink, _, _)
+		assert.spy(spyBuildPayload).was.called_with(CurrencyModule, fallbackLink, _, _)
 		assert.spy(sendMessageSpy).was.called(1)
 	end)
 
@@ -383,11 +382,11 @@ describe("Currency Module", function()
 			return link
 		end
 
-		local spyElementNew = spy.on(CurrencyModule.Element, "new")
+		local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 		CurrencyModule:PERKS_PROGRAM_CURRENCY_AWARDED("PERKS_PROGRAM_CURRENCY_AWARDED", 5)
 		CurrencyModule:PERKS_PROGRAM_CURRENCY_REFRESH("PERKS_PROGRAM_CURRENCY_REFRESH", 10, 15)
 
-		assert.spy(spyElementNew).was.called_with(CurrencyModule.Element, link, info, basicInfo)
+		assert.spy(spyBuildPayload).was.called_with(CurrencyModule, link, info, basicInfo)
 		assert.spy(sendMessageSpy).was.called(1)
 	end)
 
@@ -492,24 +491,24 @@ describe("Currency Module", function()
 				assert.spy(sendMessageSpy).was_not.called()
 			end)
 
-			it("does not show when Element.new returns nil", function()
-				stub(CurrencyModule.Element, "new").returns(nil)
+			it("does not show when BuildPayload returns nil", function()
+				stub(CurrencyModule, "BuildPayload").returns(nil)
 				CurrencyModule:CHAT_MSG_CURRENCY("CHAT_MSG_CURRENCY", "You receive currency: " .. currencyLink .. ".")
 				assert.spy(sendMessageSpy).was_not.called()
 			end)
 
 			it("shows currency when parsing succeeds", function()
 				local expectedBasicInfo = { displayAmount = 1 }
-				local spyElementNew = spy.on(CurrencyModule.Element, "new")
+				local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 				CurrencyModule:CHAT_MSG_CURRENCY("CHAT_MSG_CURRENCY", "You receive currency: " .. currencyLink .. ".")
 				assert
-					.spy(spyElementNew).was
-					.called_with(CurrencyModule.Element, currencyLink, currencyInfo, expectedBasicInfo)
+					.spy(spyBuildPayload).was
+					.called_with(CurrencyModule, currencyLink, currencyInfo, expectedBasicInfo)
 				assert.spy(sendMessageSpy).was.called(1)
 			end)
 
 			it("overrides zero quantity from currency info with parsed quantityChange", function()
-				local spyElementNew = spy.on(CurrencyModule.Element, "new")
+				local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 				CurrencyModule:CHAT_MSG_CURRENCY(
 					"CHAT_MSG_CURRENCY",
 					"You receive currency: " .. currencyLink .. " x3."
@@ -521,8 +520,8 @@ describe("Currency Module", function()
 					quality = 1,
 				}
 				assert
-					.spy(spyElementNew).was
-					.called_with(CurrencyModule.Element, currencyLink, expectedCurrencyInfo, match.is_same({ displayAmount = 3 }))
+					.spy(spyBuildPayload).was
+					.called_with(CurrencyModule, currencyLink, expectedCurrencyInfo, match.is_same({ displayAmount = 3 }))
 				assert.spy(sendMessageSpy).was.called(1)
 			end)
 
@@ -612,19 +611,19 @@ describe("Currency Module", function()
 			end)
 
 			it("shows currency when parsing Russian message succeeds", function()
-				local spyElementNew = spy.on(CurrencyModule.Element, "new")
+				local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 				CurrencyModule:CHAT_MSG_CURRENCY(
 					"CHAT_MSG_CURRENCY",
 					"Вы получаете валюту – " .. ruCurrencyLink .. "."
 				)
 				assert
-					.spy(spyElementNew).was
-					.called_with(CurrencyModule.Element, ruCurrencyLink, currencyInfo, match.is_same({ displayAmount = 1 }))
+					.spy(spyBuildPayload).was
+					.called_with(CurrencyModule, ruCurrencyLink, currencyInfo, match.is_same({ displayAmount = 1 }))
 				assert.spy(sendMessageSpy).was.called(1)
 			end)
 
 			it("handles Russian multiple quantity", function()
-				local spyElementNew = spy.on(CurrencyModule.Element, "new")
+				local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 				CurrencyModule:CHAT_MSG_CURRENCY(
 					"CHAT_MSG_CURRENCY",
 					"Вы получаете валюту – " .. ruCurrencyLink .. ", 3 шт."
@@ -636,13 +635,13 @@ describe("Currency Module", function()
 					quality = 1,
 				}
 				assert
-					.spy(spyElementNew).was
-					.called_with(CurrencyModule.Element, ruCurrencyLink, expectedCurrencyInfo, match.is_same({ displayAmount = 3 }))
+					.spy(spyBuildPayload).was
+					.called_with(CurrencyModule, ruCurrencyLink, expectedCurrencyInfo, match.is_same({ displayAmount = 3 }))
 				assert.spy(sendMessageSpy).was.called(1)
 			end)
 
 			it("handles Russian bonus objective quantity", function()
-				local spyElementNew = spy.on(CurrencyModule.Element, "new")
+				local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 				CurrencyModule:CHAT_MSG_CURRENCY(
 					"CHAT_MSG_CURRENCY",
 					"Вы получаете валюту – "
@@ -650,8 +649,8 @@ describe("Currency Module", function()
 						.. ", 5 шт. (дополнительные задачи)"
 				)
 				assert
-					.spy(spyElementNew).was
-					.called_with(CurrencyModule.Element, ruCurrencyLink, _, match.is_same({ displayAmount = 5 }))
+					.spy(spyBuildPayload).was
+					.called_with(CurrencyModule, ruCurrencyLink, _, match.is_same({ displayAmount = 5 }))
 				assert.spy(sendMessageSpy).was.called(1)
 			end)
 
@@ -676,24 +675,24 @@ describe("Currency Module", function()
 				end
 				local parseStub = stub(CurrencyModule, "ParseCurrencyChangeMessage").returns(83)
 
-				local spyElementNew = spy.on(CurrencyModule.Element, "new")
+				local spyBuildPayload = spy.on(CurrencyModule, "BuildPayload")
 				CurrencyModule:CHAT_MSG_CURRENCY(
 					"CHAT_MSG_CURRENCY",
 					"Вы получаете валюту – [Очки справедливости], 83 шт."
 				)
 				-- basicInfo should have displayAmount patched to 83
 				assert
-					.spy(spyElementNew).was
-					.called_with(CurrencyModule.Element, _, bigCurrencyInfo, match.is_same({ displayAmount = 83 }))
+					.spy(spyBuildPayload).was
+					.called_with(CurrencyModule, _, bigCurrencyInfo, match.is_same({ displayAmount = 83 }))
 				assert.spy(sendMessageSpy).was.called(1)
 				parseStub:revert()
 			end)
 		end)
 	end)
 
-	-- ── Element:new ───────────────────────────────────────────────────────────
+	-- ── BuildPayload ──────────────────────────────────────────────────────────
 
-	describe("Element", function()
+	describe("BuildPayload", function()
 		local function makeLink(id)
 			return "|c12345678|Hcurrency:" .. (id or 123) .. "|h[Test Currency]|h|r"
 		end
@@ -715,72 +714,72 @@ describe("Currency Module", function()
 			return base
 		end
 
-		it("sets type, isLink, eventChannel, key, icon, and quality", function()
+		it("sets type, isLink, key, icon, and quality", function()
 			local info = makeInfo()
 			local basicInfo = { displayAmount = 2 }
-			local e = CurrencyModule.Element:new(makeLink(), info, basicInfo)
-			assert.is_not_nil(e)
-			assert.equals("Currency", e.type)
-			assert.is_true(e.isLink)
-			assert.equals("CURRENCY_123", e.key)
-			assert.equals(123456, e.icon)
-			assert.equals(2, e.quality)
+			local p = CurrencyModule:BuildPayload(makeLink(), info, basicInfo)
+			assert.is_not_nil(p)
+			assert.equals("Currency", p.type)
+			assert.is_true(p.isLink)
+			assert.equals("CURRENCY_123", p.key)
+			assert.equals(123456, p.icon)
+			assert.equals(2, p.quality)
 		end)
 
 		it("returns nil when currencyLink is nil", function()
-			local e = CurrencyModule.Element:new(nil, makeInfo(), { displayAmount = 1 })
-			assert.is_nil(e)
+			local p = CurrencyModule:BuildPayload(nil, makeInfo(), { displayAmount = 1 })
+			assert.is_nil(p)
 		end)
 
 		it("hides icon when currency.enableIcon is false", function()
 			ns.db.global.currency.enableIcon = false
-			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 1 })
-			assert.is_nil(e.icon)
+			local p = CurrencyModule:BuildPayload(makeLink(), makeInfo(), { displayAmount = 1 })
+			assert.is_nil(p.icon)
 		end)
 
 		it("hides icon when misc.hideAllIcons is true", function()
 			ns.db.global.misc.hideAllIcons = true
-			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 1 })
-			assert.is_nil(e.icon)
+			local p = CurrencyModule:BuildPayload(makeLink(), makeInfo(), { displayAmount = 1 })
+			assert.is_nil(p.icon)
 		end)
 
 		it("textFn returns raw link when no truncatedLink", function()
 			local link = makeLink()
-			local e = CurrencyModule.Element:new(link, makeInfo(), { displayAmount = 1 })
-			assert.equals(link, e.textFn(nil, nil))
+			local p = CurrencyModule:BuildPayload(link, makeInfo(), { displayAmount = 1 })
+			assert.equals(link, p.textFn(nil, nil))
 		end)
 
-		it("textFn returns only the link when quantity > 1 (no suffix)", function()
-			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 2 })
-			assert.equals("[Currency]", e.textFn(0, "[Currency]"))
+		it("textFn returns truncatedLink when provided", function()
+			local p = CurrencyModule:BuildPayload(makeLink(), makeInfo(), { displayAmount = 2 })
+			assert.equals("[Currency]", p.textFn(0, "[Currency]"))
 		end)
 
 		it("amountTextFn returns quantity suffix when quantity > 1", function()
-			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 2 })
-			assert.equals("x2", e.amountTextFn(0))
+			local p = CurrencyModule:BuildPayload(makeLink(), makeInfo(), { displayAmount = 2 })
+			assert.equals("x2", p.amountTextFn(0))
 		end)
 
 		it("amountTextFn returns empty string when quantity is 1 and showOneQuantity is false", function()
 			ns.db.global.misc.showOneQuantity = false
-			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 1 })
-			assert.equals("", e.amountTextFn(0))
+			local p = CurrencyModule:BuildPayload(makeLink(), makeInfo(), { displayAmount = 1 })
+			assert.equals("", p.amountTextFn(0))
 		end)
 
 		it("secondaryTextFn returns empty string when cappedQuantity is 0", function()
-			local e = CurrencyModule.Element:new(makeLink(), makeInfo(), { displayAmount = 1 })
+			local p = CurrencyModule:BuildPayload(makeLink(), makeInfo(), { displayAmount = 1 })
 			-- cappedQuantity = maxQuantity = 0
-			assert.equals("", e.secondaryTextFn())
+			assert.equals("", p.secondaryTextFn())
 		end)
 
 		it("sets isCustomLink for Ethereal Strands (ID 3278)", function()
 			local info = makeInfo({ currencyID = 3278 })
-			local e = CurrencyModule.Element:new(
+			local p = CurrencyModule:BuildPayload(
 				"|c12345678|Hcurrency:3278|h[Ethereal Strands]|h|r",
 				info,
 				{ displayAmount = 1 }
 			)
-			assert.is_not_nil(e)
-			assert.is_true(e.isCustomLink)
+			assert.is_not_nil(p)
+			assert.is_true(p.isCustomLink)
 		end)
 	end)
 end)

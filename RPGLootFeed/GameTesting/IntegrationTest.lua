@@ -86,22 +86,26 @@ local function runPartyLootIntegrationTest()
 	return 1
 end
 
+--- Exercises the Currency BuildPayload → fromPayload → Show pipeline directly.
 local function runCurrencyIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Currency) --[[@as RLF_Currency]]
+	local LootElementBase = G_RLF.LootElementBase
 	local testObj = TestMode.testCurrencies[2]
 	local amountLooted = 1
 	testObj.basicInfo.displayAmount = amountLooted
-	local e = module.Element:new(testObj.link, testObj.info, testObj.basicInfo)
-	if not e then
-		G_RLF:Print("Currency element not created, something went wrong")
+	local payload = module:BuildPayload(testObj.link, testObj.info, testObj.basicInfo)
+	if not payload then
+		G_RLF:Print("Currency payload not created, something went wrong")
 		return 1
 	end
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Currency", e)
-	e = module.Element:new(testObj.link, testObj.info, testObj.basicInfo)
-	if not e then
-		G_RLF:Print("Currency update element not created, something went wrong")
+	payload = module:BuildPayload(testObj.link, testObj.info, testObj.basicInfo)
+	if not payload then
+		G_RLF:Print("Currency update payload not created, something went wrong")
 		return 1
 	end
+	e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Currency Quantity Update", e)
 	return 1
 end

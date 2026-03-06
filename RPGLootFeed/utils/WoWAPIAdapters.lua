@@ -4,6 +4,8 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
+local C = LibStub("C_Everywhere")
+
 -- ── Shared WoW API Adapters ──────────────────────────────────────────────────
 -- Central namespace for WoW API wrappers used across feature modules.
 -- Each adapter is a plain table of functions that wrap a single C_ namespace
@@ -106,6 +108,71 @@ G_RLF.WoWAPI.TravelPoints = {
 	end,
 	GetMonthlyActivitiesPointsLabel = function()
 		return _G["MONTHLY_ACTIVITIES_POINTS"]
+	end,
+}
+
+-- ── Currency API Adapter ──────────────────────────────────────────────────────
+-- Wraps GetExpansionLevel, currency info APIs (C_Everywhere + direct), honor
+-- tracking, locale patterns, Constants, and Ethereal-Strands UI behind
+-- testable functions so tests can inject mocks without patching _G.
+---@class RLF_WoWAPI_Currency
+G_RLF.WoWAPI.Currency = {
+	GetExpansionLevel = function()
+		return GetExpansionLevel()
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	-- C_Everywhere unified queries used in Process (CURRENCY_DISPLAY_UPDATE path)
+	GetCurrencyInfo = function(currencyType)
+		return C.CurrencyInfo.GetCurrencyInfo(currencyType)
+	end,
+	GetBasicCurrencyInfo = function(currencyType, amount)
+		return C.CurrencyInfo.GetBasicCurrencyInfo(currencyType, amount)
+	end,
+	GetCurrencyLinkFromLib = function(currencyType)
+		return C.CurrencyInfo.GetCurrencyLink(currencyType)
+	end,
+	-- Predicate: does the modern C_CurrencyInfo.GetCurrencyLink API exist?
+	HasGetCurrencyLinkAPI = function()
+		return C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink ~= nil
+	end,
+	-- Classic fallback (bare global) for GetCurrencyLink
+	GetCurrencyLinkFromGlobal = function(currencyId, quantity)
+		return GetCurrencyLink(currencyId, quantity)
+	end,
+	-- Honor tracking for the Account-Wide Honor currency element
+	GetUnitHonorLevel = function(unit)
+		return UnitHonorLevel(unit)
+	end,
+	GetUnitHonorMax = function(unit)
+		return UnitHonorMax(unit)
+	end,
+	GetUnitHonor = function(unit)
+		return UnitHonor(unit)
+	end,
+	-- WoW Constants tables
+	GetAccountWideHonorCurrencyID = function()
+		return Constants and Constants.CurrencyConsts and Constants.CurrencyConsts.ACCOUNT_WIDE_HONOR_CURRENCY_ID
+	end,
+	GetPerksProgramCurrencyID = function()
+		return Constants
+			and Constants.CurrencyConsts
+			and Constants.CurrencyConsts.CURRENCY_ID_PERKS_PROGRAM_DISPLAY_INFO
+	end,
+	-- Classic locale patterns used in OnInitialize to build classicCurrencyPatterns
+	GetCurrencyGainedMultiplePattern = function()
+		return CURRENCY_GAINED_MULTIPLE
+	end,
+	GetCurrencyGainedMultipleBonusPattern = function()
+		return CURRENCY_GAINED_MULTIPLE_BONUS
+	end,
+	-- Ethereal Strands UI (3278) custom link handler
+	GenericTraitToggle = function()
+		GenericTraitUI_LoadUI()
+		GenericTraitFrame:SetSystemID(29)
+		GenericTraitFrame:SetTreeID(1115)
+		ToggleFrame(GenericTraitFrame)
 	end,
 }
 

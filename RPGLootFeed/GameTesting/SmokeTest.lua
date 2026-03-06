@@ -437,20 +437,21 @@ local function testElementConstructors()
 		end
 	end
 
-	-- Currency — only if test data is already cached
+	-- Currency — only if test data is already cached (migrated: BuildPayload → fromPayload)
 	if GetExpansionLevel() >= G_RLF.Expansion.WOTLK then
 		local currModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Currency, true)
 		if currModule and currModule:IsEnabled() and #TestMode.testCurrencies > 0 then
 			local testObj = TestMode.testCurrencies[1]
 			testObj.basicInfo.displayAmount = 1
-			local e = currModule.Element:new(testObj.link, testObj.info, testObj.basicInfo)
-			runner:assertEqual(e ~= nil, true, "Element: Currency created")
-			if e then
-				runner:assertEqual(e.type, "Currency", "Element: Currency.type")
-				runner:assertEqual(e.isLink, true, "Element: Currency.isLink")
-				runner:assertEqual(type(e.textFn), "function", "Element: Currency.textFn")
-				runner:assertEqual(type(e.IsEnabled), "function", "Element: Currency.IsEnabled")
-				runner:assertEqual(type(e.Show), "function", "Element: Currency.Show")
+			local payload = currModule:BuildPayload(testObj.link, testObj.info, testObj.basicInfo)
+			runner:assertEqual(payload ~= nil, true, "BuildPayload: Currency created")
+			if payload then
+				runner:assertEqual(payload.type, "Currency", "BuildPayload: Currency.type")
+				runner:assertEqual(payload.isLink, true, "BuildPayload: Currency.isLink")
+				runner:assertEqual(type(payload.textFn), "function", "BuildPayload: Currency.textFn")
+				runner:assertEqual(type(payload.IsEnabled), "function", "BuildPayload: Currency.IsEnabled")
+				local e = G_RLF.LootElementBase:fromPayload(payload)
+				runner:assertEqual(type(e.Show), "function", "BuildPayload: Currency element.Show")
 			end
 		end
 	end

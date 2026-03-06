@@ -397,21 +397,6 @@ function RLF_RowTextMixin:UpdateItemCount()
 		end)
 		return
 	end
-
-	if self.type == "Currency" then
-		---@type RLF_ConfigCurrency
-		local currencyDb = G_RLF.db.global.currency
-		if not currencyDb.currencyTotalTextEnabled then
-			return
-		end
-		RunNextFrame(function()
-			self:ShowItemCountText(self.itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(currencyDb.currencyTotalTextColor)),
-				wrapChar = currencyDb.currencyTotalTextWrapChar,
-			})
-		end)
-		return
-	end
 end
 
 --- Show or hide the AmountText (quantity suffix) FontString.

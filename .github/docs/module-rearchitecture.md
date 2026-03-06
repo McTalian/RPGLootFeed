@@ -112,7 +112,7 @@ Modules are migrated one at a time. Each migration includes:
 | Experience     | ✅ Complete    | Simple scalar; adapter moved to WoWAPI.Experience                                      |
 | Money          | ✅ Complete    | Simple scalar; adapter to WoWAPI.Money; `PlaySoundIfEnabled` promoted to module method |
 | ItemLoot       | ⏳ Not Started | Complex; ItemInfo object, stat deltas, async                                           |
-| Currency       | ⏳ Not Started | 3-tuple API data; hidden currency filtering                                            |
+| Currency       | ✅ Complete    | 3-tuple API data; hidden currency filtering; `itemCountFn` replaces type-switch        |
 | PartyLoot      | ⏳ Not Started | Routes to separate frame; unit-aware                                                   |
 | Professions    | ⏳ Not Started | Chat-parsed; `itemCount` used for skill delta display                                  |
 | Transmog       | ⏳ Not Started | Async item loading; custom link behavior                                               |
@@ -169,6 +169,16 @@ Modules are migrated one at a time. Each migration includes:
 - [TravelPoints_spec.lua](../../RPGLootFeed_spec/Features/TravelPoints_spec.lua) — Updated to `BuildPayload`/`fromPayload` pattern; `_perksActivitiesAdapter`/`_globalStringsAdapter` combined into `_travelPointsAdapter`; added `WoWAPI` mock
 - [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) — TravelPoints smoke test uses `BuildPayload` → `fromPayload`
 - [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Added `runTravelPointsIntegrationTest()` (Retail-only, direct payload construction)
+
+### Modified (Currency Migration)
+
+- [Currency.lua](../../RPGLootFeed/Features/Currency/Currency.lua) — Removed `Currency.Element:new()`, added `Currency:BuildPayload(currencyLink, info, basicInfo)`; inline `CurrencyAdapter` replaced with `G_RLF.WoWAPI.Currency`; both `Process` and `CHAT_MSG_CURRENCY` handlers use `BuildPayload` → `fromPayload` → `Show`; `itemCountFn` replaces legacy `itemCount` field for currency total display
+- [WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua) — Added `G_RLF.WoWAPI.Currency` (full adapter: C_Everywhere unified queries, Honor tracking, Constants, classic locale patterns, Ethereal Strands UI); added `LibStub` local for `C_Everywhere` resolution
+- [RowTextMixin.lua](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua) — Removed `if self.type == "Currency"` branch from legacy `UpdateItemCount` type-switch
+- [LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua) — Removed `Currency.Element` from `RLF_LootElement` type alias
+- [Currency_spec.lua](../../RPGLootFeed_spec/Features/Currency_spec.lua) — Updated all spies/stubs from `Element.new` to `BuildPayload`; `Element` describe block renamed to `BuildPayload`; replaced `LibStub` require with `WoWAPI = { Currency = {} }` ns mock
+- [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) — Currency smoke test uses `BuildPayload` → `fromPayload`
+- [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Currency integration test uses `BuildPayload` → `fromPayload`
 
 ## Future Considerations
 
