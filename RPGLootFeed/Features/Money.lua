@@ -25,24 +25,34 @@ local LogWarn = function(...)
 end
 
 -- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Wraps C_CurrencyInfo, GetMoney, and PlaySoundFile so tests can inject mocks
--- without patching _G directly.
-local MoneyAdapter = {
-	GetCoinTextureString = function(amount)
-		return C_CurrencyInfo.GetCoinTextureString(amount)
-	end,
-	GetMoney = function()
-		return GetMoney()
-	end,
-	PlaySoundFile = function(sound)
-		return PlaySoundFile(sound)
-	end,
-}
+-- Shared adapter from G_RLF.WoWAPI; tests override Money._moneyAdapter after load.
+local MoneyAdapter = G_RLF.WoWAPI.Money
 
 ---@class RLF_Money: RLF_Module, AceEvent-3.0
 local Money = FeatureBase:new(FeatureModule.Money, "AceEvent-3.0")
 
 Money._moneyAdapter = MoneyAdapter
+
+--- Plays the configured money loot sound if the override is enabled.
+--- Calls Money._moneyAdapter.PlaySoundFile so tests can inject a mock.
+function Money:PlaySoundIfEnabled()
+	if G_RLF.db.global.money.overrideMoneyLootSound and G_RLF.db.global.money.moneyLootSound ~= "" then
+		local willPlay, handle = Money._moneyAdapter.PlaySoundFile(G_RLF.db.global.money.moneyLootSound)
+		if not willPlay then
+			LogWarn(
+				"Failed to play sound " .. G_RLF.db.global.money.moneyLootSound,
+				addonName,
+				Money.moduleName or "Money"
+			)
+		else
+			LogDebug(
+				"Sound queued to play " .. G_RLF.db.global.money.moneyLootSound .. " " .. handle,
+				addonName,
+				Money.moduleName or "Money"
+			)
+		end
+	end
+end
 
 -- Context provider function to be registered when module is enabled.
 -- Defined after Money so the inner closure can reference Money._moneyAdapter.
@@ -78,93 +88,72 @@ local function createMoneyContextProvider()
 	end
 end
 
-Money.Element = {}
+--- Build a uniform payload for a money loot event.
+--- Returns nil when the amount is zero or nil (nothing to display).
+---@param quantity number The copper amount (positive = income, negative = loss)
+---@return RLF_ElementPayload?
+function Money:BuildPayload(quantity)
+	if not quantity or quantity == 0 then
+		return nil
+	end
 
-function Money.Element:new(...)
-	---@class Money.Element: RLF_BaseLootElement
-	local element = LootElementBase:new()
-
-	element.type = FeatureModule.Money
-	element.icon = DefaultIcons.MONEY
+	local icon = DefaultIcons.MONEY
 	if not G_RLF.db.global.money.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
-	end
-	element.quality = ItemQualEnum.Poor
-	element.IsEnabled = function()
-		return Money:IsEnabled()
+		icon = nil
 	end
 
-	element.key = "MONEY_LOOT"
-	element.quantity = ...
-	if not element.quantity or element.quantity == 0 then
-		return
+	local r, g, b = 1, 1, 1
+	if quantity < 0 then
+		r, g, b = 1, 0, 0
 	end
 
-	if element.quantity < 0 then
-		element.r = 1
-		element.g = 0
-		element.b = 0
-	end
-
-	-- Recompute color based on net quantity when an existing row is updated.
-	-- The net is (existing accumulated amount) + (this element's quantity).
-	element.colorFn = function(netQuantity)
-		if netQuantity < 0 then
-			return 1, 0, 0, 1
-		else
-			return 1, 1, 1, 1
-		end
-	end
-
-	-- Generate text elements using the new data-driven approach
-	element.textElements = Money:GenerateTextElements(element.quantity)
+	local textElements = Money:GenerateTextElements(quantity)
 
 	---@type RLF_LootElementData
 	local elementData = {
-		key = element.key,
-		type = "Money", -- Use string type for context provider lookup
-		textElements = element.textElements,
-		quantity = element.quantity,
-		icon = element.icon,
-		quality = element.quality,
+		key = "MONEY_LOOT",
+		type = FeatureModule.Money,
+		textElements = textElements,
+		quantity = quantity,
+		icon = icon,
+		quality = ItemQualEnum.Poor,
 	}
 
-	-- Replace the old textFn with a new one that uses TextTemplateEngine
-	element.textFn = function(existingCopper)
-		return TextTemplateEngine:ProcessRowElements(1, elementData, existingCopper)
-	end
-
-	-- Replace the old secondaryTextFn with new template-based approach
-	element.secondaryTextFn = function(existingCopper)
-		return TextTemplateEngine:ProcessRowElements(2, elementData, existingCopper)
-	end
-
-	-- Handle sound configuration like the original Money module
-	if G_RLF.db.global.money.overrideMoneyLootSound and G_RLF.db.global.money.moneyLootSound ~= "" then
-		element.sound = G_RLF.db.global.money.moneyLootSound
-	end
-
-	-- Add PlaySoundIfEnabled method to the element
-	function element:PlaySoundIfEnabled()
-		if G_RLF.db.global.money.overrideMoneyLootSound and G_RLF.db.global.money.moneyLootSound ~= "" then
-			local willPlay, handle = Money._moneyAdapter.PlaySoundFile(G_RLF.db.global.money.moneyLootSound)
-			if not willPlay then
-				LogWarn(
-					"Failed to play sound " .. G_RLF.db.global.money.moneyLootSound,
-					addonName,
-					Money.moduleName or "MoneyV2"
-				)
+	---@type RLF_ElementPayload
+	local payload = {
+		key = "MONEY_LOOT",
+		type = FeatureModule.Money,
+		icon = icon,
+		quality = ItemQualEnum.Poor,
+		quantity = quantity,
+		r = r,
+		g = g,
+		b = b,
+		-- Recompute color based on net quantity when an existing row is updated.
+		-- The net is (existing accumulated amount) + (this element's quantity).
+		colorFn = function(netQuantity)
+			if netQuantity < 0 then
+				return 1, 0, 0, 1
 			else
-				LogDebug(
-					"Sound queued to play " .. G_RLF.db.global.money.moneyLootSound .. " " .. handle,
-					addonName,
-					Money.moduleName or "MoneyV2"
-				)
+				return 1, 1, 1, 1
 			end
-		end
+		end,
+		textFn = function(existingCopper)
+			return TextTemplateEngine:ProcessRowElements(1, elementData, existingCopper)
+		end,
+		secondaryTextFn = function(existingCopper)
+			return TextTemplateEngine:ProcessRowElements(2, elementData, existingCopper)
+		end,
+		IsEnabled = function()
+			return Money:IsEnabled()
+		end,
+	}
+
+	if G_RLF.db.global.money.overrideMoneyLootSound and G_RLF.db.global.money.moneyLootSound ~= "" then
+		payload.sound = G_RLF.db.global.money.moneyLootSound
 	end
 
-	return element
+	return payload
 end
 
 --- Generate text elements for Money type using the new data-driven approach
@@ -241,10 +230,10 @@ function Money:PLAYER_MONEY(eventName)
 		return
 	end
 
-	local element = self.Element:new(amountInCopper)
-	if element then
-		element:Show()
-		element:PlaySoundIfEnabled()
+	local payload = Money:BuildPayload(amountInCopper)
+	if payload then
+		LootElementBase:fromPayload(payload):Show()
+		Money:PlaySoundIfEnabled()
 	end
 end
 

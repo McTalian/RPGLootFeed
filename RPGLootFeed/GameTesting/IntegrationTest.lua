@@ -40,11 +40,12 @@ end
 
 local function runMoneyIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Money) --[[@as RLF_Money]]
-	local e = module.Element:new(12345)
-	if not e then
-		G_RLF:Print("Money element not created, something went wrong")
+	local payload = module:BuildPayload(12345)
+	if not payload then
+		G_RLF:Print("Money payload not created, something went wrong")
 		return 1
 	end
+	local e = G_RLF.LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Money", e)
 	return 1
 end

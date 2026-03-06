@@ -77,4 +77,20 @@ G_RLF.WoWAPI.Experience = {
 	end,
 }
 
+-- ── Money API Adapter ─────────────────────────────────────────────────────────
+-- Wraps C_CurrencyInfo, GetMoney, and PlaySoundFile so tests can inject mocks
+-- without patching _G directly.
+---@class RLF_WoWAPI_Money
+G_RLF.WoWAPI.Money = {
+	GetCoinTextureString = function(amount)
+		return C_CurrencyInfo.GetCoinTextureString(amount)
+	end,
+	GetMoney = function()
+		return GetMoney()
+	end,
+	PlaySoundFile = function(sound)
+		return PlaySoundFile(sound)
+	end,
+}
+
 return G_RLF.WoWAPI

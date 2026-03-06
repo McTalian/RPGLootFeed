@@ -374,9 +374,10 @@ local function testElementConstructors()
 	-- Money
 	local moneyModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Money, true)
 	if moneyModule and moneyModule:IsEnabled() then
-		local e = moneyModule.Element:new(12345)
-		runner:assertEqual(e ~= nil, true, "Element: Money created")
-		if e then
+		local payload = moneyModule:BuildPayload(12345)
+		runner:assertEqual(payload ~= nil, true, "BuildPayload: Money created")
+		if payload then
+			local e = G_RLF.LootElementBase:fromPayload(payload)
 			runner:assertEqual(e.type, "Money", "Element: Money.type")
 			runner:assertEqual(e.key, "MONEY_LOOT", "Element: Money.key")
 			runner:assertEqual(e.quantity, 12345, "Element: Money.quantity")

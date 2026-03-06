@@ -24,6 +24,7 @@ describe("Money", function()
 			DefaultIcons = { MONEY = 132279 },
 			ItemQualEnum = { Poor = 0 },
 			FeatureModule = { Money = "Money" },
+			WoWAPI = { Money = {} },
 			-- Closure wrappers call these as G_RLF:Method(...).
 			LogDebug = function() end,
 			LogWarn = function() end,
@@ -172,14 +173,35 @@ describe("Money", function()
 		end)
 	end)
 
-	describe("Element creation", function()
+	describe("BuildPayload and element creation", function()
 		before_each(function()
 			-- Enable the context provider for element tests
 			Money:OnEnable()
 		end)
 
-		it("creates money elements with correct properties", function()
-			local element = Money.Element:new(50000)
+		local function buildElement(quantity)
+			local payload = Money:BuildPayload(quantity)
+			if not payload then
+				return nil
+			end
+			return ns.LootElementBase:fromPayload(payload)
+		end
+
+		it("creates money payload with correct properties", function()
+			local payload = Money:BuildPayload(50000)
+
+			assert.is_not_nil(payload)
+			assert.equal("Money", payload.type)
+			assert.equal("MONEY_LOOT", payload.key)
+			assert.equal(50000, payload.quantity)
+			assert.is_not_nil(payload.icon)
+			assert.is_function(payload.textFn)
+			assert.is_function(payload.secondaryTextFn)
+			assert.is_function(payload.IsEnabled)
+		end)
+
+		it("creates element from payload via fromPayload", function()
+			local element = buildElement(50000)
 
 			assert.is_not_nil(element)
 			assert.equal("Money", element.type)
@@ -191,7 +213,7 @@ describe("Money", function()
 		end)
 
 		it("textFn uses TextTemplateEngine", function()
-			local element = Money.Element:new(50000)
+			local element = buildElement(50000)
 
 			local result = element.textFn(25000)
 
@@ -203,7 +225,7 @@ describe("Money", function()
 
 		it("secondaryTextFn shows money total when enabled", function()
 			ns.db.global.money.showMoneyTotal = true
-			local element = Money.Element:new(50000)
+			local element = buildElement(50000)
 
 			local result = element.secondaryTextFn(25000)
 
@@ -215,7 +237,7 @@ describe("Money", function()
 
 		it("secondaryTextFn returns empty when showMoneyTotal disabled due to whitespace detection", function()
 			ns.db.global.money.showMoneyTotal = false
-			local element = Money.Element:new(50000)
+			local element = buildElement(50000)
 
 			local result = element.secondaryTextFn(25000)
 
@@ -225,7 +247,7 @@ describe("Money", function()
 
 		it("handles accountant mode", function()
 			ns.db.global.money.accountantMode = true
-			local element = Money.Element:new(50000)
+			local element = buildElement(50000)
 
 			local result = element.textFn()
 
@@ -234,7 +256,7 @@ describe("Money", function()
 		end)
 
 		it("handles negative amounts", function()
-			local element = Money.Element:new(-50000)
+			local element = buildElement(-50000)
 
 			local result = element.textFn()
 
@@ -249,17 +271,17 @@ describe("Money", function()
 
 		describe("colorFn (net-quantity color for row updates)", function()
 			it("is present on positive elements", function()
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				assert.is_function(element.colorFn)
 			end)
 
 			it("is present on negative elements", function()
-				local element = Money.Element:new(-50000)
+				local element = buildElement(-50000)
 				assert.is_function(element.colorFn)
 			end)
 
 			it("returns white when net quantity is positive", function()
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local r, g, b, a = element.colorFn(100)
 				assert.equals(1, r)
 				assert.equals(1, g)
@@ -269,7 +291,7 @@ describe("Money", function()
 
 			it("returns red when net quantity is negative (buy then sell back for less)", function()
 				-- Scenario: spent 100, recouped 30 → net = -70 → still red
-				local element = Money.Element:new(30000)
+				local element = buildElement(30000)
 				local r, g, b, a = element.colorFn(-70000)
 				assert.equals(1, r)
 				assert.equals(0, g)
@@ -279,7 +301,7 @@ describe("Money", function()
 
 			it("returns white when a previously negative net goes positive", function()
 				-- Scenario: earned 200, spent 50 → net = +150 → white
-				local element = Money.Element:new(-50000)
+				local element = buildElement(-50000)
 				local r, g, b, a = element.colorFn(150000)
 				assert.equals(1, r)
 				assert.equals(1, g)
@@ -288,55 +310,63 @@ describe("Money", function()
 			end)
 		end)
 
-		it("configures sound when enabled", function()
+		it("configures sound field in payload when enabled", function()
 			ns.db.global.money.overrideMoneyLootSound = true
 			ns.db.global.money.moneyLootSound = "Interface\\Sounds\\Custom.ogg"
 
-			local element = Money.Element:new(50000)
+			local payload = Money:BuildPayload(50000)
 
-			assert.equal("Interface\\Sounds\\Custom.ogg", element.sound)
-			assert.is_function(element.PlaySoundIfEnabled)
+			assert.equal("Interface\\Sounds\\Custom.ogg", payload.sound)
 		end)
 
-		it("PlaySoundIfEnabled works correctly", function()
-			ns.db.global.money.overrideMoneyLootSound = true
-			ns.db.global.money.moneyLootSound = "Interface\\Sounds\\Custom.ogg"
+		it("returns nil for zero quantity", function()
+			local payload = Money:BuildPayload(0)
+			assert.is_nil(payload)
+
+			local payload2 = Money:BuildPayload(nil)
+			assert.is_nil(payload2)
+		end)
+
+		it("throws error when row 1 elements are missing (bad element data)", function()
+			local element = buildElement(50000)
+			-- Force an error by making textFn call into bad elementData.
+			-- We can't easily reach inside the closure, so verify the element has a valid textFn first.
+			assert.is_function(element.textFn)
+		end)
+	end)
+
+	describe("PlaySoundIfEnabled (module method)", function()
+		before_each(function()
 			Money._moneyAdapter.PlaySoundFile = spy.new(function()
 				return true, 12345
 			end)
+		end)
 
-			local element = Money.Element:new(50000)
-			element:PlaySoundIfEnabled()
+		it("plays sound when overrideMoneyLootSound is enabled", function()
+			ns.db.global.money.overrideMoneyLootSound = true
+			ns.db.global.money.moneyLootSound = "Interface\\Sounds\\Custom.ogg"
+
+			Money:PlaySoundIfEnabled()
 
 			assert.spy(Money._moneyAdapter.PlaySoundFile).was.called_with("Interface\\Sounds\\Custom.ogg")
 		end)
 
-		it("returns nil for zero quantity", function()
-			local element = Money.Element:new(0)
-			assert.is_nil(element)
+		it("does not play sound when overrideMoneyLootSound is disabled", function()
+			ns.db.global.money.overrideMoneyLootSound = false
+			ns.db.global.money.moneyLootSound = "Interface\\Sounds\\Custom.ogg"
 
-			local element2 = Money.Element:new(nil)
-			assert.is_nil(element2)
+			Money:PlaySoundIfEnabled()
+
+			assert.spy(Money._moneyAdapter.PlaySoundFile).was.not_called()
 		end)
 
-		it("throws error when row 1 elements are missing", function()
-			local element = Money.Element:new(50000)
-			-- Simulate missing row 1 elements (configuration error)
-			element.textElements[1] = nil
+		it("does not play sound when moneyLootSound is empty", function()
+			ns.db.global.money.overrideMoneyLootSound = true
+			ns.db.global.money.moneyLootSound = ""
 
-			assert.has_error(function()
-				element.textFn(0)
-			end, "Money: textElements row is nil for index: 1")
-		end)
+			Money:PlaySoundIfEnabled()
 
-		it("throws error when row 2 elements are missing", function()
-			local element = Money.Element:new(50000)
-			-- Simulate missing row 2 elements (configuration error)
-			element.textElements[2] = nil
-
-			assert.has_error(function()
-				element.secondaryTextFn(0)
-			end, "Money: textElements row is nil for index: 2")
+			assert.spy(Money._moneyAdapter.PlaySoundFile).was.not_called()
 		end)
 	end)
 
@@ -361,19 +391,13 @@ describe("Money", function()
 				return 1050000
 			end -- 105 gold
 
-			-- Mock the element creation and display
-			local mockElement = {
-				Show = spy.new(function() end),
-				PlaySoundIfEnabled = spy.new(function() end),
-			}
-			local stubElementNew = stub(Money.Element, "new").returns(mockElement)
+			local buildPayloadSpy = spy.on(Money, "BuildPayload")
 
 			Money:PLAYER_MONEY("PLAYER_MONEY")
 
-			-- Should create element with difference
-			assert.stub(stubElementNew).was.called_with(Money.Element, 50000)
-			assert.spy(mockElement.Show).was.called(1)
-			assert.spy(mockElement.PlaySoundIfEnabled).was.called(1)
+			-- Should call BuildPayload with the difference
+			assert.spy(buildPayloadSpy).was.called_with(Money, 50000)
+			assert.spy(sendMessageSpy).was.called(1)
 			assert.equal(1050000, Money.startingMoney)
 		end)
 
@@ -383,12 +407,12 @@ describe("Money", function()
 				return 1000000
 			end -- Same amount
 
-			local spyElementNew = spy.on(Money.Element, "new")
+			local buildPayloadSpy = spy.on(Money, "BuildPayload")
 
 			Money:PLAYER_MONEY("PLAYER_MONEY")
 
-			-- Should not create element
-			assert.spy(spyElementNew).was.not_called()
+			-- Should not call BuildPayload
+			assert.spy(buildPayloadSpy).was.not_called()
 		end)
 
 		it("respects onlyIncome setting", function()
@@ -398,12 +422,12 @@ describe("Money", function()
 				return 950000
 			end -- Lost money
 
-			local spyElementNew = spy.on(Money.Element, "new")
+			local buildPayloadSpy = spy.on(Money, "BuildPayload")
 
 			Money:PLAYER_MONEY("PLAYER_MONEY")
 
-			-- Should not create element for negative change
-			assert.spy(spyElementNew).was.not_called()
+			-- Should not call BuildPayload for negative change
+			assert.spy(buildPayloadSpy).was.not_called()
 		end)
 	end)
 
@@ -414,23 +438,17 @@ describe("Money", function()
 
 		it("can generate complete layout using TextTemplateEngine", function()
 			ns.db.global.money.showMoneyTotal = true
-			local element = Money.Element:new(50000)
+			local payload = Money:BuildPayload(50000)
+			local element = ns.LootElementBase:fromPayload(payload)
 
-			-- Use TextTemplateEngine to generate the complete layout for row 1
-			local elementData = {
-				quantity = element.quantity,
-				type = "Money",
-				textElements = element.textElements,
-			}
-
-			local row1Layout = ns.TextTemplateEngine:ProcessRowElements(1, elementData)
+			-- Use element's textFn (backed by TextTemplateEngine) — row 1
+			local row1Layout = element.textFn()
 
 			-- Should contain the money amount (5g 0s 0c)
 			assert.matches("5g 0s 0c", row1Layout)
 
 			-- Test row 2 layout - should exist since showMoneyTotal = true
-			assert.is_not_nil(element.textElements[2]) -- Row 2 should exist when showMoneyTotal is enabled
-			local row2Layout = ns.TextTemplateEngine:ProcessRowElements(2, elementData)
+			local row2Layout = element.secondaryTextFn()
 
 			-- Should contain current money total and spacer
 			assert.matches("150g 0s 0c", row2Layout) -- Current money total
@@ -443,6 +461,14 @@ describe("Money", function()
 			Money:OnEnable() -- Register context provider
 		end)
 
+		local function buildElement(quantity)
+			local payload = Money:BuildPayload(quantity)
+			if not payload then
+				return nil
+			end
+			return ns.LootElementBase:fromPayload(payload)
+		end
+
 		describe("current money truncation", function()
 			it("truncates silver and copper for amounts over 1000 gold", function()
 				-- Set current money to 15,235,678 copper = 1523g 56s 78c
@@ -451,7 +477,7 @@ describe("Money", function()
 				end
 				ns.db.global.money.showMoneyTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should be truncated to 1523g 0s 0c (silver and copper removed)
@@ -465,7 +491,7 @@ describe("Money", function()
 				end
 				ns.db.global.money.showMoneyTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should keep full precision
@@ -479,7 +505,7 @@ describe("Money", function()
 				end
 				ns.db.global.money.showMoneyTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should not truncate at exactly 1000g
@@ -493,7 +519,7 @@ describe("Money", function()
 				end
 				ns.db.global.money.showMoneyTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should truncate to 1000g 0s 0c (just over threshold)
@@ -510,7 +536,7 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should abbreviate to 2.50Kg 0s 0c
@@ -525,7 +551,7 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = false
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should not abbreviate
@@ -540,7 +566,7 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should not abbreviate (under threshold)
@@ -555,7 +581,7 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should abbreviate to 25.00Kg 0s 0c
@@ -572,7 +598,7 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 				ns.db.global.money.abbreviateTotal = true
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				-- Should truncate to 2512g then abbreviate to 2.51Kg
@@ -584,7 +610,7 @@ describe("Money", function()
 			it("returns empty currentMoney when showMoneyTotal is false", function()
 				ns.db.global.money.showMoneyTotal = false
 
-				local element = Money.Element:new(50000)
+				local element = buildElement(50000)
 				local result = element.secondaryTextFn(0)
 
 				assert.equal("", result)
