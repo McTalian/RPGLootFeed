@@ -74,9 +74,8 @@ function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 	local totalEarned = currencyInfo.totalEarned
 	local itemCount = currencyInfo.quantity
 
-	-- Honor currency special case (key is a string, adapter returns a number —
-	-- this comparison intentionally preserves the pre-existing runtime behaviour)
-	if key == Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
+	-- Honor currency special case
+	if currencyID == Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
 		itemCount = Currency._currencyAdapter.GetUnitHonorLevel("player")
 		cappedQuantity = Currency._currencyAdapter.GetUnitHonorMax("player")
 		totalEarned = Currency._currencyAdapter.GetUnitHonor("player")
@@ -147,7 +146,7 @@ function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 				local midColor = currencyDb.midColor
 				local upperColor = currencyDb.upperColor
 				local color = RGBAToHexFormat(unpack(lowestColor))
-				if key ~= Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
+				if currencyID ~= Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
 					if percentage < lowThreshold then
 						color = RGBAToHexFormat(unpack(lowestColor))
 					elseif percentage >= lowThreshold and percentage < upperThreshold then
