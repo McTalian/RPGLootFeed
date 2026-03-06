@@ -81,14 +81,14 @@ lua_deps:
 	@luarocks install busted --local --force --lua-version 5.4
 
 check_untracked_files:
-	@if [ -n "$$(git ls-files --others --exclude-standard)" ]; then \
-		echo "You have untracked files:"; \
-		git ls-files --others --exclude-standard; \
+	@if [ -n "$$(git ls-files --others --exclude-standard -- RPGLootFeed/)" ]; then \
+		echo "You have untracked files in RPGLootFeed/:"; \
+		git ls-files --others --exclude-standard -- RPGLootFeed/; \
 		echo ""; \
 		echo "This may cause errors in game. Please stage or remove them."; \
 		exit 1; \
 	else \
-		echo "No untracked files."; \
+		echo "No untracked files in RPGLootFeed/."; \
 	fi
 
 toc_check:
