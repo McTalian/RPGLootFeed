@@ -106,17 +106,17 @@ Modules are migrated one at a time. Each migration includes:
 5. Update SmokeTest element constructor assertions
 6. Verify busted tests + in-game smoke/integration tests pass
 
-| Module         | Status         | Notes                                                   |
-| -------------- | -------------- | ------------------------------------------------------- |
-| **Reputation** | ✅ Complete    | Proof-of-concept; dual event path (Retail/Classic)      |
-| Experience     | ✅ Complete    | Simple scalar; adapter moved to WoWAPI.Experience       |
-| Money          | ⏳ Not Started | Simple scalar; already has adapter + TextTemplateEngine |
-| ItemLoot       | ⏳ Not Started | Complex; ItemInfo object, stat deltas, async            |
-| Currency       | ⏳ Not Started | 3-tuple API data; hidden currency filtering             |
-| PartyLoot      | ⏳ Not Started | Routes to separate frame; unit-aware                    |
-| Professions    | ⏳ Not Started | Chat-parsed; `itemCount` used for skill delta display   |
-| Transmog       | ⏳ Not Started | Async item loading; custom link behavior                |
-| TravelPoints   | ⏳ Not Started | Simple; discovery-based                                 |
+| Module         | Status         | Notes                                                                                  |
+| -------------- | -------------- | -------------------------------------------------------------------------------------- |
+| **Reputation** | ✅ Complete    | Proof-of-concept; dual event path (Retail/Classic)                                     |
+| Experience     | ✅ Complete    | Simple scalar; adapter moved to WoWAPI.Experience                                      |
+| Money          | ✅ Complete    | Simple scalar; adapter to WoWAPI.Money; `PlaySoundIfEnabled` promoted to module method |
+| ItemLoot       | ⏳ Not Started | Complex; ItemInfo object, stat deltas, async                                           |
+| Currency       | ⏳ Not Started | 3-tuple API data; hidden currency filtering                                            |
+| PartyLoot      | ⏳ Not Started | Routes to separate frame; unit-aware                                                   |
+| Professions    | ⏳ Not Started | Chat-parsed; `itemCount` used for skill delta display                                  |
+| Transmog       | ⏳ Not Started | Async item loading; custom link behavior                                               |
+| TravelPoints   | ✅ Complete    | Simple; two inline adapters consolidated to WoWAPI.TravelPoints                        |
 
 ## Key Decisions
 
@@ -151,6 +151,24 @@ Modules are migrated one at a time. Each migration includes:
 - [Experience_spec.lua](../../RPGLootFeed_spec/Features/Experience_spec.lua) — Updated to `BuildPayload`/`fromPayload`, `_xpAdapter` naming, `WoWAPI` mock, added `itemCountFn` tests
 - [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) — XP smoke test uses `BuildPayload` → `fromPayload`; Rep smoke test added
 - [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — XP integration test uses `BuildPayload` → `fromPayload`; Rep integration test refactored to cover Retail via direct payload construction
+
+### Modified (Money Migration)
+
+- [Money.lua](../../RPGLootFeed/Features/Money.lua) — Removed `Money.Element:new()`, added `Money:BuildPayload()`; inline `MoneyAdapter` replaced with `G_RLF.WoWAPI.Money`; `PlaySoundIfEnabled` promoted from element method to module method
+- [WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua) — Added `G_RLF.WoWAPI.Money` (`GetCoinTextureString`, `GetMoney`, `PlaySoundFile`)
+- [LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua) — Removed `Money.Element` from `RLF_LootElement` type alias
+- [Money_spec.lua](../../RPGLootFeed_spec/Features/Money_spec.lua) — Updated to `BuildPayload`/`fromPayload` pattern; `PlaySoundIfEnabled` tests use `Money:PlaySoundIfEnabled()` not element method; added `WoWAPI` mock
+- [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) — Money smoke test uses `BuildPayload` → `fromPayload`
+- [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Money integration test uses `BuildPayload` → `fromPayload`
+
+### Modified (TravelPoints Migration)
+
+- [TravelPoints.lua](../../RPGLootFeed/Features/TravelPoints.lua) — Removed `TravelPoints.Element:new()`, added `TravelPoints:BuildPayload()`; two inline adapters (`_perksActivitiesAdapter`, `_globalStringsAdapter`) consolidated into `G_RLF.WoWAPI.TravelPoints`/`_travelPointsAdapter`; `PERKS_ACTIVITY_COMPLETED` handler uses `BuildPayload` → `fromPayload` → `Show`
+- [WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua) — Added `G_RLF.WoWAPI.TravelPoints` (`GetPerksActivitiesInfo`, `GetPerksActivityInfo`, `GetMonthlyActivitiesPointsLabel`)
+- [LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua) — Removed `TravelPoints.Element` from `RLF_LootElement` type alias
+- [TravelPoints_spec.lua](../../RPGLootFeed_spec/Features/TravelPoints_spec.lua) — Updated to `BuildPayload`/`fromPayload` pattern; `_perksActivitiesAdapter`/`_globalStringsAdapter` combined into `_travelPointsAdapter`; added `WoWAPI` mock
+- [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) — TravelPoints smoke test uses `BuildPayload` → `fromPayload`
+- [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Added `runTravelPointsIntegrationTest()` (Retail-only, direct payload construction)
 
 ## Future Considerations
 

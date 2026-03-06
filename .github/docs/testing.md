@@ -126,16 +126,15 @@ Feature modules expose their full dependency surface as locals at the top of the
 
 | Spec file                        | Pattern highlights                                                                                                     |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `TravelPoints_spec.lua`          | Canonical baseline — simplest pattern                                                                                  |
+| `TravelPoints_spec.lua`          | Canonical baseline — simplest pattern; two adapters combined to `_travelPointsAdapter`                                 |
 | `Transmog_spec.lua`              | Canonical baseline                                                                                                     |
 | `Experience_spec.lua`            | Bare WoW global fn adapter (`UnitXP` etc.)                                                                             |
-| `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine                                                              |
+| `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine; `PlaySoundIfEnabled` on module not element                  |
 | `Professions_spec.lua`           | `GetProfessions/GetProfessionInfo`, locale globals                                                                     |
 | `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin, `BuildPayload` spy pattern            |
 | `PartyLoot_spec.lua`             | UnitName/UnitClass, GUID, expansion-gate, nameUnitMap                                                                  |
 | `Currency_spec.lua`              | C_Everywhere + bare global fallbacks, Classic locale patterns, adapter factory                                         |
 | `ItemLoot_spec.lua`              | Most complex: AceBucket mixin, `_itemLootAdapter` with 14 methods, `Enum` global, classical/Retail branching, 49 tests |
-| `Money_spec.lua`                 | `colorFn` hook on `Element:new()` for net-quantity-aware row color on update                                           |
 
 **Inline utility stub pattern** — for modules with large utility deps having deep WoW API chains (e.g. `RepUtils` → `C_Reputation` / `C_GossipInfo` / `C_MajorFactions`), stub the entire utility table inline on `ns` rather than loading the real file:
 
@@ -224,8 +223,8 @@ end)
 - Provide `ns.db` manually — never rely on AceDB being initialised
 - Inline `ns.FeatureBase` stub so AceAddon is never invoked
 - Inject fresh adapter tables _after_ `loadfile` (they're module-level fields, not captured locals)
-- For modules migrated to `fromPayload()` architecture: include `WoWAPI = { ModuleName = {} }` in `ns` so the shared adapter reference resolves at load time. Tests still override `Module._repAdapter` (or equivalent) directly in `before_each`.
-- Spy on `Module:BuildPayload` instead of `Module.Element:new` for migrated modules (e.g. Reputation, Experience)
+- For modules migrated to `fromPayload()` architecture: include `WoWAPI = { ModuleName = {} }` in `ns` so the shared adapter reference resolves at load time. Tests still override `Module._someAdapter` (or equivalent) directly in `before_each`.
+- Spy on `Module:BuildPayload` instead of `Module.Element:new` for migrated modules (Reputation, Experience, Money, TravelPoints)
 - `G_RLF.db` is intentionally excluded from dependency locals in feature files — always runtime
 - **Always capture the module from the `loadfile` return value** — see [Module Return Convention](#module-return-convention) below
 
