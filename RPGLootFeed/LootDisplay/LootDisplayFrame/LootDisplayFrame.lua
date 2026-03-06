@@ -469,7 +469,9 @@ function LootDisplayFrameMixin:CreateHistoryFrame()
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
 	for i = 1, sizingDb.maxRows do
 		local row = CreateFrame("Frame", nil, self.historyContent, "LootDisplayRowTemplate")
+		row.frameType = self.frameType
 		row:SetSize(sizingDb.feedWidth, sizingDb.rowHeight)
+		row:Init()
 		table.insert(self.historyRows, row)
 	end
 

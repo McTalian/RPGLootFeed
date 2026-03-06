@@ -338,95 +338,13 @@ end
 
 --- Update the total item count for the row
 function RLF_RowTextMixin:UpdateItemCount()
-	if self.type == "Professions" then
-		---@type RLF_ConfigProfession
-		local profDb = G_RLF.db.global.prof
-		if not profDb.showSkillChange then
-			return
-		end
+	-- Migrated modules provide itemCountFn on the payload
+	if self.itemCountFn then
 		RunNextFrame(function()
-			self:ShowItemCountText(self.amount, {
-				color = G_RLF:RGBAToHexFormat(unpack(profDb.skillColor)),
-				wrapChar = profDb.skillTextWrapChar,
-				showSign = true,
-			})
-		end)
-		return
-	end
-
-	if self.itemCount == nil then
-		return
-	end
-
-	if self.type == "ItemLoot" and not self.unit then
-		---@type RLF_ConfigItemLoot
-		local itemDb = G_RLF.db.global.item
-		if not itemDb.itemCountTextEnabled then
-			return
-		end
-		if not self.link then
-			G_RLF:LogDebug("Item link is nil")
-			return
-		end
-		RunNextFrame(function()
-			local itemInfo = self.link
-			local success, name = pcall(function()
-				return C_Item.GetItemInfo(itemInfo)
-			end)
-			if not success or not name then
-				G_RLF:LogDebug("Failed to get item info for link: %s", itemInfo)
-				return
+			local value, options = self.itemCountFn()
+			if value then
+				self:ShowItemCountText(value, options)
 			end
-			local itemCount = C_Item.GetItemCount(itemInfo, true, false, true, true)
-			self:ShowItemCountText(itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(itemDb.itemCountTextColor)),
-				wrapChar = itemDb.itemCountTextWrapChar,
-			})
-		end)
-		return
-	end
-
-	if self.type == "Currency" then
-		---@type RLF_ConfigCurrency
-		local currencyDb = G_RLF.db.global.currency
-		if not currencyDb.currencyTotalTextEnabled then
-			return
-		end
-		RunNextFrame(function()
-			self:ShowItemCountText(self.itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(currencyDb.currencyTotalTextColor)),
-				wrapChar = currencyDb.currencyTotalTextWrapChar,
-			})
-		end)
-		return
-	end
-
-	if self.type == "Reputation" and self.itemCount then
-		---@type RLF_ConfigReputation
-		local repDb = G_RLF.db.global.rep
-		if not repDb.enableRepLevel then
-			return
-		end
-		RunNextFrame(function()
-			self:ShowItemCountText(self.itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(repDb.repLevelColor)),
-				wrapChar = repDb.repLevelTextWrapChar,
-			})
-		end)
-		return
-	end
-
-	if self.type == "Experience" and self.itemCount then
-		---@type RLF_ConfigExperience
-		local xpDb = G_RLF.db.global.xp
-		if not xpDb.showCurrentLevel then
-			return
-		end
-		RunNextFrame(function()
-			self:ShowItemCountText(self.itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(xpDb.currentLevelColor)),
-				wrapChar = xpDb.currentLevelTextWrapChar,
-			})
 		end)
 		return
 	end

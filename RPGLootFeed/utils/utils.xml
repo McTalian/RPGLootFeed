@@ -13,4 +13,5 @@
   <Script file="Queue.lua"/>
   <Script file="HistoryService.lua"/>
   <Script file="ReputationHelpers.lua"/>
+  <Script file="WoWAPIAdapters.lua"/>
 </Ui>

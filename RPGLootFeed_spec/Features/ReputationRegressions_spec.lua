@@ -45,7 +45,9 @@ describe("Reputation Regressions", function()
 				return nil, nil
 			end,
 			SendMessage = sendMessageSpy,
-			-- Runtime lookups by LootElementBase:new() and feature code.
+			-- Shared adapter namespace; tests override Rep._repAdapter directly.
+			WoWAPI = { Reputation = {} },
+			-- Runtime lookups by LootElementBase:fromPayload() and feature code.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 5 } },
@@ -54,6 +56,9 @@ describe("Reputation Regressions", function()
 						defaultRepColor = { 1, 1, 1, 1 },
 						enableIcon = true,
 						secondaryTextAlpha = 1,
+						enableRepLevel = true,
+						repLevelColor = { 0.5, 0.5, 1, 1 },
+						repLevelTextWrapChar = 1,
 					},
 					misc = { hideAllIcons = false },
 				},
@@ -202,7 +207,7 @@ describe("Reputation Regressions", function()
 	end)
 
 	it("handles The Anglers in MOP Classic, ruRU", function()
-		local spyElementNew = spy.on(RepModule.Element, "new")
+		local spyBuildPayload = spy.on(RepModule, "BuildPayload")
 
 		-- Stub ParseFactionChangeMessage to return faction name and repChange.
 		stub(RepModule, "ParseFactionChangeMessage").returns("Рыболовы", 1100, false, false)
@@ -232,6 +237,6 @@ describe("Reputation Regressions", function()
 			standing = 2,
 		}
 
-		assert.spy(spyElementNew).was.called_with(RepModule.Element, match.is_same(expectedFactionDetails))
+		assert.spy(spyBuildPayload).was.called_with(RepModule, match.is_same(expectedFactionDetails))
 	end)
 end)

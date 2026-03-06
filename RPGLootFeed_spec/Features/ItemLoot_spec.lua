@@ -97,6 +97,10 @@ describe("ItemLoot Module", function()
 				end,
 			},
 			Frames = { MAIN = "MAIN" },
+			-- WoWAPI namespace: ItemLoot.lua captures G_RLF.WoWAPI.ItemLoot as
+			-- _itemLootAdapter at load time.  The spec replaces _itemLootAdapter
+			-- with a full mock after loadfile, so the table just needs to exist.
+			WoWAPI = { ItemLoot = {} },
 			-- Log closure wrappers call these as G_RLF:Method(...) so self is ns.
 			LogDebug = spy.new(function() end),
 			LogInfo = spy.new(function() end),
@@ -159,6 +163,9 @@ describe("ItemLoot Module", function()
 							tertiaryOrSocket = false,
 							transmog = false,
 						},
+						itemCountTextEnabled = false,
+						itemCountTextColor = { 1, 1, 1, 1 },
+						itemCountTextWrapChar = nil,
 					},
 					misc = {
 						hideAllIcons = false,
@@ -167,12 +174,6 @@ describe("ItemLoot Module", function()
 				},
 			},
 		}
-
-		-- LibStub must be available before loadfile: ItemLoot.lua calls
-		-- LibStub("C_Everywhere") at module root to capture the C library into the
-		-- ItemLootAdapter closure.  The adapter's API methods are replaced after
-		-- loadfile so the actual C_Everywhere mock content doesn't matter.
-		require("RPGLootFeed_spec._mocks.Libs.LibStub")
 
 		-- Load real LootElementBase so elements are fully constructed.
 		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
@@ -263,6 +264,8 @@ describe("ItemLoot Module", function()
 			assert.is_function(ItemLoot.SetEquippableArmorClass)
 			assert.is_function(ItemLoot.OnItemReadyToShow)
 			assert.is_function(ItemLoot.ShowItemLoot)
+			assert.is_function(ItemLoot.BuildPayload)
+			assert.is_function(ItemLoot.PlaySoundIfEnabled)
 		end)
 
 		it("exposes _itemLootAdapter on the module", function()
@@ -605,144 +608,72 @@ describe("ItemLoot Module", function()
 		end)
 	end)
 
-	describe("Element:new", function()
-		it("constructs with base element fields", function()
+	describe("BuildPayload", function()
+		it("constructs payload with base fields", function()
 			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.equals("ItemLoot", element.type)
-			assert.equals(1, element.quantity)
-			assert.is_function(element.IsEnabled)
-			assert.is_function(element.textFn)
-			assert.is_function(element.secondaryTextFn)
-			assert.is_function(element.isPassingFilter)
-			assert.is_function(element.PlaySoundIfEnabled)
-			assert.is_function(element.SetHighlight)
+			assert.is_not_nil(payload)
+			assert.equals("ItemLoot", payload.type)
+			assert.equals(1, payload.quantity)
+			assert.is_function(payload.IsEnabled)
+			assert.is_function(payload.textFn)
+			assert.is_function(payload.secondaryTextFn)
+			assert.is_function(payload.itemCountFn)
 		end)
 
-		it("sets element.key to itemLink", function()
+		it("sets payload.key to itemLink", function()
 			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.equals(info.itemLink, element.key)
+			assert.equals(info.itemLink, payload.key)
 		end)
 
-		it("sets element.icon when icons are enabled", function()
+		it("sets payload.icon when icons are enabled", function()
 			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.equals(info.itemTexture, element.icon)
+			assert.equals(info.itemTexture, payload.icon)
 		end)
 
 		it("sets icon to nil when item icons are disabled", function()
 			ns.db.global.item.enableIcon = false
 			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.is_nil(element.icon)
+			assert.is_nil(payload.icon)
 		end)
 
 		it("sets icon to nil when hideAllIcons is set", function()
 			ns.db.global.misc.hideAllIcons = true
 			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.is_nil(element.icon)
+			assert.is_nil(payload.icon)
 		end)
 
 		it("sets showForSeconds from quality settings when duration > 0", function()
 			ns.db.global.item.itemQualitySettings[2] = { enabled = true, duration = 7 }
 			local info = makeItemInfo({ itemQuality = 2 })
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.equals(7, element.showForSeconds)
+			assert.equals(7, payload.showForSeconds)
 		end)
 
-		it("does not override showForSeconds when quality duration is 0 (LootElementBase default preserved)", function()
+		it("leaves showForSeconds nil when quality duration is 0 (LootElementBase default preserved)", function()
 			ns.db.global.item.itemQualitySettings[2] = { enabled = true, duration = 0 }
 			local info = makeItemInfo({ itemQuality = 2 })
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			-- LootElementBase:new() defaults showForSeconds to animations.exit.fadeOutDelay (3)
-			-- The quality setting with duration=0 should NOT override it
-			assert.equals(ns.db.global.animations.exit.fadeOutDelay, element.showForSeconds)
+			-- Nil means fromPayload will use the LootElementBase default (animations.exit.fadeOutDelay)
+			assert.is_nil(payload.showForSeconds)
 		end)
 
 		it("sets isLink = true", function()
 			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.is_true(element.isLink)
-		end)
-
-		it("sets itemCount from adapter", function()
-			ItemLoot._itemLootAdapter.GetItemCount = function()
-				return 5
-			end
-			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
-
-			assert.equals(5, element.itemCount)
-		end)
-
-		it("sets isMount from ItemInfo", function()
-			local info = makeItemInfo({
-				IsMount = function()
-					return true
-				end,
-			})
-			local element = ItemLoot.Element:new(info, 1, nil)
-
-			assert.is_true(element.isMount)
-		end)
-
-		it("sets isLegendary from ItemInfo", function()
-			local info = makeItemInfo({
-				IsLegendary = function()
-					return true
-				end,
-			})
-			local element = ItemLoot.Element:new(info, 1, nil)
-
-			assert.is_true(element.isLegendary)
-		end)
-
-		it("sets isQuestItem from ItemInfo", function()
-			ns.db.global.item.textStyleOverrides.quest.enabled = false
-			local info = makeItemInfo({
-				IsQuestItem = function()
-					return true
-				end,
-			})
-			local element = ItemLoot.Element:new(info, 1, nil)
-
-			assert.is_true(element.isQuestItem)
-		end)
-
-		it("applies quest color when quest style override is enabled", function()
-			ns.db.global.item.textStyleOverrides.quest.enabled = true
-			ns.db.global.item.textStyleOverrides.quest.color = { 1, 0.82, 0, 1 }
-			local info = makeItemInfo({
-				IsQuestItem = function()
-					return true
-				end,
-			})
-			local element = ItemLoot.Element:new(info, 1, nil)
-
-			assert.equals(1, element.r)
-			assert.equals(0.82, element.g)
-			assert.equals(0, element.b)
-			assert.equals(1, element.a)
-		end)
-
-		it("does not override color for non-quest items", function()
-			local info = makeItemInfo()
-			local element = ItemLoot.Element:new(info, 1, nil)
-
-			-- LootElementBase:new() defaults to white (1,1,1,1)
-			assert.equals(1, element.r)
-			assert.equals(1, element.g)
-			assert.equals(1, element.b)
+			assert.is_true(payload.isLink)
 		end)
 
 		it("sets topLeftText and topLeftColor for equippable non-poor items", function()
@@ -756,51 +687,76 @@ describe("ItemLoot Module", function()
 					return true
 				end,
 			})
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.equals("55", element.topLeftText)
-			assert.same({ 0.5, 0.5, 1 }, element.topLeftColor)
+			assert.equals("55", payload.topLeftText)
+			assert.same({ 0.5, 0.5, 1 }, payload.topLeftColor)
 		end)
 
 		it("does not set topLeftText for non-equippable items", function()
 			local info = makeItemInfo({ itemQuality = 3 })
 			-- IsEquippableItem defaults to false in makeItemInfo
-			local element = ItemLoot.Element:new(info, 1, nil)
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-			assert.is_nil(element.topLeftText)
+			assert.is_nil(payload.topLeftText)
 		end)
 
 		it("key gets UPGRADE_ prefix when fromLink is provided", function()
 			local info = makeItemInfo()
 			local fromLink = "|cffa335ee|Hitem:18789::::::::60:::::|h[Old]|h|r"
-			local element = ItemLoot.Element:new(info, 1, fromLink)
+			local payload = ItemLoot:BuildPayload(info, 1, fromLink)
 
-			assert.matches("^UPGRADE_", element.key)
+			assert.matches("^UPGRADE_", payload.key)
+		end)
+
+		it("applies quest color to r/g/b/a when quest style override is enabled", function()
+			ns.db.global.item.textStyleOverrides.quest.enabled = true
+			ns.db.global.item.textStyleOverrides.quest.color = { 1, 0.82, 0, 1 }
+			local info = makeItemInfo({
+				IsQuestItem = function()
+					return true
+				end,
+			})
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+			assert.equals(1, payload.r)
+			assert.equals(0.82, payload.g)
+			assert.equals(0, payload.b)
+			assert.equals(1, payload.a)
+		end)
+
+		it("does not set r/g/b/a for non-quest items", function()
+			local info = makeItemInfo()
+			local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+			assert.is_nil(payload.r)
+			assert.is_nil(payload.g)
+			assert.is_nil(payload.b)
 		end)
 
 		describe("textFn", function()
 			it("returns bare itemLink when no truncatedLink is provided", function()
 				local info = makeItemInfo()
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				assert.equals(info.itemLink, element.textFn(nil, nil))
+				assert.equals(info.itemLink, payload.textFn(nil, nil))
 			end)
 
 			it("returns only the link with no quantity suffix", function()
 				ns.db.global.misc.showOneQuantity = true
 				local info = makeItemInfo()
-				local element = ItemLoot.Element:new(info, 3, nil)
+				local payload = ItemLoot:BuildPayload(info, 3, nil)
 
-				local text = element.textFn(0, "[Link]")
+				local text = payload.textFn(0, "[Link]")
 				assert.equals("[Link]", text)
 			end)
 
 			it("omits quantity suffix when showOneQuantity is false and quantity is 1", function()
 				ns.db.global.misc.showOneQuantity = false
 				local info = makeItemInfo()
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				local text = element.textFn(0, "[Link]")
+				local text = payload.textFn(0, "[Link]")
 				assert.equals("[Link]", text)
 			end)
 		end)
@@ -809,74 +765,68 @@ describe("ItemLoot Module", function()
 			it("returns quantity suffix when showOneQuantity is true and quantity > 1", function()
 				ns.db.global.misc.showOneQuantity = true
 				local info = makeItemInfo()
-				local element = ItemLoot.Element:new(info, 3, nil)
+				local payload = ItemLoot:BuildPayload(info, 3, nil)
 
-				assert.equals("x3", element.amountTextFn(0))
+				assert.equals("x3", payload.amountTextFn(0))
 			end)
 
 			it("returns empty string when showOneQuantity is false and quantity is 1", function()
 				ns.db.global.misc.showOneQuantity = false
 				local info = makeItemInfo()
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				assert.equals("", element.amountTextFn(0))
+				assert.equals("", payload.amountTextFn(0))
 			end)
 		end)
 
-		describe("isPassingFilter", function()
-			it("returns false for disabled quality tier", function()
+		describe("quality filter", function()
+			it("returns nil for disabled quality tier", function()
 				ns.db.global.item.itemQualitySettings[2] = { enabled = false, duration = 3 }
 				local info = makeItemInfo({ itemQuality = 2 })
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				assert.is_false(element:isPassingFilter("Finkle's Lava Dredger", 2))
+				assert.is_nil(payload)
 			end)
 
-			it("returns true for enabled quality tier", function()
+			it("returns payload for enabled quality tier", function()
 				ns.db.global.item.itemQualitySettings[2] = { enabled = true, duration = 3 }
 				local info = makeItemInfo({ itemQuality = 2 })
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				assert.is_true(element:isPassingFilter("Finkle's Lava Dredger", 2))
+				assert.is_not_nil(payload)
 			end)
 		end)
 
-		describe("SetHighlight", function()
-			it("sets highlight = false when no conditions match", function()
+		describe("highlight", function()
+			it("highlight is false when no conditions match", function()
 				local info = makeItemInfo()
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				element:SetHighlight()
-
-				assert.is_false(element.highlight)
+				assert.is_false(payload.highlight)
 			end)
 
-			it("sets highlight = true for mounts when itemHighlights.mounts is enabled", function()
+			it("highlight is true for mounts when itemHighlights.mounts is enabled", function()
 				ns.db.global.item.itemHighlights.mounts = true
 				local info = makeItemInfo({
 					IsMount = function()
 						return true
 					end,
 				})
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				element:SetHighlight()
-
-				assert.is_true(element.highlight)
+				assert.is_true(payload.highlight)
 			end)
 
-			it("sets highlight = true for legendary items when itemHighlights.legendary is enabled", function()
+			it("highlight is true for legendary items when itemHighlights.legendary is enabled", function()
 				ns.db.global.item.itemHighlights.legendary = true
 				local info = makeItemInfo({
 					IsLegendary = function()
 						return true
 					end,
 				})
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				element:SetHighlight()
-
-				assert.is_true(element.highlight)
+				assert.is_true(payload.highlight)
 			end)
 		end)
 
@@ -892,9 +842,9 @@ describe("ItemLoot Module", function()
 						return true
 					end,
 				})
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				element:PlaySoundIfEnabled()
+				ItemLoot:PlaySoundIfEnabled(payload)
 
 				assert.spy(playSpy).was.called_with("Interface/Sounds/mount.ogg")
 			end)
@@ -910,9 +860,9 @@ describe("ItemLoot Module", function()
 						return true
 					end,
 				})
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				element:PlaySoundIfEnabled()
+				ItemLoot:PlaySoundIfEnabled(payload)
 
 				assert.spy(playSpy).was.called_with("Interface/Sounds/legendary.ogg")
 			end)
@@ -923,11 +873,66 @@ describe("ItemLoot Module", function()
 				end)
 				ItemLoot._itemLootAdapter.PlaySoundFile = playSpy
 				local info = makeItemInfo()
-				local element = ItemLoot.Element:new(info, 1, nil)
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
-				element:PlaySoundIfEnabled()
+				ItemLoot:PlaySoundIfEnabled(payload)
 
 				assert.spy(playSpy).was_not.called()
+			end)
+		end)
+
+		describe("itemCountFn", function()
+			it("returns nil when itemCountTextEnabled is false", function()
+				ns.db.global.item.itemCountTextEnabled = false
+				local info = makeItemInfo()
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+				local result = payload.itemCountFn()
+
+				assert.is_nil(result)
+			end)
+
+			it("returns item count and options when enabled and item is in cache", function()
+				ns.db.global.item.itemCountTextEnabled = true
+				ItemLoot._itemLootAdapter.GetItemInfo = function()
+					return "Finkle's Lava Dredger"
+				end
+				ItemLoot._itemLootAdapter.GetItemCount = function()
+					return 5
+				end
+				local info = makeItemInfo()
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+				local count, options = payload.itemCountFn()
+
+				assert.equals(5, count)
+				assert.is_table(options)
+			end)
+
+			it("returns nil when GetItemInfo fails (item not in cache)", function()
+				ns.db.global.item.itemCountTextEnabled = true
+				ItemLoot._itemLootAdapter.GetItemInfo = function()
+					error("item not cached")
+				end
+				local info = makeItemInfo()
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+				local result = payload.itemCountFn()
+
+				assert.is_nil(result)
+			end)
+
+			it("returns nil when GetItemInfo returns nil name", function()
+				ns.db.global.item.itemCountTextEnabled = true
+				ItemLoot._itemLootAdapter.GetItemInfo = function()
+					return nil
+				end
+				local info = makeItemInfo()
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+				local result = payload.itemCountFn()
+
+				assert.is_nil(result)
 			end)
 		end)
 	end)

@@ -39,70 +39,14 @@ local RGBAToHexFormat = function(...)
 end
 
 -- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Wraps bare WoW globals and C.Item.* calls so tests can inject mocks without
--- patching _G or LibStub.
-local C = LibStub("C_Everywhere")
-local ItemLootAdapter = {
-	GetExpansionLevel = function()
-		return GetExpansionLevel()
-	end,
-	UnitName = function(unit)
-		return UnitName(unit)
-	end,
-	UnitClass = function(unit)
-		return UnitClass(unit)
-	end,
-	UnitLevel = function(unit)
-		return UnitLevel(unit)
-	end,
-	IssecretValue = function(msg)
-		return issecretvalue and issecretvalue(msg)
-	end,
-	GetPlayerGuid = function()
-		return GetPlayerGuid()
-	end,
-	GetInventoryItemLink = function(unit, slot)
-		return GetInventoryItemLink(unit, slot)
-	end,
-	GetItemQualityColor = function(quality)
-		return C_Item.GetItemQualityColor(quality)
-	end,
-	GetCoinTextureString = function(price)
-		return C_CurrencyInfo.GetCoinTextureString(price)
-	end,
-	CreateAtlasMarkup = function(icon, w, h, x, y)
-		return CreateAtlasMarkup(icon, w, h, x, y)
-	end,
-	PlaySoundFile = function(sound)
-		return PlaySoundFile(sound)
-	end,
-	GetAHPrice = function(itemLink)
-		local ai = G_RLF.AuctionIntegrations
-		if ai and ai.activeIntegration then
-			return ai.activeIntegration:GetAHPrice(itemLink)
-		end
-		return nil
-	end,
-	GetItemInfo = function(link)
-		return C.Item.GetItemInfo(link)
-	end,
-	GetItemIDForItemInfo = function(link)
-		return C.Item.GetItemIDForItemInfo(link)
-	end,
-	GetItemCount = function(link, ...)
-		return C.Item.GetItemCount(link, ...)
-	end,
-	GetItemStatDelta = function(link1, link2)
-		return C.Item.GetItemStatDelta(link1, link2)
-	end,
-}
+-- The shared adapter lives in WoWAPIAdapters.lua (G_RLF.WoWAPI.ItemLoot).
+-- Captured here at module-load time so tests can override _itemLootAdapter
+-- without patching _G directly.
 
 ---@class RLF_ItemLoot: RLF_Module, AceEvent-3.0, AceBucket-3.0
 local ItemLoot = FeatureBase:new(FeatureModule.ItemLoot, "AceEvent-3.0", "AceBucket-3.0")
 
-ItemLoot._itemLootAdapter = ItemLootAdapter
-
-ItemLoot.Element = {}
+ItemLoot._itemLootAdapter = G_RLF.WoWAPI.ItemLoot
 
 --- Convert params into a string with an icon and price
 --- @param icon string
@@ -185,94 +129,145 @@ end
 ---@param info RLF_ItemInfo
 ---@param quantity number
 ---@param fromLink? string
-function ItemLoot.Element:new(info, quantity, fromLink)
-	---@class ItemLoot.Element: RLF_BaseLootElement
-	local element = LootElementBase:new()
-
-	element.type = FeatureModule.ItemLoot
-	element.IsEnabled = function()
-		return ItemLoot:IsEnabled()
+---@return RLF_ElementPayload|nil
+function ItemLoot:BuildPayload(info, quantity, fromLink)
+	-- Quality filter: return nil when the item's quality tier is disabled
+	local itemQualitySettings = G_RLF.db.global.item.itemQualitySettings[info.itemQuality]
+	if not itemQualitySettings or not itemQualitySettings.enabled then
+		LogDebug(
+			tostring(info.itemName) .. " ignored by quality: " .. tostring(ItemLoot:ItemQualityName(info.itemQuality)),
+			addonName,
+			"ItemLoot",
+			"",
+			nil,
+			quantity
+		)
+		return nil
 	end
 
-	element.isLink = true
-	element.quantity = quantity
-
 	local itemLink = info.itemLink
-
-	element.key = info.itemLink
+	local key = itemLink
 	local fromInfo = nil
 	if fromLink then
-		element.key = "UPGRADE_" .. element.key
+		key = "UPGRADE_" .. key
 		fromInfo = ItemInfo:new(
 			ItemLoot._itemLootAdapter.GetItemIDForItemInfo(fromLink),
 			ItemLoot._itemLootAdapter.GetItemInfo(fromLink)
 		)
 	end
 
-	element.icon = info.itemTexture
+	local icon = info.itemTexture
 	if not G_RLF.db.global.item.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
-	end
-	element.sellPrice = info.sellPrice
-	local itemQualitySettings = G_RLF.db.global.item.itemQualitySettings[info.itemQuality]
-	if itemQualitySettings and itemQualitySettings.enabled and itemQualitySettings.duration > 0 then
-		element.showForSeconds = itemQualitySettings.duration
-	end
-	-- Keystone specifics now handled via ItemInfo
-	element.isKeystone = info:IsKeystone()
-	if element.isKeystone then
-		-- Force display quality to Epic for keystones
-		element.quality = info:GetDisplayQuality()
+		icon = nil
 	end
 
-	element.itemCount = ItemLoot._itemLootAdapter.GetItemCount(info.itemLink, true, false, true, true)
+	local showForSeconds = nil
+	if itemQualitySettings.duration > 0 then
+		showForSeconds = itemQualitySettings.duration
+	end
 
-	element.topLeftText = nil
-	element.topLeftColor = nil
+	-- Keystone: force display quality to Epic
+	local quality = nil
+	if info:IsKeystone() then
+		quality = info:GetDisplayQuality()
+	end
+
+	local topLeftText = nil
+	local topLeftColor = nil
 	if info:IsEquippableItem() and info.itemQuality > ItemQualEnum.Poor then
-		element.topLeftText = tostring(info.itemLevel)
+		topLeftText = tostring(info.itemLevel)
 		local r, g, b = ItemLoot._itemLootAdapter.GetItemQualityColor(info.itemQuality)
-		element.topLeftColor = { r, g, b }
+		topLeftColor = { r, g, b }
 	end
 
-	function element:isPassingFilter(itemName, itemQuality)
-		if not G_RLF.db.global.item.itemQualitySettings[itemQuality].enabled then
-			LogDebug(
-				itemName .. " ignored by quality: " .. ItemLoot:ItemQualityName(itemQuality),
-				addonName,
-				"ItemLoot",
-				"",
-				nil,
-				self.quantity
-			)
-			return false
-		end
+	-- ── Compute item flags ────────────────────────────────────────────────────
+	local isMount = info:IsMount()
+	local isLegendary = info:IsLegendary()
+	local isBetterThanEquipped = IsBetterThanEquipped(info)
+	local hasTertiaryOrSocket = info:HasItemRollBonus()
+	local isQuestItem = info:IsQuestItem()
+	local isNewTransmog = not info:IsAppearanceCollected()
 
-		return true
+	-- ── Highlight ────────────────────────────────────────────────────────────
+	local itemHighlights = G_RLF.db.global.item.itemHighlights
+	local highlightReason = (isMount and itemHighlights.mounts and "Mount")
+		or (isLegendary and itemHighlights.legendary and "Legendary")
+		or (isBetterThanEquipped and itemHighlights.betterThanEquipped and "Better than Equipped")
+		or (isQuestItem and itemHighlights.quest and "Quest Item")
+		or (hasTertiaryOrSocket and itemHighlights.tertiaryOrSocket and "Tertiary or Socket")
+		or (isNewTransmog and itemHighlights.transmog and "New Transmog")
+	local highlight = highlightReason and true or false
+	if highlight then
+		LogDebug("Highlighted because of " .. highlightReason, addonName, ItemLoot.moduleName, key)
 	end
 
-	element.textFn = function(existingQuantity, truncatedLink)
+	-- ── Quest color override ─────────────────────────────────────────────────
+	local r, g, b, a = nil, nil, nil, nil
+	if isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
+		r, g, b, a = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
+	end
+
+	-- ── Sound: first matching condition wins ─────────────────────────────────
+	local soundPath = nil
+	local soundsConfig = G_RLF.db.global.item.sounds
+	if isMount and soundsConfig.mounts.enabled and soundsConfig.mounts.sound ~= "" then
+		soundPath = soundsConfig.mounts.sound
+	elseif isLegendary and soundsConfig.legendary.enabled and soundsConfig.legendary.sound ~= "" then
+		soundPath = soundsConfig.legendary.sound
+	elseif
+		isBetterThanEquipped
+		and soundsConfig.betterThanEquipped.enabled
+		and soundsConfig.betterThanEquipped.sound ~= ""
+	then
+		soundPath = soundsConfig.betterThanEquipped.sound
+	elseif isNewTransmog and soundsConfig.transmog.enabled and soundsConfig.transmog.sound ~= "" then
+		soundPath = soundsConfig.transmog.sound
+	end
+
+	-- ── Payload ───────────────────────────────────────────────────────────────
+	local payload = {
+		key = key,
+		type = FeatureModule.ItemLoot,
+		icon = icon,
+		quality = quality,
+		topLeftText = topLeftText,
+		topLeftColor = topLeftColor,
+		isLink = true,
+		quantity = quantity,
+		showForSeconds = showForSeconds,
+		highlight = highlight,
+		sound = soundPath,
+		r = r,
+		g = g,
+		b = b,
+		a = a,
+		IsEnabled = function()
+			return ItemLoot:IsEnabled()
+		end,
+	}
+
+	payload.textFn = function(existingQuantity, truncatedLink)
 		if not truncatedLink then
 			return itemLink
 		end
 		local text = truncatedLink
-		if element.isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
-			local r, g, b, a = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
+		if isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
+			local qr, qg, qb, qa = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
 			-- Replace the color in the link portion of the text with the quest color
-			text = text:gsub("|c.-|", RGBAToHexFormat(r, g, b, a) .. "|")
+			text = text:gsub("|c.-|", RGBAToHexFormat(qr, qg, qb, qa) .. "|")
 		end
 		return text
 	end
 
-	element.amountTextFn = function(existingQuantity)
-		local effectiveQuantity = (existingQuantity or 0) + element.quantity
+	payload.amountTextFn = function(existingQuantity)
+		local effectiveQuantity = (existingQuantity or 0) + quantity
 		if effectiveQuantity == 1 and not G_RLF.db.global.misc.showOneQuantity then
 			return ""
 		end
 		return "x" .. effectiveQuantity
 	end
 
-	element.secondaryTextFn = function(...)
+	payload.secondaryTextFn = function(...)
 		local stylingDb = DbAccessor:Styling(Frames.MAIN)
 		local secondaryFontSize = stylingDb.secondaryFontSize
 
@@ -292,14 +287,13 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 			return secondaryText
 		end
 
-		local quantity = ...
-		local effectiveQuantity = quantity or 1
+		local effectiveQuantity = ... or 1
 		local vendorIcon = G_RLF.db.global.item.vendorIconTexture
 		local auctionIcon = G_RLF.db.global.item.auctionHouseIconTexture
 		local vendorPrice, auctionPrice = 0, 0
 		local pricesForSellableItems = G_RLF.db.global.item.pricesForSellableItems
-		if element.sellPrice and element.sellPrice > 0 then
-			vendorPrice = element.sellPrice
+		if info.sellPrice and info.sellPrice > 0 then
+			vendorPrice = info.sellPrice
 		end
 		local marketPrice = ItemLoot._itemLootAdapter.GetAHPrice(itemLink)
 		if marketPrice and marketPrice > 0 then
@@ -337,92 +331,42 @@ function ItemLoot.Element:new(info, quantity, fromLink)
 		return str
 	end
 
-	element.isMount = info:IsMount()
-	element.isLegendary = info:IsLegendary()
-	element.isBetterThanEquipped = IsBetterThanEquipped(info)
-	element.hasTertiaryOrSocket = info:HasItemRollBonus()
-	element.isQuestItem = info:IsQuestItem()
-	element.isNewTransmog = not info:IsAppearanceCollected()
-
-	if element.isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
-		-- This should change the color of the quantity text
-		element.r, element.g, element.b, element.a = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
-	end
-
-	function element:PlaySoundIfEnabled()
-		local soundsConfig = G_RLF.db.global.item.sounds
-		if self.isMount and soundsConfig.mounts.enabled and soundsConfig.mounts.sound ~= "" then
-			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.mounts.sound)
-			if not willPlay then
-				LogWarn("Failed to play sound " .. soundsConfig.mounts.sound, addonName, ItemLoot.moduleName)
-			else
-				LogDebug(
-					"Sound queued to play " .. soundsConfig.mounts.sound .. " " .. handle,
-					addonName,
-					ItemLoot.moduleName
-				)
-			end
-		elseif self.isLegendary and soundsConfig.legendary.enabled and soundsConfig.legendary.sound ~= "" then
-			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.legendary.sound)
-			if not willPlay then
-				LogWarn("Failed to play sound " .. soundsConfig.legendary.sound, addonName, ItemLoot.moduleName)
-			else
-				LogDebug(
-					"Sound queued to play " .. soundsConfig.legendary.sound .. " " .. handle,
-					addonName,
-					ItemLoot.moduleName
-				)
-			end
-		elseif
-			self.isBetterThanEquipped
-			and soundsConfig.betterThanEquipped.enabled
-			and soundsConfig.betterThanEquipped.sound ~= ""
-		then
-			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.betterThanEquipped.sound)
-			if not willPlay then
-				LogWarn(
-					"Failed to play sound " .. soundsConfig.betterThanEquipped.sound,
-					addonName,
-					ItemLoot.moduleName
-				)
-			else
-				LogDebug(
-					"Sound queued to play " .. soundsConfig.betterThanEquipped.sound .. " " .. handle,
-					addonName,
-					ItemLoot.moduleName
-				)
-			end
-		elseif self.isNewTransmog and soundsConfig.transmog.enabled and soundsConfig.transmog.sound ~= "" then
-			local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(soundsConfig.transmog.sound)
-			if not willPlay then
-				LogWarn("Failed to play sound " .. soundsConfig.transmog.sound, addonName, ItemLoot.moduleName)
-			else
-				LogDebug(
-					"Sound queued to play " .. soundsConfig.transmog.sound .. " " .. handle,
-					addonName,
-					ItemLoot.moduleName
-				)
-			end
+	-- itemCountFn: replaces the ItemLoot branch in RowTextMixin:UpdateItemCount
+	payload.itemCountFn = function()
+		local itemDb = G_RLF.db.global.item
+		if not itemDb.itemCountTextEnabled then
+			return nil
 		end
-	end
-
-	function element:SetHighlight()
-		local itemHighlights = G_RLF.db.global.item.itemHighlights
-		local reason = (self.isMount and itemHighlights.mounts and "Mount")
-			or (self.isLegendary and itemHighlights.legendary and "Legendary")
-			or (self.isBetterThanEquipped and itemHighlights.betterThanEquipped and "Better than Equipped")
-			or (self.isQuestItem and itemHighlights.quest and "Quest Item")
-			or (self.hasTertiaryOrSocket and itemHighlights.tertiaryOrSocket and "Tertiary or Socket")
-			or (self.isNewTransmog and itemHighlights.transmog and "New Transmog")
-			or ""
-
-		self.highlight = reason ~= ""
-		if self.highlight then
-			LogDebug("Highlighted because of " .. reason, addonName, ItemLoot.moduleName, self.key)
+		local success, name = pcall(function()
+			return ItemLoot._itemLootAdapter.GetItemInfo(itemLink)
+		end)
+		if not success or not name then
+			return nil
 		end
+		local itemCount = ItemLoot._itemLootAdapter.GetItemCount(itemLink, true, false, true, true)
+		return itemCount,
+			{
+				color = G_RLF:RGBAToHexFormat(unpack(itemDb.itemCountTextColor)),
+				wrapChar = itemDb.itemCountTextWrapChar,
+			}
 	end
 
-	return element
+	return payload
+end
+
+--- Play the appropriate item sound if one is configured in the payload.
+--- Called after Show() in the event handler pipeline.
+---@param payload RLF_ElementPayload
+function ItemLoot:PlaySoundIfEnabled(payload)
+	if not payload or not payload.sound then
+		return
+	end
+	local willPlay, handle = ItemLoot._itemLootAdapter.PlaySoundFile(payload.sound)
+	if not willPlay then
+		LogWarn("Failed to play sound " .. payload.sound, addonName, ItemLoot.moduleName)
+	else
+		LogDebug("Sound queued to play " .. payload.sound .. " " .. handle, addonName, ItemLoot.moduleName)
+	end
 end
 
 function ItemLoot:OnInitialize()
@@ -486,10 +430,12 @@ end
 ---@param fromLink? string
 function ItemLoot:OnItemReadyToShow(info, amount, fromLink)
 	self.pendingItemRequests[info.itemId] = nil
-	local e = ItemLoot.Element:new(info, amount, fromLink)
-	e:SetHighlight()
-	e:Show(info.itemName, info.itemQuality)
-	e:PlaySoundIfEnabled()
+	local payload = self:BuildPayload(info, amount, fromLink)
+	if not payload then
+		return
+	end
+	LootElementBase:fromPayload(payload):Show(info.itemName, info.itemQuality)
+	self:PlaySoundIfEnabled(payload)
 end
 
 function ItemLoot:GET_ITEM_INFO_RECEIVED(eventName, itemID, success)

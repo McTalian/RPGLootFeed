@@ -33,80 +33,64 @@ local RGBAToHexFormat = function(...)
 end
 
 -- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Each adapter wraps a surface of the WoW API or global state so the feature
--- code only deals with inputs and outputs.  These local tables are the
--- per-feature precursor to the planned top-level Abstractions/ folder; when
--- that consolidation happens, the adapter tables will simply be replaced with
--- references to the shared modules from that folder.
-
-local PerksActivitiesAdapter = {
-	GetPerksActivitiesInfo = function()
-		return C_PerksActivities.GetPerksActivitiesInfo()
-	end,
-	GetPerksActivityInfo = function(activityID)
-		return C_PerksActivities.GetPerksActivityInfo(activityID)
-	end,
-}
-
-local GlobalStringsAdapter = {
-	--- The locale string used as the label for Travel Points (e.g. "Traveler's Log").
-	GetMonthlyActivitiesPointsLabel = function()
-		return _G["MONTHLY_ACTIVITIES_POINTS"]
-	end,
-}
+-- Shared adapter from G_RLF.WoWAPI; tests override TravelPoints._travelPointsAdapter after load.
+local TravelPointsAdapter = G_RLF.WoWAPI.TravelPoints
 
 ---@class RLF_TravelPoints: RLF_Module, AceEvent-3.0
 local TravelPoints = FeatureBase:new(FeatureModule.TravelPoints, "AceEvent-3.0")
 local currentTravelersJourney, maxTravelersJourney
 
-TravelPoints._perksActivitiesAdapter = PerksActivitiesAdapter
-TravelPoints._globalStringsAdapter = GlobalStringsAdapter
+TravelPoints._travelPointsAdapter = TravelPointsAdapter
 
-TravelPoints.Element = {}
+--- Build a uniform payload for a travel points discovery event.
+---@param quantity number The point amount earned
+---@return RLF_ElementPayload
+function TravelPoints:BuildPayload(quantity)
+	local r, g, b, a = unpack(G_RLF.db.global.travelPoints.textColor)
 
-function TravelPoints.Element:new(...)
-	---@class TravelPoints.Element: RLF_BaseLootElement
-	local element = LootElementBase:new()
-
-	element.type = "TravelPoints"
-	element.IsEnabled = function()
-		return TravelPoints:IsEnabled()
-	end
-
-	element.key = "TRAVELPOINTS"
-	element.quantity = ...
-	element.r, element.g, element.b, element.a = unpack(G_RLF.db.global.travelPoints.textColor)
-	element.textFn = function(existingAmount)
-		return TravelPoints._globalStringsAdapter.GetMonthlyActivitiesPointsLabel()
-			.. " + "
-			.. ((existingAmount or 0) + element.quantity)
-	end
-	element.icon = DefaultIcons.TRAVELPOINTS
+	local icon = DefaultIcons.TRAVELPOINTS
 	if not G_RLF.db.global.travelPoints.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
-	end
-	element.quality = ItemQualEnum.Common
-
-	element.secondaryTextFn = function()
-		if not currentTravelersJourney then
-			return ""
-		end
-		if not maxTravelersJourney then
-			return ""
-		end
-
-		local color = RGBAToHexFormat(element.r, element.g, element.b, element.a)
-
-		return "    " .. color .. currentTravelersJourney .. "/" .. maxTravelersJourney .. "|r"
+		icon = nil
 	end
 
-	return element
+	---@type RLF_ElementPayload
+	local payload = {
+		type = "TravelPoints",
+		key = "TRAVELPOINTS",
+		quantity = quantity,
+		r = r,
+		g = g,
+		b = b,
+		a = a,
+		icon = icon,
+		quality = ItemQualEnum.Common,
+		textFn = function(existingAmount)
+			return TravelPoints._travelPointsAdapter.GetMonthlyActivitiesPointsLabel()
+				.. " + "
+				.. ((existingAmount or 0) + quantity)
+		end,
+		secondaryTextFn = function()
+			if not currentTravelersJourney then
+				return ""
+			end
+			if not maxTravelersJourney then
+				return ""
+			end
+			local color = RGBAToHexFormat(r, g, b, a)
+			return "    " .. color .. currentTravelersJourney .. "/" .. maxTravelersJourney .. "|r"
+		end,
+		IsEnabled = function()
+			return TravelPoints:IsEnabled()
+		end,
+	}
+
+	return payload
 end
 
 --- Calculate the current and max values for the Travelers Journey
 --- @param activityID? number
 local function calcTravelersJourneyVal(activityID)
-	local allInfo = TravelPoints._perksActivitiesAdapter.GetPerksActivitiesInfo()
+	local allInfo = TravelPoints._travelPointsAdapter.GetPerksActivitiesInfo()
 	if allInfo == nil then
 		LogWarn("Could not get all activity info", addonName, TravelPoints.moduleName)
 		return
@@ -162,7 +146,7 @@ end
 function TravelPoints:PERKS_ACTIVITY_COMPLETED(eventName, activityID)
 	LogInfo(eventName, "WOWEVENT", self.moduleName, activityID)
 
-	local info = TravelPoints._perksActivitiesAdapter.GetPerksActivityInfo(activityID)
+	local info = TravelPoints._travelPointsAdapter.GetPerksActivityInfo(activityID)
 	if info == nil then
 		LogWarn("Could not get activity info", addonName, self.moduleName)
 		return
@@ -171,8 +155,7 @@ function TravelPoints:PERKS_ACTIVITY_COMPLETED(eventName, activityID)
 	calcTravelersJourneyVal(activityID)
 
 	if amount > 0 then
-		local e = self.Element:new(amount)
-		e:Show()
+		LootElementBase:fromPayload(self:BuildPayload(amount)):Show()
 	else
 		LogWarn(eventName .. " fired but amount was not positive", addonName, self.moduleName)
 	end

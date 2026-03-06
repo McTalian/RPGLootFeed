@@ -18,99 +18,176 @@ local runner = G_RLF.GameTestRunner:new("Integration Test", {
 
 local function runExperienceIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Experience) --[[@as RLF_Experience]]
-	local e = module.Element:new(1336)
-	if not e then
-		G_RLF:Print("Experience element not created, something went wrong")
+	local LootElementBase = G_RLF.LootElementBase
+
+	local payload = module:BuildPayload(1336)
+	if not payload then
+		G_RLF:Print("Experience payload not created, something went wrong")
 		return 1
 	end
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Experience", e)
-	e = module.Element:new(1)
-	if not e then
-		G_RLF:Print("Experience update element not created, something went wrong")
+
+	local payload2 = module:BuildPayload(1)
+	if not payload2 then
+		G_RLF:Print("Experience update payload not created, something went wrong")
 		return 1
 	end
-	runner:runTestSafely(e.Show, "LootDisplay: Experience Update", e)
+	local e2 = LootElementBase:fromPayload(payload2)
+	runner:runTestSafely(e2.Show, "LootDisplay: Experience Update", e2)
 	return 1
 end
 
 local function runMoneyIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Money) --[[@as RLF_Money]]
-	local e = module.Element:new(12345)
-	if not e then
-		G_RLF:Print("Money element not created, something went wrong")
+	local payload = module:BuildPayload(12345)
+	if not payload then
+		G_RLF:Print("Money payload not created, something went wrong")
 		return 1
 	end
+	local e = G_RLF.LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Money", e)
 	return 1
 end
 
+local function runTravelPointsIntegrationTest()
+	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.TravelPoints) --[[@as RLF_TravelPoints]]
+	local payload = module:BuildPayload(50)
+	local e = G_RLF.LootElementBase:fromPayload(payload)
+	runner:runTestSafely(e.Show, "LootDisplay: TravelPoints", e)
+	return 1
+end
+
+--- Exercises the ItemLoot BuildPayload → fromPayload → Show pipeline directly.
 local function runItemLootIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.ItemLoot) --[[@as RLF_ItemLoot]]
+	local LootElementBase = G_RLF.LootElementBase
 	local info = TestMode.testItems[2]
 	local amountLooted = 1
 	local rowsShown = 0
-	local e = module.Element:new(info, amountLooted)
-	if info.itemName == nil then
+	local payload = module:BuildPayload(info, amountLooted)
+	if not payload then
+		G_RLF:Print("Item not cached or filtered, skipping ItemLoot test")
+	elseif info.itemName == nil then
 		G_RLF:Print("Item not cached, skipping ItemLoot test")
 	else
-		e.highlight = true
+		payload.highlight = true
+		local e = LootElementBase:fromPayload(payload)
 		runner:runTestSafely(e.Show, "LootDisplay: Item", e, info.itemName, info.itemQuality)
-		e = module.Element:new(info, amountLooted)
-		e.highlight = true
-		runner:runTestSafely(e.Show, "LootDisplay: Item Quantity Update", e, info.itemName, info.itemQuality)
+		local payload2 = module:BuildPayload(info, amountLooted)
+		if payload2 then
+			payload2.highlight = true
+			local e2 = LootElementBase:fromPayload(payload2)
+			runner:runTestSafely(e2.Show, "LootDisplay: Item Quantity Update", e2, info.itemName, info.itemQuality)
+		end
 		rowsShown = rowsShown + 1
 	end
 	return rowsShown
 end
 
+--- Exercises the PartyLoot BuildPayload → fromPayload → Show pipeline directly.
 local function runPartyLootIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.PartyLoot) --[[@as RLF_PartyLoot]]
+	local LootElementBase = G_RLF.LootElementBase
 	local info = TestMode.testItems[2]
 	local amountLooted = 1
-	local e = module.Element:new(info, amountLooted, "player")
+	local payload = module:BuildPayload(info, amountLooted, "player")
+	if not payload then
+		G_RLF:Print("PartyLoot payload not created, something went wrong")
+		return 1
+	end
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Party Item", e, info.itemName, info.itemQuality)
 	return 1
 end
 
+--- Exercises the Currency BuildPayload → fromPayload → Show pipeline directly.
 local function runCurrencyIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Currency) --[[@as RLF_Currency]]
+	local LootElementBase = G_RLF.LootElementBase
 	local testObj = TestMode.testCurrencies[2]
 	local amountLooted = 1
 	testObj.basicInfo.displayAmount = amountLooted
-	local e = module.Element:new(testObj.link, testObj.info, testObj.basicInfo)
-	if not e then
-		G_RLF:Print("Currency element not created, something went wrong")
+	local payload = module:BuildPayload(testObj.link, testObj.info, testObj.basicInfo)
+	if not payload then
+		G_RLF:Print("Currency payload not created, something went wrong")
 		return 1
 	end
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Currency", e)
-	e = module.Element:new(testObj.link, testObj.info, testObj.basicInfo)
-	if not e then
-		G_RLF:Print("Currency update element not created, something went wrong")
+	payload = module:BuildPayload(testObj.link, testObj.info, testObj.basicInfo)
+	if not payload then
+		G_RLF:Print("Currency update payload not created, something went wrong")
 		return 1
 	end
+	e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Currency Quantity Update", e)
 	return 1
 end
 
-local function runReputationIntegrationTest()
+--- Builds a synthetic UnifiedFactionData and exercises the
+--- BuildPayload → fromPayload → Show pipeline directly.
+--- Works on both Retail and Classic since it bypasses the event layer.
+local function runReputationPayloadIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation) --[[@as RLF_Reputation]]
-	local amountLooted = 664
+	local LootElementBase = G_RLF.LootElementBase
+
+	---@type UnifiedFactionData
+	local testFactionData = {
+		factionId = 99999,
+		name = TestMode.testFactions[1] or "Test Faction",
+		delta = 668,
+		icon = G_RLF.DefaultIcons.REPUTATION,
+		standing = 21000,
+		rank = "Honored",
+		quality = G_RLF.ItemQualEnum.Rare,
+		contextInfo = "Integration test context",
+	}
+
+	local payload = module:BuildPayload(testFactionData)
+	if not payload then
+		G_RLF:Print("Reputation payload not created, something went wrong")
+		return 1
+	end
+	local e = LootElementBase:fromPayload(payload)
+	runner:runTestSafely(e.Show, "LootDisplay: Reputation", e)
+
+	-- Second call with same key should stack/update the existing row
+	local payload2 = module:BuildPayload(testFactionData)
+	if not payload2 then
+		G_RLF:Print("Reputation update payload not created, something went wrong")
+		return 1
+	end
+	payload2.quantity = payload2.quantity + 1
+	local e2 = LootElementBase:fromPayload(payload2)
+	runner:runTestSafely(e2.Show, "LootDisplay: Reputation Update", e2)
+
+	return 1
+end
+
+local function runReputationIntegrationTest()
+	local rowsShown = runReputationPayloadIntegrationTest()
+
+	-- On non-Retail (Classic), also exercise the CHAT_MSG_COMBAT_FACTION_CHANGE event path
 	if
 		not G_RLF:IsRetail()
 		or not C_EventUtils.IsEventValid
 		or not C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED")
 	then
+		local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation) --[[@as RLF_Reputation]]
+		local amountLooted = 664
+
 		local testObj = TestMode.testFactions[2]
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation with Bonus",
+			"LootDisplay: Reputation with Bonus (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
 		)
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation with Bonus Update",
+			"LootDisplay: Reputation with Bonus Update (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
@@ -119,54 +196,53 @@ local function runReputationIntegrationTest()
 		testObj = TestMode.testFactions[1]
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation",
+			"LootDisplay: Reputation (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED, testObj, 1030)
 		)
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation Update",
+			"LootDisplay: Reputation Update (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED, testObj, 307)
 		)
-		return 2
+		rowsShown = rowsShown + 2
 	end
-	-- Can't reliably test this event because we are ignoring the newStanding parameter that
-	-- the event provides and grabbing the values directly from API calls and comparing to
-	-- our cache to determine the delta. If the event gave us the amount changed, we could
-	-- simplify things significantly.
-	return 0
+
+	return rowsShown
 end
 
+--- Exercises the Profession BuildPayload → fromPayload → Show pipeline directly.
 local function runProfessionIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Profession) --[[@as RLF_Professions]]
+	local LootElementBase = G_RLF.LootElementBase
 	local icon = 4620671
 	-- So far, MoP Classic and below doesn't have this icon
 	if not G_RLF:IsRetail() then
 		icon = G_RLF.DefaultIcons.PROFESSION
 	end
-	local e = module.Element:new("Cooking", "Cooking", icon, 3, nil, 1)
+	local payload = module:BuildPayload("Cooking", "Cooking", icon, 3, 1)
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Professions", e)
-	e = module.Element:new("Cooking", "Cooking", icon, 4, nil, 2)
+	payload = module:BuildPayload("Cooking", "Cooking", icon, 4, 2)
+	e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Professions Quantity Update", e)
 	return 1
 end
 
+--- Exercises the Transmog BuildPayload → fromPayload → Show pipeline directly.
 local function runTransmogIntegrationTest()
-	local appearanceId = 285269
 	if not G_RLF:IsRetail() then
 		return 0
 	end
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Transmog) --[[@as RLF_Transmog]]
-	runner:runTestSafely(
-		module.TRANSMOG_COLLECTION_SOURCE_ADDED,
-		"LootDisplay: Transmog",
-		module,
-		"TRANSMOG_COLLECTION_SOURCE_ADDED",
-		appearanceId
-	)
+	local LootElementBase = G_RLF.LootElementBase
+	local transmogLink = "|cff9d9d9d|Htransmogappearance:285269|h[Test Transmog]|h|r"
+	local payload = module:BuildPayload(transmogLink, nil)
+	local e = LootElementBase:fromPayload(payload)
+	runner:runTestSafely(e.Show, "LootDisplay: Transmog", e)
 	return 1
 end
 
@@ -196,6 +272,9 @@ function TestMode:IntegrationTest()
 	local newRowsExpected = 0
 	newRowsExpected = newRowsExpected + runExperienceIntegrationTest()
 	newRowsExpected = newRowsExpected + runMoneyIntegrationTest()
+	if G_RLF:IsRetail() then
+		newRowsExpected = newRowsExpected + runTravelPointsIntegrationTest()
+	end
 	newRowsExpected = newRowsExpected + runItemLootIntegrationTest()
 	if GetExpansionLevel() >= G_RLF.Expansion.WOTLK then
 		newRowsExpected = newRowsExpected + runCurrencyIntegrationTest()
