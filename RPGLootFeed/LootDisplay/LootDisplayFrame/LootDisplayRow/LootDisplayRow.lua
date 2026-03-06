@@ -210,6 +210,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	local highlight = element.highlight
 	self.isSampleRow = element.isSampleRow or false
 	self.itemCount = element.itemCount
+	self.itemCountFn = element.itemCountFn
 	self.elementSecondaryText = element.secondaryText or nil
 	---@type ColorMixin|nil
 	self.elementSecondaryTextColor = element.secondaryTextColor or nil
@@ -302,6 +303,7 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	local oldAmount = self.amount
 	local text = element.textFn(oldAmount, self.link)
 	self.itemCount = element.itemCount
+	self.itemCountFn = element.itemCountFn or self.itemCountFn
 	local r, g, b, a = element.r, element.g, element.b, element.a
 	-- Allow the element to recompute color based on the net accumulated quantity
 	local netAmount = oldAmount + element.quantity

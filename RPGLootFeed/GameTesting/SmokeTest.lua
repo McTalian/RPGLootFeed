@@ -440,6 +440,45 @@ local function testElementConstructors()
 			end
 		end
 	end
+
+	-- Reputation (migrated: BuildPayload → fromPayload)
+	local repModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation, true)
+	if repModule and repModule:IsEnabled() then
+		---@type UnifiedFactionData
+		local testFactionData = {
+			factionId = 99999,
+			name = "Test Faction",
+			delta = 250,
+			icon = 132882,
+			rank = "Honored",
+			color = nil,
+			quality = nil,
+			contextInfo = "Test context",
+		}
+		local payload = repModule:BuildPayload(testFactionData)
+		runner:assertEqual(payload ~= nil, true, "Element: Reputation payload created")
+		if payload then
+			runner:assertEqual(payload.type, "Reputation", "Element: Reputation payload.type")
+			runner:assertEqual(payload.key, "REP_99999", "Element: Reputation payload.key")
+			runner:assertEqual(payload.quantity, 250, "Element: Reputation payload.quantity")
+			runner:assertEqual(type(payload.textFn), "function", "Element: Reputation payload.textFn")
+			runner:assertEqual(type(payload.itemCountFn), "function", "Element: Reputation payload.itemCountFn")
+			runner:assertEqual(type(payload.secondaryTextFn), "function", "Element: Reputation payload.secondaryTextFn")
+			runner:assertEqual(type(payload.IsEnabled), "function", "Element: Reputation payload.IsEnabled")
+
+			local e = G_RLF.LootElementBase:fromPayload(payload)
+			runner:assertEqual(e ~= nil, true, "Element: Reputation element created")
+			if e then
+				runner:assertEqual(e.type, "Reputation", "Element: Reputation.type")
+				runner:assertEqual(e.key, "REP_99999", "Element: Reputation.key")
+				runner:assertEqual(e.quantity, 250, "Element: Reputation.quantity")
+				runner:assertEqual(type(e.textFn), "function", "Element: Reputation.textFn")
+				runner:assertEqual(type(e.itemCountFn), "function", "Element: Reputation.itemCountFn")
+				runner:assertEqual(type(e.IsEnabled), "function", "Element: Reputation.IsEnabled")
+				runner:assertEqual(type(e.Show), "function", "Element: Reputation.Show")
+			end
+		end
+	end
 end
 
 local function testLocale()

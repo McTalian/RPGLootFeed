@@ -42,60 +42,11 @@ end
 local CURRENT_SEASON_DELVE_JOURNEY = 0
 local DELVER_JOURNEY_LABEL = nil
 
--- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Wraps all C_ APIs and bare WoW globals used by Reputation.lua so tests
--- can inject mocks without patching _G directly.
-local RepAdapter = {
-	GetExpansionLevel = function()
-		return GetExpansionLevel()
-	end,
-	RunNextFrame = function(fn)
-		return RunNextFrame(fn)
-	end,
-	IssecretValue = function(msg)
-		return issecretvalue and issecretvalue(msg)
-	end,
-	IsEventValid = function(event)
-		return C_EventUtils and C_EventUtils.IsEventValid and C_EventUtils.IsEventValid(event)
-	end,
-	GetFactionForCompanion = function()
-		return C_DelvesUI.GetFactionForCompanion()
-	end,
-	GetFactionDataByID = function(id)
-		return C_Reputation.GetFactionDataByID(id)
-	end,
-	GetDelvesFactionForSeason = function()
-		return C_DelvesUI and C_DelvesUI.GetDelvesFactionForSeason and C_DelvesUI.GetDelvesFactionForSeason() or 0
-	end,
-	GetMajorFactionRenownInfo = function(id)
-		return C_MajorFactions.GetMajorFactionRenownInfo(id)
-	end,
-	GetNumFactions = function()
-		return C_Reputation and C_Reputation.GetNumFactions and C_Reputation.GetNumFactions() or nil
-	end,
-	GetFactionDataByIndex = function(i)
-		return C_Reputation and C_Reputation.GetFactionDataByIndex and C_Reputation.GetFactionDataByIndex(i) or nil
-	end,
-	HasRetailReputationAPIAvailable = function()
-		return C_Reputation ~= nil and C_Reputation.GetNumFactions ~= nil and C_Reputation.GetFactionDataByIndex ~= nil
-	end,
-	GetAccountWideFontColor = function()
-		return ACCOUNT_WIDE_FONT_COLOR
-	end,
-	GetDelveReputationBarTitle = function()
-		return _G["DELVES_REPUTATION_BAR_TITLE_NO_SEASON"]
-	end,
-	Strtrim = function(str)
-		return strtrim(str)
-	end,
-}
-
 ---@class RLF_Reputation: RLF_Module, AceEvent-3.0, AceTimer-3.0, AceBucket-3.0
 local Rep = FeatureBase:new(FeatureModule.Reputation, "AceEvent-3.0", "AceTimer-3.0", "AceBucket-3.0")
 
-Rep._repAdapter = RepAdapter
-
-Rep.Element = {}
+-- Use the shared WoW API adapter; tests can replace this with a mock table.
+Rep._repAdapter = G_RLF.WoWAPI.Reputation
 
 local function buildCachedFactionDetails()
 	-- This should only be called from Retail, but just in case
@@ -130,61 +81,84 @@ local function buildCachedFactionDetails()
 	end
 end
 
-function Rep.Element:new(...)
-	---@class Rep.Element: RLF_BaseLootElement
-	---@field public repType RepType
-	local element = LootElementBase:new()
-
-	element.type = "Reputation"
-	element.IsEnabled = function()
-		return Rep:IsEnabled()
+--- Build a uniform payload from UnifiedFactionData.
+--- This is the service layer: it transforms domain data into the generic
+--- RLF_ElementPayload contract that LootElementBase:fromPayload() consumes.
+---@param unifiedFactionData UnifiedFactionData
+---@return RLF_ElementPayload|nil payload nil if delta is missing
+function Rep:BuildPayload(unifiedFactionData)
+	if not unifiedFactionData or not unifiedFactionData.delta then
+		return nil
 	end
 
-	---@type UnifiedFactionData
-	local unifiedFactionData = ...
+	local r, g, b, a
 	if unifiedFactionData.color and unifiedFactionData.color.GetRGBA then
-		element.r, element.g, element.b, element.a = unifiedFactionData.color:GetRGBA()
+		r, g, b, a = unifiedFactionData.color:GetRGBA()
 	else
-		element.r, element.g, element.b = unpack(G_RLF.db.global.rep.defaultRepColor)
-		element.a = 1
-	end
-	element.key = "REP_" .. unifiedFactionData.factionId
-	element.factionId = unifiedFactionData.factionId
-	element.quantity = unifiedFactionData.delta
-	element.textFn = function(existingRep)
-		local sign = "+"
-		local rep = (existingRep or 0) + element.quantity
-		if rep < 0 then
-			sign = "-"
-		end
-		return sign .. math.abs(rep) .. " " .. unifiedFactionData.name
+		r, g, b = unpack(G_RLF.db.global.rep.defaultRepColor)
+		a = 1
 	end
 
-	element.icon = unifiedFactionData.icon
-	element.quality = unifiedFactionData.quality
-	element.itemCount = unifiedFactionData.rank
+	local factionId = unifiedFactionData.factionId
+	local delta = unifiedFactionData.delta
+	local name = unifiedFactionData.name
 
-	element.secondaryTextFn = function()
-		local str = ""
+	---@type RLF_ElementPayload
+	local payload = {
+		-- Routing
+		key = "REP_" .. factionId,
+		type = "Reputation",
 
-		if not element.factionId then
-			return str
-		end
+		-- Icon
+		icon = (G_RLF.db.global.rep.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and unifiedFactionData.icon
+			or nil,
+		quality = unifiedFactionData.quality,
 
-		local color = RGBAToHexFormat(element.r, element.g, element.b, G_RLF.db.global.rep.secondaryTextAlpha)
+		-- Primary line
+		quantity = delta,
+		textFn = function(existingRep)
+			local rep = (existingRep or 0) + delta
+			local sign = rep >= 0 and "+" or "-"
+			return sign .. math.abs(rep) .. " " .. name
+		end,
 
-		if unifiedFactionData.contextInfo then
-			str = "    " .. color .. unifiedFactionData.contextInfo .. "|r"
-		end
+		-- Item count display (replaces type-switch in UpdateItemCount)
+		itemCountFn = function()
+			if not G_RLF.db.global.rep.enableRepLevel then
+				return nil
+			end
+			return unifiedFactionData.rank,
+				{
+					color = RGBAToHexFormat(unpack(G_RLF.db.global.rep.repLevelColor)),
+					wrapChar = G_RLF.db.global.rep.repLevelTextWrapChar,
+				}
+		end,
 
-		return str
-	end
+		-- Secondary line
+		secondaryTextFn = function()
+			if not factionId then
+				return ""
+			end
+			local color = RGBAToHexFormat(r, g, b, G_RLF.db.global.rep.secondaryTextAlpha)
+			if unifiedFactionData.contextInfo then
+				return "    " .. color .. unifiedFactionData.contextInfo .. "|r"
+			end
+			return ""
+		end,
 
-	if not G_RLF.db.global.rep.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
-	end
+		-- Color
+		r = r,
+		g = g,
+		b = b,
+		a = a,
 
-	return element
+		-- Lifecycle
+		IsEnabled = function()
+			return Rep:IsEnabled()
+		end,
+	}
+
+	return payload
 end
 
 function Rep:OnInitialize()
@@ -274,8 +248,9 @@ function Rep:UpdateReputationForFaction(factionID)
 	factionData.delta = repChange
 
 	if repChange and repChange ~= 0 then
-		local e = self.Element:new(factionData)
-		if e then
+		local payload = self:BuildPayload(factionData)
+		if payload then
+			local e = LootElementBase:fromPayload(payload)
 			e:Show()
 		end
 	end
@@ -330,8 +305,11 @@ function Rep:CHAT_MSG_COMBAT_FACTION_CHANGE(eventName, message)
 		return
 	end
 
-	local e = self.Element:new(factionData)
-	e:Show()
+	local payload = self:BuildPayload(factionData)
+	if payload then
+		local e = LootElementBase:fromPayload(payload)
+		e:Show()
+	end
 end
 
 --- @class UpdateFactionEventPayload
@@ -438,8 +416,11 @@ function Rep:CheckForHiddenRenownFactions(events)
 
 	if repChange and repChange > 0 then
 		factionData.delta = repChange
-		local e = self.Element:new(factionData)
-		e:Show()
+		local payload = self:BuildPayload(factionData)
+		if payload then
+			local e = LootElementBase:fromPayload(payload)
+			e:Show()
+		end
 	end
 end
 

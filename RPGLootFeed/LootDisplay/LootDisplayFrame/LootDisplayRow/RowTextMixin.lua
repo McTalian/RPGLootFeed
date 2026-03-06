@@ -338,6 +338,18 @@ end
 
 --- Update the total item count for the row
 function RLF_RowTextMixin:UpdateItemCount()
+	-- Migrated modules provide itemCountFn on the payload
+	if self.itemCountFn then
+		RunNextFrame(function()
+			local value, options = self.itemCountFn()
+			if value then
+				self:ShowItemCountText(value, options)
+			end
+		end)
+		return
+	end
+
+	-- ── Legacy type-switch for non-migrated modules ──────────────────────────
 	if self.type == "Professions" then
 		---@type RLF_ConfigProfession
 		local profDb = G_RLF.db.global.prof
@@ -396,21 +408,6 @@ function RLF_RowTextMixin:UpdateItemCount()
 			self:ShowItemCountText(self.itemCount, {
 				color = G_RLF:RGBAToHexFormat(unpack(currencyDb.currencyTotalTextColor)),
 				wrapChar = currencyDb.currencyTotalTextWrapChar,
-			})
-		end)
-		return
-	end
-
-	if self.type == "Reputation" and self.itemCount then
-		---@type RLF_ConfigReputation
-		local repDb = G_RLF.db.global.rep
-		if not repDb.enableRepLevel then
-			return
-		end
-		RunNextFrame(function()
-			self:ShowItemCountText(self.itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(repDb.repLevelColor)),
-				wrapChar = repDb.repLevelTextWrapChar,
 			})
 		end)
 		return

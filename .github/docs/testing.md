@@ -131,7 +131,7 @@ Feature modules expose their full dependency surface as locals at the top of the
 | `Experience_spec.lua`            | Bare WoW global fn adapter (`UnitXP` etc.)                                                                             |
 | `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine                                                              |
 | `Professions_spec.lua`           | `GetProfessions/GetProfessionInfo`, locale globals                                                                     |
-| `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin                                        |
+| `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin, `BuildPayload` spy pattern            |
 | `PartyLoot_spec.lua`             | UnitName/UnitClass, GUID, expansion-gate, nameUnitMap                                                                  |
 | `Currency_spec.lua`              | C_Everywhere + bare global fallbacks, Classic locale patterns, adapter factory                                         |
 | `ItemLoot_spec.lua`              | Most complex: AceBucket mixin, `_itemLootAdapter` with 14 methods, `Enum` global, classical/Retail branching, 49 tests |
@@ -224,6 +224,8 @@ end)
 - Provide `ns.db` manually — never rely on AceDB being initialised
 - Inline `ns.FeatureBase` stub so AceAddon is never invoked
 - Inject fresh adapter tables _after_ `loadfile` (they're module-level fields, not captured locals)
+- For modules migrated to `fromPayload()` architecture: include `WoWAPI = { ModuleName = {} }` in `ns` so the shared adapter reference resolves at load time. Tests still override `Module._repAdapter` (or equivalent) directly in `before_each`.
+- Spy on `Module:BuildPayload` instead of `Module.Element:new` for migrated modules (e.g. Reputation)
 - `G_RLF.db` is intentionally excluded from dependency locals in feature files — always runtime
 - **Always capture the module from the `loadfile` return value** — see [Module Return Convention](#module-return-convention) below
 

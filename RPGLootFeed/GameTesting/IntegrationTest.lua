@@ -92,25 +92,68 @@ local function runCurrencyIntegrationTest()
 	return 1
 end
 
-local function runReputationIntegrationTest()
+--- Builds a synthetic UnifiedFactionData and exercises the
+--- BuildPayload → fromPayload → Show pipeline directly.
+--- Works on both Retail and Classic since it bypasses the event layer.
+local function runReputationPayloadIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation) --[[@as RLF_Reputation]]
-	local amountLooted = 664
+	local LootElementBase = G_RLF.LootElementBase
+
+	---@type UnifiedFactionData
+	local testFactionData = {
+		factionId = 99999,
+		name = TestMode.testFactions[1] or "Test Faction",
+		delta = 664,
+		icon = 132882,
+		standing = 21000,
+		rank = "Honored",
+		quality = nil,
+		contextInfo = "Integration test context",
+	}
+
+	local payload = module:BuildPayload(testFactionData)
+	if not payload then
+		G_RLF:Print("Reputation payload not created, something went wrong")
+		return 1
+	end
+	local e = LootElementBase:fromPayload(payload)
+	runner:runTestSafely(e.Show, "LootDisplay: Reputation", e)
+
+	-- Second call with same key should stack/update the existing row
+	local payload2 = module:BuildPayload(testFactionData)
+	if not payload2 then
+		G_RLF:Print("Reputation update payload not created, something went wrong")
+		return 1
+	end
+	local e2 = LootElementBase:fromPayload(payload2)
+	runner:runTestSafely(e2.Show, "LootDisplay: Reputation Update", e2)
+
+	return 1
+end
+
+local function runReputationIntegrationTest()
+	local rowsShown = runReputationPayloadIntegrationTest()
+
+	-- On non-Retail (Classic), also exercise the CHAT_MSG_COMBAT_FACTION_CHANGE event path
 	if
 		not G_RLF:IsRetail()
 		or not C_EventUtils.IsEventValid
 		or not C_EventUtils.IsEventValid("FACTION_STANDING_CHANGED")
 	then
+		local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation) --[[@as RLF_Reputation]]
+		local amountLooted = 664
+
 		local testObj = TestMode.testFactions[2]
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation with Bonus",
+			"LootDisplay: Reputation with Bonus (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
 		)
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation with Bonus Update",
+			"LootDisplay: Reputation with Bonus Update (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED_ACH_BONUS, testObj, amountLooted, amountLooted / 2)
@@ -119,25 +162,22 @@ local function runReputationIntegrationTest()
 		testObj = TestMode.testFactions[1]
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation",
+			"LootDisplay: Reputation (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED, testObj, 1030)
 		)
 		runner:runTestSafely(
 			module.CHAT_MSG_COMBAT_FACTION_CHANGE,
-			"LootDisplay: Reputation Update",
+			"LootDisplay: Reputation Update (Chat)",
 			module,
 			"CHAT_MSG_COMBAT_FACTION_CHANGE",
 			string.format(_G.FACTION_STANDING_INCREASED, testObj, 307)
 		)
-		return 2
+		rowsShown = rowsShown + 2
 	end
-	-- Can't reliably test this event because we are ignoring the newStanding parameter that
-	-- the event provides and grabbing the values directly from API calls and comparing to
-	-- our cache to determine the delta. If the event gave us the amount changed, we could
-	-- simplify things significantly.
-	return 0
+
+	return rowsShown
 end
 
 local function runProfessionIntegrationTest()

@@ -167,6 +167,20 @@ RPGLootFeed/
 4. Uses `LootElementBase:new()` inside `Module.Element:new()` to create row data
 5. Calls external API/logging functions through the captured locals, NOT through `G_RLF.*` directly
 
+**Layered architecture** (in progress — Reputation is the first migrated module; see `.github/docs/module-rearchitecture.md` for the full plan):
+
+Migrated modules follow a four-layer pipeline:
+
+```
+G_RLF.WoWAPI.* (shared adapter) → Module service layer → RLF_ElementPayload → LootElementBase:fromPayload() → element:Show()
+```
+
+- **Shared adapters** live in `utils/WoWAPIAdapters.lua` under `G_RLF.WoWAPI.*`. They are pure wrappers around WoW C\_ APIs with no logic — the central mock boundary for tests.
+- **Service layer** (e.g., `Rep:BuildPayload(unifiedFactionData)`) transforms domain data into an `RLF_ElementPayload` table — the uniform payload contract.
+- **`LootElementBase:fromPayload(payload)`** is a generic element constructor that maps payload fields to element fields. No per-module `Element:new()` needed.
+- **`itemCountFn`** on the payload replaces the legacy type-switch in `UpdateItemCount()`. Each module provides its own closure that returns `(value, options)` for count display.
+- Non-migrated modules still use the `Module.Element:new()` pattern and the legacy type-switch in `UpdateItemCount()`. Both paths coexist.
+
 **Migration status**: All feature modules have been migrated to this pattern, including `ItemLoot/ItemLoot.lua` (migrated Feb 2026). The Migration is complete — `G_RLF.RLF:NewModule()` is no longer used in any feature module.
 
 **`fn` deprecation**: The `self:fn(func, ...)` xpcall wrapper on the module prototype is being phased out. It silently swallows errors. Features should use direct calls with explicit guard clauses instead.
@@ -206,6 +220,8 @@ RPGLootFeed/
 | 3             | `ItemCountText` | Bag count / skill delta / rep level      | No           |
 
 `PrimaryText` and `ItemCountText` are re-parented from the XML template; `AmountText` is created programmatically inside the layout frame (same pattern as `PrimaryLineLayout` itself). `AmountText` is driven by the optional `element.amountTextFn(existingQuantity)` field — features that produce a quantity suffix (`ItemLoot`, `PartyLoot`, `Currency`) set this; all others leave it `nil` and `AmountText` stays hidden.
+
+`ItemCountText` display is driven by `element.itemCountFn` (migrated modules) or the legacy `UpdateItemCount()` type-switch (non-migrated modules). `itemCountFn` is a closure on the element/payload that returns `(value, options)` where `options = { color, wrapChar, showSign }`. The row calls it inside `RunNextFrame` and passes the result to `ShowItemCountText()`.
 
 The unified layout entry point `LayoutPrimaryLine()` is called from `ShowText()`, `ShowAmountText()`, and `ShowItemCountText()`:
 
@@ -247,6 +263,7 @@ The portrait offset formula was corrected in this session: the old formula (`por
 - Data structures (Queue)
 - Logging infrastructure
 - User notifications
+- `WoWAPIAdapters.lua` — Shared WoW API adapter namespace (`G_RLF.WoWAPI.*`), the central mock boundary for feature module tests
 
 **Pattern**: Pure functions and utilities with no side effects where possible
 
