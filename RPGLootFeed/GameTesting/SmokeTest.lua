@@ -407,9 +407,10 @@ local function testElementConstructors()
 	if G_RLF:IsRetail() then
 		local tpModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.TravelPoints, true)
 		if tpModule and tpModule:IsEnabled() then
-			local e = tpModule.Element:new(50)
-			runner:assertEqual(e ~= nil, true, "Element: TravelPoints created")
-			if e then
+			local payload = tpModule:BuildPayload(50)
+			runner:assertEqual(payload ~= nil, true, "BuildPayload: TravelPoints created")
+			if payload then
+				local e = G_RLF.LootElementBase:fromPayload(payload)
 				runner:assertEqual(e.type, "TravelPoints", "Element: TravelPoints.type")
 				runner:assertEqual(e.key, "TRAVELPOINTS", "Element: TravelPoints.key")
 				runner:assertEqual(e.quantity, 50, "Element: TravelPoints.quantity")

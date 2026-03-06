@@ -50,6 +50,14 @@ local function runMoneyIntegrationTest()
 	return 1
 end
 
+local function runTravelPointsIntegrationTest()
+	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.TravelPoints) --[[@as RLF_TravelPoints]]
+	local payload = module:BuildPayload(50)
+	local e = G_RLF.LootElementBase:fromPayload(payload)
+	runner:runTestSafely(e.Show, "LootDisplay: TravelPoints", e)
+	return 1
+end
+
 local function runItemLootIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.ItemLoot) --[[@as RLF_ItemLoot]]
 	local info = TestMode.testItems[2]
@@ -243,6 +251,9 @@ function TestMode:IntegrationTest()
 	local newRowsExpected = 0
 	newRowsExpected = newRowsExpected + runExperienceIntegrationTest()
 	newRowsExpected = newRowsExpected + runMoneyIntegrationTest()
+	if G_RLF:IsRetail() then
+		newRowsExpected = newRowsExpected + runTravelPointsIntegrationTest()
+	end
 	newRowsExpected = newRowsExpected + runItemLootIntegrationTest()
 	if GetExpansionLevel() >= G_RLF.Expansion.WOTLK then
 		newRowsExpected = newRowsExpected + runCurrencyIntegrationTest()

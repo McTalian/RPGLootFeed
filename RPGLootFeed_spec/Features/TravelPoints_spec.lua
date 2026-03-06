@@ -10,7 +10,6 @@ local it = busted.it
 describe("TravelPoints module", function()
 	local _ = match._
 	local TravelPointsModule, ns
-	local mockPerksAdapter, mockGlobalStringsAdapter
 	local sendMessageSpy
 
 	before_each(function()
@@ -25,6 +24,7 @@ describe("TravelPoints module", function()
 			DefaultIcons = { TRAVELPOINTS = "Interface/Icons/Ability_mount_travelhorse" },
 			ItemQualEnum = { Common = 1 },
 			FeatureModule = { TravelPoints = "TravelPoints" },
+			WoWAPI = { TravelPoints = {} },
 			-- Closure wrappers call these as G_RLF:Method(...).
 			LogDebug = function() end,
 			LogInfo = function() end,
@@ -74,30 +74,49 @@ describe("TravelPoints module", function()
 		TravelPointsModule = assert(loadfile("RPGLootFeed/Features/TravelPoints.lua"))("TestAddon", ns)
 
 		-- Inject fresh mock adapters for full test isolation.
+		-- A single _travelPointsAdapter covers both PerksActivities and GlobalStrings APIs.
 		-- Tests that need specific behaviour swap in their own adapter table via
-		-- TravelPointsModule._*Adapter = { ... } before the act step.
-		mockPerksAdapter = {
+		-- TravelPointsModule._travelPointsAdapter = { ... } before the act step.
+		TravelPointsModule._travelPointsAdapter = {
 			GetPerksActivitiesInfo = function()
 				return nil
 			end,
 			GetPerksActivityInfo = function(_activityID)
 				return nil
 			end,
-		}
-		mockGlobalStringsAdapter = {
 			GetMonthlyActivitiesPointsLabel = function()
 				return "Traveler's Log"
 			end,
 		}
-		TravelPointsModule._perksActivitiesAdapter = mockPerksAdapter
-		TravelPointsModule._globalStringsAdapter = mockGlobalStringsAdapter
 	end)
 
-	describe("Element creation", function()
-		it("creates element with correct properties", function()
+	describe("BuildPayload and element creation", function()
+		local function buildElement(quantity)
+			local payload = TravelPointsModule:BuildPayload(quantity)
+			if not payload then
+				return nil
+			end
+			return ns.LootElementBase:fromPayload(payload)
+		end
+
+		it("creates payload with correct properties", function()
 			local quantity = 25
 
-			local element = TravelPointsModule.Element:new(quantity)
+			local payload = TravelPointsModule:BuildPayload(quantity)
+
+			assert.is_not_nil(payload)
+			assert.are.equal("TravelPoints", payload.type)
+			assert.are.equal("TRAVELPOINTS", payload.key)
+			assert.are.equal(quantity, payload.quantity)
+			assert.are.equal(ns.ItemQualEnum.Common, payload.quality)
+			assert.is_function(payload.textFn)
+			assert.is_function(payload.secondaryTextFn)
+		end)
+
+		it("creates element from payload via fromPayload", function()
+			local quantity = 25
+
+			local element = buildElement(quantity)
 
 			assert.is_not_nil(element)
 			assert.are.equal("TravelPoints", element.type)
@@ -113,7 +132,7 @@ describe("TravelPoints module", function()
 			local quantity = 25
 			local existingAmount = 50
 
-			local element = TravelPointsModule.Element:new(quantity)
+			local element = buildElement(quantity)
 			local result = element.textFn(existingAmount)
 
 			assert.are.equal("Traveler's Log + 75", result)
@@ -122,7 +141,7 @@ describe("TravelPoints module", function()
 		it("textFn returns correct format with no existing amount", function()
 			local quantity = 25
 
-			local element = TravelPointsModule.Element:new(quantity)
+			local element = buildElement(quantity)
 			local result = element.textFn()
 
 			assert.are.equal("Traveler's Log + 25", result)
@@ -131,7 +150,7 @@ describe("TravelPoints module", function()
 		it("secondaryTextFn returns progress when journey values are set", function()
 			local quantity = 25
 
-			TravelPointsModule._perksActivitiesAdapter = {
+			TravelPointsModule._travelPointsAdapter = {
 				GetPerksActivitiesInfo = function()
 					return {
 						activities = {
@@ -147,12 +166,15 @@ describe("TravelPoints module", function()
 				GetPerksActivityInfo = function(_activityID)
 					return { thresholdContributionAmount = 20 }
 				end,
+				GetMonthlyActivitiesPointsLabel = function()
+					return "Traveler's Log"
+				end,
 			}
 
 			-- Trigger the event to populate internal journey values
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", 2)
 
-			local element = TravelPointsModule.Element:new(quantity)
+			local element = buildElement(quantity)
 			local result = element.secondaryTextFn()
 
 			-- current = 10 (completed) + 20 (activity 2) = 30, max = 150
@@ -162,14 +184,14 @@ describe("TravelPoints module", function()
 		it("secondaryTextFn returns empty string when no journey data", function()
 			local quantity = 25
 
-			local element = TravelPointsModule.Element:new(quantity)
+			local element = buildElement(quantity)
 			local result = element.secondaryTextFn()
 
 			assert.are.equal("", result)
 		end)
 
 		it("IsEnabled function returns module enabled state", function()
-			local element = TravelPointsModule.Element:new(25)
+			local element = buildElement(25)
 
 			-- Test when enabled
 			local enabledStub = stub(TravelPointsModule, "IsEnabled").returns(true)
@@ -263,7 +285,7 @@ describe("TravelPoints module", function()
 			local activityID = 123
 			local contributionAmount = 25
 
-			TravelPointsModule._perksActivitiesAdapter = {
+			TravelPointsModule._travelPointsAdapter = {
 				GetPerksActivityInfo = function(_activityID)
 					return { thresholdContributionAmount = contributionAmount }
 				end,
@@ -278,14 +300,17 @@ describe("TravelPoints module", function()
 						},
 					}
 				end,
+				GetMonthlyActivitiesPointsLabel = function()
+					return "Traveler's Log"
+				end,
 			}
 
-			local elementNewSpy = spy.on(TravelPointsModule.Element, "new")
+			local buildPayloadSpy = spy.on(TravelPointsModule, "BuildPayload")
 
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", activityID)
 
-			-- Element:new was called with the correct contribution amount
-			assert.spy(elementNewSpy).was.called_with(_, contributionAmount)
+			-- BuildPayload was called with the correct contribution amount
+			assert.spy(buildPayloadSpy).was.called_with(_, contributionAmount)
 			-- Show() dispatches via G_RLF:SendMessage — verify the element was routed
 			assert.spy(sendMessageSpy).was.called(1)
 			assert.spy(sendMessageSpy).was.called_with(_, "RLF_NEW_LOOT", _)
@@ -293,14 +318,14 @@ describe("TravelPoints module", function()
 
 		it("PERKS_ACTIVITY_COMPLETED logs warning when GetPerksActivityInfo fails", function()
 			local activityID = 123
-			-- mockPerksAdapter.GetPerksActivityInfo already returns nil from before_each
+			-- _travelPointsAdapter.GetPerksActivityInfo already returns nil from before_each
 
-			local elementNewSpy = spy.on(TravelPointsModule.Element, "new")
+			local buildPayloadSpy = spy.on(TravelPointsModule, "BuildPayload")
 			local logWarnSpy = spy.on(ns, "LogWarn")
 
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", activityID)
 
-			assert.spy(elementNewSpy).was.not_called()
+			assert.spy(buildPayloadSpy).was.not_called()
 			assert
 				.spy(logWarnSpy).was
 				.called_with(_, "Could not get activity info", "TestAddon", TravelPointsModule.moduleName)
@@ -309,21 +334,24 @@ describe("TravelPoints module", function()
 		it("PERKS_ACTIVITY_COMPLETED logs warning when amount is not positive", function()
 			local activityID = 123
 
-			TravelPointsModule._perksActivitiesAdapter = {
+			TravelPointsModule._travelPointsAdapter = {
 				GetPerksActivityInfo = function(_activityID)
 					return { thresholdContributionAmount = 0 }
 				end,
 				GetPerksActivitiesInfo = function()
 					return { activities = {}, thresholds = {} }
 				end,
+				GetMonthlyActivitiesPointsLabel = function()
+					return "Traveler's Log"
+				end,
 			}
 
-			local elementNewSpy = spy.on(TravelPointsModule.Element, "new")
+			local buildPayloadSpy = spy.on(TravelPointsModule, "BuildPayload")
 			local logWarnSpy = spy.on(ns, "LogWarn")
 
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", activityID)
 
-			assert.spy(elementNewSpy).was.not_called()
+			assert.spy(buildPayloadSpy).was.not_called()
 			assert.spy(logWarnSpy).was.called_with(
 				_,
 				"PERKS_ACTIVITY_COMPLETED fired but amount was not positive",
@@ -335,12 +363,15 @@ describe("TravelPoints module", function()
 		it("PERKS_ACTIVITY_COMPLETED logs warning when GetPerksActivitiesInfo fails", function()
 			local activityID = 123
 
-			TravelPointsModule._perksActivitiesAdapter = {
+			TravelPointsModule._travelPointsAdapter = {
 				GetPerksActivityInfo = function(_activityID)
 					return { thresholdContributionAmount = 25 }
 				end,
 				GetPerksActivitiesInfo = function()
 					return nil
+				end,
+				GetMonthlyActivitiesPointsLabel = function()
+					return "Traveler's Log"
 				end,
 			}
 
@@ -358,7 +389,7 @@ describe("TravelPoints module", function()
 		it("calculates progress correctly with completed and current activities", function()
 			local activityID = 2
 
-			TravelPointsModule._perksActivitiesAdapter = {
+			TravelPointsModule._travelPointsAdapter = {
 				GetPerksActivitiesInfo = function()
 					return {
 						activities = {
@@ -375,13 +406,17 @@ describe("TravelPoints module", function()
 				GetPerksActivityInfo = function(_activityID)
 					return { thresholdContributionAmount = 20 }
 				end,
+				GetMonthlyActivitiesPointsLabel = function()
+					return "Traveler's Log"
+				end,
 			}
 
 			-- Trigger the event which internally calls calcTravelersJourneyVal
 			TravelPointsModule:PERKS_ACTIVITY_COMPLETED("PERKS_ACTIVITY_COMPLETED", activityID)
 
 			-- Verify journey values via secondaryTextFn on a fresh element
-			local element = TravelPointsModule.Element:new(20)
+			local payload = TravelPointsModule:BuildPayload(20)
+			local element = ns.LootElementBase:fromPayload(payload)
 			local result = element.secondaryTextFn()
 
 			-- current = 10 (completed) + 20 (activity 2 = current) = 30, max = 150

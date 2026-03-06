@@ -93,4 +93,20 @@ G_RLF.WoWAPI.Money = {
 	end,
 }
 
+-- ── TravelPoints API Adapter ──────────────────────────────────────────────────
+-- Wraps C_PerksActivities and the MONTHLY_ACTIVITIES_POINTS global string used
+-- by the TravelPoints feature module.
+---@class RLF_WoWAPI_TravelPoints
+G_RLF.WoWAPI.TravelPoints = {
+	GetPerksActivitiesInfo = function()
+		return C_PerksActivities.GetPerksActivitiesInfo()
+	end,
+	GetPerksActivityInfo = function(activityID)
+		return C_PerksActivities.GetPerksActivityInfo(activityID)
+	end,
+	GetMonthlyActivitiesPointsLabel = function()
+		return _G["MONTHLY_ACTIVITIES_POINTS"]
+	end,
+}
+
 return G_RLF.WoWAPI
