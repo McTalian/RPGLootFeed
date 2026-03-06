@@ -344,27 +344,40 @@ local function testElementConstructors()
 	-- Test element constructors that don't require async data.
 	-- Each should return a table with valid LootElementBase fields.
 
-	-- Experience
+	-- Experience (migrated: BuildPayload → fromPayload)
 	local xpModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Experience, true)
 	if xpModule and xpModule:IsEnabled() then
-		local e = xpModule.Element:new(1000)
-		runner:assertEqual(e ~= nil, true, "Element: Experience created")
-		if e then
-			runner:assertEqual(e.type, "Experience", "Element: Experience.type")
-			runner:assertEqual(e.key, "EXPERIENCE", "Element: Experience.key")
-			runner:assertEqual(e.quantity, 1000, "Element: Experience.quantity")
-			runner:assertEqual(type(e.textFn), "function", "Element: Experience.textFn")
-			runner:assertEqual(type(e.IsEnabled), "function", "Element: Experience.IsEnabled")
-			runner:assertEqual(type(e.Show), "function", "Element: Experience.Show")
+		local payload = xpModule:BuildPayload(1000)
+		runner:assertEqual(payload ~= nil, true, "Element: Experience payload created")
+		if payload then
+			runner:assertEqual(payload.type, "Experience", "Element: Experience payload.type")
+			runner:assertEqual(payload.key, "EXPERIENCE", "Element: Experience payload.key")
+			runner:assertEqual(payload.quantity, 1000, "Element: Experience payload.quantity")
+			runner:assertEqual(type(payload.textFn), "function", "Element: Experience payload.textFn")
+			runner:assertEqual(type(payload.itemCountFn), "function", "Element: Experience payload.itemCountFn")
+			runner:assertEqual(type(payload.IsEnabled), "function", "Element: Experience payload.IsEnabled")
+
+			local e = G_RLF.LootElementBase:fromPayload(payload)
+			runner:assertEqual(e ~= nil, true, "Element: Experience element created")
+			if e then
+				runner:assertEqual(e.type, "Experience", "Element: Experience.type")
+				runner:assertEqual(e.key, "EXPERIENCE", "Element: Experience.key")
+				runner:assertEqual(e.quantity, 1000, "Element: Experience.quantity")
+				runner:assertEqual(type(e.textFn), "function", "Element: Experience.textFn")
+				runner:assertEqual(type(e.itemCountFn), "function", "Element: Experience.itemCountFn")
+				runner:assertEqual(type(e.IsEnabled), "function", "Element: Experience.IsEnabled")
+				runner:assertEqual(type(e.Show), "function", "Element: Experience.Show")
+			end
 		end
 	end
 
 	-- Money
 	local moneyModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Money, true)
 	if moneyModule and moneyModule:IsEnabled() then
-		local e = moneyModule.Element:new(12345)
-		runner:assertEqual(e ~= nil, true, "Element: Money created")
-		if e then
+		local payload = moneyModule:BuildPayload(12345)
+		runner:assertEqual(payload ~= nil, true, "BuildPayload: Money created")
+		if payload then
+			local e = G_RLF.LootElementBase:fromPayload(payload)
 			runner:assertEqual(e.type, "Money", "Element: Money.type")
 			runner:assertEqual(e.key, "MONEY_LOOT", "Element: Money.key")
 			runner:assertEqual(e.quantity, 12345, "Element: Money.quantity")
@@ -377,14 +390,15 @@ local function testElementConstructors()
 	-- Professions
 	local profModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Profession, true)
 	if profModule and profModule:IsEnabled() then
-		local icon = G_RLF.DefaultIcons.PROFESSION
-		local e = profModule.Element:new("TestCooking", "Cooking", icon, 5, nil, 1)
-		runner:assertEqual(e ~= nil, true, "Element: Professions created")
-		if e then
+		local payload = profModule:BuildPayload("TestCooking", "Cooking", G_RLF.DefaultIcons.PROFESSION, 5, 1)
+		runner:assertEqual(payload ~= nil, true, "BuildPayload: Professions created")
+		if payload then
+			local e = G_RLF.LootElementBase:fromPayload(payload)
 			runner:assertEqual(e.type, "Professions", "Element: Professions.type")
 			runner:assertEqual(e.key, "PROF_TestCooking", "Element: Professions.key")
 			runner:assertEqual(e.quantity, 1, "Element: Professions.quantity")
 			runner:assertEqual(type(e.textFn), "function", "Element: Professions.textFn")
+			runner:assertEqual(type(e.itemCountFn), "function", "Element: Professions.itemCountFn")
 			runner:assertEqual(type(e.IsEnabled), "function", "Element: Professions.IsEnabled")
 			runner:assertEqual(type(e.Show), "function", "Element: Professions.Show")
 		end
@@ -394,9 +408,10 @@ local function testElementConstructors()
 	if G_RLF:IsRetail() then
 		local tpModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.TravelPoints, true)
 		if tpModule and tpModule:IsEnabled() then
-			local e = tpModule.Element:new(50)
-			runner:assertEqual(e ~= nil, true, "Element: TravelPoints created")
-			if e then
+			local payload = tpModule:BuildPayload(50)
+			runner:assertEqual(payload ~= nil, true, "BuildPayload: TravelPoints created")
+			if payload then
+				local e = G_RLF.LootElementBase:fromPayload(payload)
 				runner:assertEqual(e.type, "TravelPoints", "Element: TravelPoints.type")
 				runner:assertEqual(e.key, "TRAVELPOINTS", "Element: TravelPoints.key")
 				runner:assertEqual(e.quantity, 50, "Element: TravelPoints.quantity")
@@ -407,36 +422,77 @@ local function testElementConstructors()
 		end
 	end
 
-	-- ItemLoot — only if test data is already cached
+	-- ItemLoot — only if test data is already cached (migrated: BuildPayload → fromPayload)
 	local itemModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.ItemLoot, true)
 	if itemModule and itemModule:IsEnabled() and #TestMode.testItems > 0 then
 		local info = TestMode.testItems[1]
-		local e = itemModule.Element:new(info, 1)
-		runner:assertEqual(e ~= nil, true, "Element: ItemLoot created")
-		if e then
-			runner:assertEqual(e.type, "ItemLoot", "Element: ItemLoot.type")
-			runner:assertEqual(e.isLink, true, "Element: ItemLoot.isLink")
-			runner:assertEqual(e.quantity, 1, "Element: ItemLoot.quantity")
-			runner:assertEqual(type(e.textFn), "function", "Element: ItemLoot.textFn")
-			runner:assertEqual(type(e.IsEnabled), "function", "Element: ItemLoot.IsEnabled")
-			runner:assertEqual(type(e.Show), "function", "Element: ItemLoot.Show")
+		local payload = itemModule:BuildPayload(info, 1)
+		runner:assertEqual(payload ~= nil, true, "BuildPayload: ItemLoot created")
+		if payload then
+			runner:assertEqual(payload.type, "ItemLoot", "BuildPayload: ItemLoot.type")
+			runner:assertEqual(payload.isLink, true, "BuildPayload: ItemLoot.isLink")
+			runner:assertEqual(payload.quantity, 1, "BuildPayload: ItemLoot.quantity")
+			runner:assertEqual(type(payload.textFn), "function", "BuildPayload: ItemLoot.textFn")
+			runner:assertEqual(type(payload.IsEnabled), "function", "BuildPayload: ItemLoot.IsEnabled")
+			local e = G_RLF.LootElementBase:fromPayload(payload)
+			runner:assertEqual(type(e.Show), "function", "BuildPayload: ItemLoot.Show")
 		end
 	end
 
-	-- Currency — only if test data is already cached
+	-- Currency — only if test data is already cached (migrated: BuildPayload → fromPayload)
 	if GetExpansionLevel() >= G_RLF.Expansion.WOTLK then
 		local currModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Currency, true)
 		if currModule and currModule:IsEnabled() and #TestMode.testCurrencies > 0 then
 			local testObj = TestMode.testCurrencies[1]
 			testObj.basicInfo.displayAmount = 1
-			local e = currModule.Element:new(testObj.link, testObj.info, testObj.basicInfo)
-			runner:assertEqual(e ~= nil, true, "Element: Currency created")
+			local payload = currModule:BuildPayload(testObj.link, testObj.info, testObj.basicInfo)
+			runner:assertEqual(payload ~= nil, true, "BuildPayload: Currency created")
+			if payload then
+				runner:assertEqual(payload.type, "Currency", "BuildPayload: Currency.type")
+				runner:assertEqual(payload.isLink, true, "BuildPayload: Currency.isLink")
+				runner:assertEqual(type(payload.textFn), "function", "BuildPayload: Currency.textFn")
+				runner:assertEqual(type(payload.IsEnabled), "function", "BuildPayload: Currency.IsEnabled")
+				local e = G_RLF.LootElementBase:fromPayload(payload)
+				runner:assertEqual(type(e.Show), "function", "BuildPayload: Currency element.Show")
+			end
+		end
+	end
+
+	-- Reputation (migrated: BuildPayload → fromPayload)
+	local repModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Reputation, true)
+	if repModule and repModule:IsEnabled() then
+		---@type UnifiedFactionData
+		local testFactionData = {
+			factionId = 99999,
+			name = "Test Faction",
+			delta = 250,
+			icon = 132882,
+			rank = "Honored",
+			color = nil,
+			quality = nil,
+			contextInfo = "Test context",
+		}
+		local payload = repModule:BuildPayload(testFactionData)
+		runner:assertEqual(payload ~= nil, true, "Element: Reputation payload created")
+		if payload then
+			runner:assertEqual(payload.type, "Reputation", "Element: Reputation payload.type")
+			runner:assertEqual(payload.key, "REP_99999", "Element: Reputation payload.key")
+			runner:assertEqual(payload.quantity, 250, "Element: Reputation payload.quantity")
+			runner:assertEqual(type(payload.textFn), "function", "Element: Reputation payload.textFn")
+			runner:assertEqual(type(payload.itemCountFn), "function", "Element: Reputation payload.itemCountFn")
+			runner:assertEqual(type(payload.secondaryTextFn), "function", "Element: Reputation payload.secondaryTextFn")
+			runner:assertEqual(type(payload.IsEnabled), "function", "Element: Reputation payload.IsEnabled")
+
+			local e = G_RLF.LootElementBase:fromPayload(payload)
+			runner:assertEqual(e ~= nil, true, "Element: Reputation element created")
 			if e then
-				runner:assertEqual(e.type, "Currency", "Element: Currency.type")
-				runner:assertEqual(e.isLink, true, "Element: Currency.isLink")
-				runner:assertEqual(type(e.textFn), "function", "Element: Currency.textFn")
-				runner:assertEqual(type(e.IsEnabled), "function", "Element: Currency.IsEnabled")
-				runner:assertEqual(type(e.Show), "function", "Element: Currency.Show")
+				runner:assertEqual(e.type, "Reputation", "Element: Reputation.type")
+				runner:assertEqual(e.key, "REP_99999", "Element: Reputation.key")
+				runner:assertEqual(e.quantity, 250, "Element: Reputation.quantity")
+				runner:assertEqual(type(e.textFn), "function", "Element: Reputation.textFn")
+				runner:assertEqual(type(e.itemCountFn), "function", "Element: Reputation.itemCountFn")
+				runner:assertEqual(type(e.IsEnabled), "function", "Element: Reputation.IsEnabled")
+				runner:assertEqual(type(e.Show), "function", "Element: Reputation.Show")
 			end
 		end
 	end

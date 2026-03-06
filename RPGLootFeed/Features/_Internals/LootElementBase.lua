@@ -116,7 +116,117 @@ function G_RLF.LootElementBase:new()
 	return element
 end
 
+--- Creates a new loot element from a uniform payload table.
+--- This is the preferred way for feature modules to construct elements.
+--- The payload maps directly to row visual components (icon, primary line,
+--- secondary line, etc.) without requiring per-module Element constructors.
+---@param payload RLF_ElementPayload
+---@return RLF_BaseLootElement
+function G_RLF.LootElementBase:fromPayload(payload)
+	local element = self:new()
+
+	-- ── Routing ────────────────────────────────────────────────────────────────
+	element.key = payload.key
+	element.type = payload.type
+	if payload.eventChannel then
+		element.eventChannel = payload.eventChannel
+	end
+
+	-- ── Icon ───────────────────────────────────────────────────────────────────
+	element.icon = payload.icon
+	element.quality = payload.quality
+	element.topLeftText = payload.topLeftText
+	element.topLeftColor = payload.topLeftColor
+
+	-- ── Primary line ───────────────────────────────────────────────────────────
+	element.textFn = payload.textFn
+	element.quantity = payload.quantity
+	element.isLink = payload.isLink or false
+	element.amountTextFn = payload.amountTextFn
+	element.itemCountFn = payload.itemCountFn
+
+	-- ── Secondary line ─────────────────────────────────────────────────────────
+	element.secondaryTextFn = payload.secondaryTextFn
+	element.secondaryText = payload.secondaryText
+	element.secondaryTextColor = payload.secondaryTextColor
+
+	-- ── Color ──────────────────────────────────────────────────────────────────
+	if payload.r then
+		element.r = payload.r
+	end
+	if payload.g then
+		element.g = payload.g
+	end
+	if payload.b then
+		element.b = payload.b
+	end
+	if payload.a then
+		element.a = payload.a
+	end
+	element.colorFn = payload.colorFn
+
+	-- ── Effects ────────────────────────────────────────────────────────────────
+	element.highlight = payload.highlight or false
+	element.sound = payload.sound
+
+	-- ── Interaction ────────────────────────────────────────────────────────────
+	element.isCustomLink = payload.isCustomLink
+	element.customBehavior = payload.customBehavior
+
+	-- ── Party ──────────────────────────────────────────────────────────────────
+	element.unit = payload.unit
+
+	-- ── Lifecycle ──────────────────────────────────────────────────────────────
+	if payload.showForSeconds then
+		element.showForSeconds = payload.showForSeconds
+	end
+	element.isSampleRow = payload.isSampleRow or false
+	if payload.logFn then
+		element.logFn = payload.logFn
+	end
+	if payload.IsEnabled then
+		element.IsEnabled = payload.IsEnabled
+	end
+
+	-- ── Backwards compatibility: keep itemCount for modules not yet migrated ──
+	element.itemCount = payload.itemCount
+
+	return element
+end
+
+---@class RLF_ElementPayload
+---@field key string Unique row identity
+---@field type string|number Module enum value or type string
+---@field eventChannel? string Message bus channel (default: "RLF_NEW_LOOT")
+---@field icon? number|string Texture ID or path
+---@field quality? number Item quality / rarity
+---@field topLeftText? string Text overlayed on icon corner
+---@field topLeftColor? table RGBA table for topLeftText
+---@field textFn fun(existingQty?: number, truncatedLink?: string): string Primary text provider
+---@field quantity number The delta being applied
+---@field isLink? boolean If true, textFn() returns a link on first call
+---@field amountTextFn? fun(existingQty: number): string Amount suffix provider (e.g. "x2")
+---@field itemCountFn? fun(): (number|nil, table|nil) Count display provider; returns (value, options)
+---@field secondaryTextFn? fun(currentAmount: number): string Secondary line text provider
+---@field secondaryText? string Static secondary text override
+---@field secondaryTextColor? table ColorMixin with .r, .g, .b
+---@field r? number Red channel (0-1, default 1)
+---@field g? number Green channel (0-1, default 1)
+---@field b? number Blue channel (0-1, default 1)
+---@field a? number Alpha channel (0-1, default 1)
+---@field colorFn? fun(netQty: number): number, number, number, number Dynamic color recomputer
+---@field highlight? boolean Border glow / entry animation
+---@field sound? string Sound file path
+---@field isCustomLink? boolean Custom tooltip behavior flag
+---@field customBehavior? fun() Click handler for custom links
+---@field unit? string Unit token for portrait display
+---@field showForSeconds? number Override fade timer
+---@field isSampleRow? boolean Test mode flag, never expires
+---@field logFn? fun(text: string, amount: number, new: boolean) Logging hook
+---@field IsEnabled? fun(): boolean Permission gate
+---@field itemCount? number Backwards compat: raw count for non-migrated modules
+
 --- Union of all concrete loot element types used by the LootDisplay engine.
---- @alias RLF_LootElement RLF_BaseLootElement | ItemLoot.Element | Currency.Element | Money.Element | Xp.Element | Rep.Element | Professions.Element | TravelPoints.Element | PartyLoot.Element
+--- @alias RLF_LootElement RLF_BaseLootElement
 
 return {}

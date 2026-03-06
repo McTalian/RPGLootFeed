@@ -24,6 +24,7 @@ describe("Experience module", function()
 			DefaultIcons = { XP = 894556 },
 			ItemQualEnum = { Epic = 4 },
 			FeatureModule = { Experience = "Experience" },
+			WoWAPI = { Experience = {} },
 			-- Closure wrappers call these as G_RLF:Method(...).
 			LogDebug = function() end,
 			LogInfo = function() end,
@@ -38,7 +39,7 @@ describe("Experience module", function()
 			-- L used by createExperienceContextProvider for the {xpLabel} template key.
 			L = { XP = "XP" },
 			SendMessage = sendMessageSpy,
-			-- Runtime lookups by LootElementBase:new() and lifecycle methods.
+			-- Runtime lookups by LootElementBase:fromPayload() and lifecycle methods.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },
@@ -46,6 +47,9 @@ describe("Experience module", function()
 						enabled = true,
 						enableIcon = true,
 						experienceTextColor = { 0.93, 0.55, 0.63, 1.0 },
+						showCurrentLevel = true,
+						currentLevelColor = { 0.749, 0.737, 0.012, 1 },
+						currentLevelTextWrapChar = "<",
 					},
 					misc = { hideAllIcons = false, showOneQuantity = false },
 				},
@@ -80,9 +84,9 @@ describe("Experience module", function()
 		-- Load Experience – the FeatureBase mock above is captured at load time.
 		XpModule = assert(loadfile("RPGLootFeed/Features/Experience.lua"))("TestAddon", ns)
 
-		-- Inject a default UnitXpAdapter so event-handler tests work without
+		-- Inject a default adapter so event-handler tests work without
 		-- patching _G directly.
-		XpModule._unitXpAdapter = {
+		XpModule._xpAdapter = {
 			UnitXP = function()
 				return 10
 			end,
@@ -122,18 +126,18 @@ describe("Experience module", function()
 		-- old max XP was 50
 		-- xp value is still 10
 		-- (50 max for last level - 10 old xp value) + 10 new xp value = 50 xp earned
-		XpModule._unitXpAdapter.UnitLevel = function()
+		XpModule._xpAdapter.UnitLevel = function()
 			return 3
 		end
-		XpModule._unitXpAdapter.UnitXPMax = function()
+		XpModule._xpAdapter.UnitXPMax = function()
 			return 100
 		end
 
-		local newElement = spy.on(XpModule.Element, "new")
+		local buildPayload = spy.on(XpModule, "BuildPayload")
 
 		XpModule:PLAYER_XP_UPDATE("PLAYER_XP_UPDATE", "player")
 
-		assert.spy(newElement).was.called_with(_, 50)
+		assert.spy(buildPayload).was.called_with(_, 50)
 		assert.spy(sendMessageSpy).was.called(1)
 	end)
 
@@ -165,28 +169,45 @@ describe("Experience module", function()
 		end)
 	end)
 
-	describe("Element creation", function()
+	describe("BuildPayload and element creation", function()
 		before_each(function()
 			-- Enable the context provider for element tests
 			XpModule:OnEnable()
 		end)
 
-		it("creates experience elements with correct properties", function()
-			local element = XpModule.Element:new(500)
+		it("creates experience payload with correct properties", function()
+			local payload = XpModule:BuildPayload(500)
+
+			assert.is_not_nil(payload)
+			assert.equal("Experience", payload.type)
+			assert.equal("EXPERIENCE", payload.key)
+			assert.equal(500, payload.quantity)
+			assert.is_not_nil(payload.icon)
+			assert.is_function(payload.textFn)
+			assert.is_function(payload.secondaryTextFn)
+			assert.is_function(payload.itemCountFn)
+			assert.is_function(payload.IsEnabled)
+		end)
+
+		it("creates element from payload via fromPayload", function()
+			local payload = XpModule:BuildPayload(500)
+			local element = ns.LootElementBase:fromPayload(payload)
 
 			assert.is_not_nil(element)
 			assert.equal("Experience", element.type)
 			assert.equal("EXPERIENCE", element.key)
 			assert.equal(500, element.quantity)
-			assert.is_not_nil(element.icon)
 			assert.is_function(element.textFn)
 			assert.is_function(element.secondaryTextFn)
+			assert.is_function(element.itemCountFn)
+			assert.is_function(element.IsEnabled)
+			assert.is_function(element.Show)
 		end)
 
 		it("textFn uses TextTemplateEngine", function()
-			local element = XpModule.Element:new(500)
+			local payload = XpModule:BuildPayload(500)
 
-			local result = element.textFn(250)
+			local result = payload.textFn(250)
 
 			-- Should contain the total amount: 500 + 250 = 750 XP
 			assert.truthy(result)
@@ -199,18 +220,18 @@ describe("Experience module", function()
 
 		it("secondaryTextFn shows XP percentage when XP data available", function()
 			-- Override adapter to return specific XP values for this test.
-			XpModule._unitXpAdapter.UnitXP = function()
+			XpModule._xpAdapter.UnitXP = function()
 				return 7526
 			end
-			XpModule._unitXpAdapter.UnitXPMax = function()
+			XpModule._xpAdapter.UnitXPMax = function()
 				return 10000
 			end
 
 			-- Initialize XP values via event handler
 			XpModule:PLAYER_ENTERING_WORLD("PLAYER_ENTERING_WORLD")
 
-			local element = XpModule.Element:new(500)
-			local result = element.secondaryTextFn(250)
+			local payload = XpModule:BuildPayload(500)
+			local result = payload.secondaryTextFn(250)
 
 			-- Should contain percentage display (7526/10000 = 75.26%)
 			assert.truthy(result)
@@ -223,29 +244,51 @@ describe("Experience module", function()
 
 		it("secondaryTextFn returns empty when XP data unavailable", function()
 			-- Override adapter to return nil to simulate missing data.
-			XpModule._unitXpAdapter.UnitXP = function()
+			XpModule._xpAdapter.UnitXP = function()
 				return nil
 			end
-			XpModule._unitXpAdapter.UnitXPMax = function()
+			XpModule._xpAdapter.UnitXPMax = function()
 				return nil
 			end
 
 			-- Initialize with nil values
 			XpModule:PLAYER_ENTERING_WORLD("PLAYER_ENTERING_WORLD")
 
-			local element = XpModule.Element:new(500)
-			local result = element.secondaryTextFn(250)
+			local payload = XpModule:BuildPayload(500)
+			local result = payload.secondaryTextFn(250)
 
 			-- Should return empty string when XP data is not available
 			assert.equal("", result)
 		end)
 
 		it("returns nil for zero quantity", function()
-			local element = XpModule.Element:new(0)
-			assert.is_nil(element)
+			local payload = XpModule:BuildPayload(0)
+			assert.is_nil(payload)
 
-			local element2 = XpModule.Element:new(nil)
-			assert.is_nil(element2)
+			local payload2 = XpModule:BuildPayload(nil)
+			assert.is_nil(payload2)
+		end)
+
+		it("itemCountFn returns current level when showCurrentLevel is true", function()
+			XpModule:PLAYER_ENTERING_WORLD("PLAYER_ENTERING_WORLD")
+
+			local payload = XpModule:BuildPayload(500)
+			local value, options = payload.itemCountFn()
+
+			assert.equal(2, value) -- currentLevel from adapter mock
+			assert.is_not_nil(options)
+			assert.is_not_nil(options.color)
+			assert.is_not_nil(options.wrapChar)
+		end)
+
+		it("itemCountFn returns nil when showCurrentLevel is false", function()
+			ns.db.global.xp.showCurrentLevel = false
+			XpModule:PLAYER_ENTERING_WORLD("PLAYER_ENTERING_WORLD")
+
+			local payload = XpModule:BuildPayload(500)
+			local value = payload.itemCountFn()
+
+			assert.is_nil(value)
 		end)
 	end)
 end)

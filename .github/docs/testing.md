@@ -124,18 +124,17 @@ Feature modules expose their full dependency surface as locals at the top of the
 
 **Fully migrated reference implementations** (in rough order of complexity):
 
-| Spec file                        | Pattern highlights                                                                                                     |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `TravelPoints_spec.lua`          | Canonical baseline — simplest pattern                                                                                  |
-| `Transmog_spec.lua`              | Canonical baseline                                                                                                     |
-| `Experience_spec.lua`            | Bare WoW global fn adapter (`UnitXP` etc.)                                                                             |
-| `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine                                                              |
-| `Professions_spec.lua`           | `GetProfessions/GetProfessionInfo`, locale globals                                                                     |
-| `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin                                        |
-| `PartyLoot_spec.lua`             | UnitName/UnitClass, GUID, expansion-gate, nameUnitMap                                                                  |
-| `Currency_spec.lua`              | C_Everywhere + bare global fallbacks, Classic locale patterns, adapter factory                                         |
-| `ItemLoot_spec.lua`              | Most complex: AceBucket mixin, `_itemLootAdapter` with 14 methods, `Enum` global, classical/Retail branching, 49 tests |
-| `Money_spec.lua`                 | `colorFn` hook on `Element:new()` for net-quantity-aware row color on update                                           |
+| Spec file                        | Pattern highlights                                                                                                                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TravelPoints_spec.lua`          | Canonical baseline — simplest pattern; two adapters combined to `_travelPointsAdapter`                                                                                                                                          |
+| `Transmog_spec.lua`              | `BuildPayload`/`fromPayload` pattern; `WoWAPI = { Transmog = {} }` ns mock; single `_transmogAdapter`; `spy.on(Transmog, "BuildPayload")` for event handler assertions                                                          |
+| `Experience_spec.lua`            | Bare WoW global fn adapter (`UnitXP` etc.)                                                                                                                                                                                      |
+| `Money_spec.lua`                 | C\_\* + bare globals + PlaySoundFile + TextTemplateEngine; `PlaySoundIfEnabled` on module not element                                                                                                                           |
+| `Professions_spec.lua`           | `BuildPayload`/`fromPayload` pattern; `WoWAPI = { Professions = {} }` ns mock; `showSkillChange`/`skillTextWrapChar` in db; `itemCountFn` enabled/disabled tests                                                                |
+| `ReputationRegressions_spec.lua` | **Inline utility stub** (`ns.RepUtils`, `ns.LegacyRepParsing`), AceBucket mixin, `BuildPayload` spy pattern                                                                                                                     |
+| `PartyLoot_spec.lua`             | `BuildPayload`/`fromPayload` pattern; `WoWAPI = { PartyLoot = {} }` ns mock; UnitName/UnitClass, GUID, expansion-gate, nameUnitMap; filter checks via `spy.on(PartyLoot, "BuildPayload")`; `sendMessageSpy` for show assertions |
+| `Currency_spec.lua`              | C_Everywhere + bare global fallbacks, Classic locale patterns, `BuildPayload`/`fromPayload` pattern                                                                                                                             |
+| `ItemLoot_spec.lua`              | Most complex: AceBucket mixin, `_itemLootAdapter` with 14 methods, `Enum` global, classical/Retail branching, 49 tests                                                                                                          |
 
 **Inline utility stub pattern** — for modules with large utility deps having deep WoW API chains (e.g. `RepUtils` → `C_Reputation` / `C_GossipInfo` / `C_MajorFactions`), stub the entire utility table inline on `ns` rather than loading the real file:
 
@@ -177,7 +176,7 @@ describe("MyFeature", function()
             LogWarn       = logWarnSpy,
             IsRetail      = function() return true end,
             SendMessage   = sendMessageSpy,
-            -- Runtime lookup by LootElementBase:new() and lifecycle methods.
+            -- Runtime lookup by LootElementBase:fromPayload() and lifecycle methods.
             db = {
                 global = {
                     animations = { exit = { fadeOutDelay = 3 } },
@@ -224,6 +223,8 @@ end)
 - Provide `ns.db` manually — never rely on AceDB being initialised
 - Inline `ns.FeatureBase` stub so AceAddon is never invoked
 - Inject fresh adapter tables _after_ `loadfile` (they're module-level fields, not captured locals)
+- For modules migrated to `fromPayload()` architecture: include `WoWAPI = { ModuleName = {} }` in `ns` so the shared adapter reference resolves at load time. Tests still override `Module._someAdapter` (or equivalent) directly in `before_each`.
+- Spy on `Module:BuildPayload` instead of `Module.Element:new` — all feature modules use the `BuildPayload` → `fromPayload` pipeline
 - `G_RLF.db` is intentionally excluded from dependency locals in feature files — always runtime
 - **Always capture the module from the `loadfile` return value** — see [Module Return Convention](#module-return-convention) below
 
@@ -446,18 +447,18 @@ runner:displayResults()                            -- Print results, raise error
 
 **Sections**:
 
-| Section                   | What it validates                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **WoW Globals**           | WoW API functions, global strings, CVar access, item/currency info                                                                    |
-| **Module Registration**   | All FeatureModule, SupportModule, and BlizzModule enum values resolve via `GetModule()`                                               |
-| **Feature Enabled State** | If DB config says disabled, module reports `IsEnabled() == false`                                                                     |
-| **DB Structure**          | Required top-level config tables exist, metadata fields present, each feature has `enabled` boolean                                   |
-| **Migration Integrity**   | All migration versions 1..N registered with `:run()`, DB version matches highest                                                      |
-| **LootDisplay Frame**     | MainLootFrame exists with correct `frameType`, party frame presence matches config                                                    |
-| **TestMode Data**         | Structure of cached test items, currencies, factions (graceful with async loading)                                                    |
-| **Element Constructors**  | Data-free features (XP, Money, Professions, TravelPoints) return valid elements; data-dependent (ItemLoot, Currency) tested if cached |
-| **Locale**                | AceLocale table populated, critical config keys spot-checked                                                                          |
-| **Event Handlers**        | Each enabled feature module has expected WoW event handler methods                                                                    |
+| Section                   | What it validates                                                                                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **WoW Globals**           | WoW API functions, global strings, CVar access, item/currency info                                                                                       |
+| **Module Registration**   | All FeatureModule, SupportModule, and BlizzModule enum values resolve via `GetModule()`                                                                  |
+| **Feature Enabled State** | If DB config says disabled, module reports `IsEnabled() == false`                                                                                        |
+| **DB Structure**          | Required top-level config tables exist, metadata fields present, each feature has `enabled` boolean                                                      |
+| **Migration Integrity**   | All migration versions 1..N registered with `:run()`, DB version matches highest                                                                         |
+| **LootDisplay Frame**     | MainLootFrame exists with correct `frameType`, party frame presence matches config                                                                       |
+| **TestMode Data**         | Structure of cached test items, currencies, factions (graceful with async loading)                                                                       |
+| **Element Constructors**  | Data-free features (XP, Money, Professions, TravelPoints) return valid payloads; data-dependent (ItemLoot, Currency) tested via `BuildPayload` if cached |
+| **Locale**                | AceLocale table populated, critical config keys spot-checked                                                                                             |
+| **Event Handlers**        | Each enabled feature module has expected WoW event handler methods                                                                                       |
 
 ### Integration Tests (Alpha Only)
 

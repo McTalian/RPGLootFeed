@@ -25,6 +25,9 @@ describe("Transmog module", function()
 			DefaultIcons = { TRANSMOG = "Interface/Icons/Inv_misc_questionmark" },
 			ItemQualEnum = { Epic = 4 },
 			FeatureModule = { Transmog = "Transmog" },
+			-- WoWAPI stub so Transmog._transmogAdapter = G_RLF.WoWAPI.Transmog
+			-- resolves at load time (overridden per-test in before_each).
+			WoWAPI = { Transmog = {} },
 			-- Closure wrappers in Transmog.lua call these as G_RLF:Method(...).
 			LogDebug = function() end,
 			LogInfo = function() end,
@@ -33,7 +36,7 @@ describe("Transmog module", function()
 				return true
 			end,
 			SendMessage = sendMessageSpy,
-			-- Runtime lookup by LootElementBase:new() and Transmog lifecycle methods.
+			-- Runtime lookup by LootElementBase:fromPayload() and Transmog lifecycle methods.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },
@@ -67,53 +70,52 @@ describe("Transmog module", function()
 		-- Load Transmog – the FeatureBase mock above is captured at load time.
 		TransmogModule = assert(loadfile("RPGLootFeed/Features/Transmog.lua"))("TestAddon", ns)
 
-		-- Inject fresh mock adapters for full test isolation.
-		-- Tests that need specific behaviour swap in their own adapter table.
-		TransmogModule._transmogCollectionAdapter = {
+		-- Inject a fresh mock adapter so tests control external WoW API calls
+		-- without patching _G directly.  Tests that need specific behaviour
+		-- override individual fields before the act step.
+		TransmogModule._transmogAdapter = {
 			GetAppearanceSourceInfo = function(_id)
 				return nil
 			end,
 			CreateItemFromItemLink = function(_link)
 				return nil
 			end,
-		}
-		TransmogModule._globalStringsAdapter = {
 			GetErrLearnTransmogS = function()
 				return "%s has been added to your appearance collection."
 			end,
 		}
 	end)
 
-	describe("Element creation", function()
-		it("creates element with correct properties", function()
+	describe("BuildPayload", function()
+		it("creates payload with correct properties", function()
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 			local icon = "Interface\\Icons\\TestIcon"
 
-			local element = TransmogModule.Element:new(transmogLink, icon)
+			local payload = TransmogModule:BuildPayload(transmogLink, icon)
 
-			assert.is_not_nil(element)
-			assert.are.equal("Transmog", element.type)
-			assert.are.equal("TMOG_" .. transmogLink, element.key)
-			assert.are.equal(icon, element.icon)
-			assert.are.equal(ns.ItemQualEnum.Epic, element.quality)
-			assert.is_true(element.isLink)
-			assert.is_function(element.textFn)
-			assert.is_function(element.secondaryTextFn)
+			assert.is_not_nil(payload)
+			assert.are.equal("Transmog", payload.type)
+			assert.are.equal("TMOG_" .. transmogLink, payload.key)
+			assert.are.equal(icon, payload.icon)
+			assert.are.equal(ns.ItemQualEnum.Epic, payload.quality)
+			assert.is_true(payload.isLink)
+			assert.is_function(payload.textFn)
+			assert.is_function(payload.secondaryTextFn)
 		end)
 
 		it("uses default icon when none provided", function()
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
-			local element = TransmogModule.Element:new(transmogLink)
+			local payload = TransmogModule:BuildPayload(transmogLink)
 
-			assert.are.equal(ns.DefaultIcons.TRANSMOG, element.icon)
+			assert.are.equal(ns.DefaultIcons.TRANSMOG, payload.icon)
 		end)
 
 		it("textFn returns transmogLink when no truncatedLink provided", function()
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
-			local element = TransmogModule.Element:new(transmogLink)
-			local result = element.textFn()
+			local payload = TransmogModule:BuildPayload(transmogLink)
+			local result = payload.textFn()
 
 			assert.are.equal(transmogLink, result)
 		end)
@@ -122,8 +124,8 @@ describe("Transmog module", function()
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 			local truncatedLink = "[Test Transmog]"
 
-			local element = TransmogModule.Element:new(transmogLink)
-			local result = element.textFn(nil, truncatedLink)
+			local payload = TransmogModule:BuildPayload(transmogLink)
+			local result = payload.textFn(nil, truncatedLink)
 
 			assert.are.equal(truncatedLink, result)
 		end)
@@ -131,38 +133,36 @@ describe("Transmog module", function()
 		it("secondaryTextFn returns formatted transmog learn message", function()
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
-			local element = TransmogModule.Element:new(transmogLink)
-			local result = element.secondaryTextFn()
+			local payload = TransmogModule:BuildPayload(transmogLink)
+			local result = payload.secondaryTextFn()
 
 			assert.are.equal("has been added to your appearance collection", result)
 		end)
 
 		it("secondaryTextFn returns formatted transmog learn message for ruRU", function()
-			TransmogModule._globalStringsAdapter = {
-				GetErrLearnTransmogS = function()
-					return "Модель %s добавлена в вашу коллекцию."
-				end,
-			}
+			TransmogModule._transmogAdapter.GetErrLearnTransmogS = function()
+				return "Модель %s добавлена в вашу коллекцию."
+			end
 
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
-			local element = TransmogModule.Element:new(transmogLink)
-			local result = element.secondaryTextFn()
+			local payload = TransmogModule:BuildPayload(transmogLink)
+			local result = payload.secondaryTextFn()
 
 			assert.are.equal("Модель добавлена в вашу коллекцию", result)
 		end)
 
-		it("IsEnabled function returns module enabled state", function()
-			local element = TransmogModule.Element:new("|cff9d9d9d|Htransmogappearance:12345|h[Test]|h|r")
+		it("IsEnabled closure reflects live module enabled state", function()
+			local payload = TransmogModule:BuildPayload("|cff9d9d9d|Htransmogappearance:12345|h[Test]|h|r")
 
 			-- Test when enabled
 			local enabledStub = stub(TransmogModule, "IsEnabled").returns(true)
-			assert.is_true(element.IsEnabled())
+			assert.is_true(payload.IsEnabled())
 			enabledStub:revert()
 
 			-- Test when disabled
 			local disabledStub = stub(TransmogModule, "IsEnabled").returns(false)
-			assert.is_false(element.IsEnabled())
+			assert.is_false(payload.IsEnabled())
 			disabledStub:revert()
 		end)
 	end)
@@ -204,13 +204,13 @@ describe("Transmog module", function()
 	end)
 
 	describe("Event handling", function()
-		it("TRANSMOG_COLLECTION_SOURCE_ADDED creates and shows element when data is valid", function()
+		it("TRANSMOG_COLLECTION_SOURCE_ADDED builds payload and shows element when data is valid", function()
 			local itemModifiedAppearanceID = 12345
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 			local icon = "Interface\\Icons\\TestIcon"
 
 			-- Inject adapter with a successful response.
-			TransmogModule._transmogCollectionAdapter = {
+			TransmogModule._transmogAdapter = {
 				GetAppearanceSourceInfo = function(_id)
 					return {
 						category = 1,
@@ -228,43 +228,46 @@ describe("Transmog module", function()
 				CreateItemFromItemLink = function(_link)
 					return nil
 				end,
+				GetErrLearnTransmogS = function()
+					return "%s has been added to your appearance collection."
+				end,
 			}
 
-			local elementNewSpy = spy.on(TransmogModule.Element, "new")
+			local buildPayloadSpy = spy.on(TransmogModule, "BuildPayload")
 
 			TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 				"TRANSMOG_COLLECTION_SOURCE_ADDED",
 				itemModifiedAppearanceID
 			)
 
-			assert.spy(elementNewSpy).was.called_with(_, transmogLink, icon)
+			assert.spy(buildPayloadSpy).was.called_with(_, transmogLink, icon)
 			assert.spy(sendMessageSpy).was.called_with(_, "RLF_NEW_LOOT", _)
 		end)
 
-		it("TRANSMOG_COLLECTION_SOURCE_ADDED does not create element when GetAppearanceSourceInfo fails", function()
+		it("TRANSMOG_COLLECTION_SOURCE_ADDED does not build payload when GetAppearanceSourceInfo fails", function()
 			local itemModifiedAppearanceID = 12345
 
 			-- Default adapter already returns nil; no override needed.
-			local elementNewSpy = spy.on(TransmogModule.Element, "new")
+			local buildPayloadSpy = spy.on(TransmogModule, "BuildPayload")
 
 			TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 				"TRANSMOG_COLLECTION_SOURCE_ADDED",
 				itemModifiedAppearanceID
 			)
 
-			assert.spy(elementNewSpy).was.not_called()
+			assert.spy(buildPayloadSpy).was.not_called()
 			assert
 				.spy(logWarnSpy).was
 				.called_with(_, "Could not get appearance source info", "TestAddon", TransmogModule.moduleName)
 		end)
 
 		it(
-			"TRANSMOG_COLLECTION_SOURCE_ADDED does not create element when transmogLink and itemLink are empty",
+			"TRANSMOG_COLLECTION_SOURCE_ADDED does not build payload when transmogLink and itemLink are empty",
 			function()
 				local itemModifiedAppearanceID = 12345
 
 				-- Inject adapter with both links empty.
-				TransmogModule._transmogCollectionAdapter = {
+				TransmogModule._transmogAdapter = {
 					GetAppearanceSourceInfo = function(_id)
 						return {
 							category = 1,
@@ -281,16 +284,19 @@ describe("Transmog module", function()
 					CreateItemFromItemLink = function(_link)
 						return nil
 					end,
+					GetErrLearnTransmogS = function()
+						return "%s has been added to your appearance collection."
+					end,
 				}
 
-				local elementNewSpy = spy.on(TransmogModule.Element, "new")
+				local buildPayloadSpy = spy.on(TransmogModule, "BuildPayload")
 
 				TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 					"TRANSMOG_COLLECTION_SOURCE_ADDED",
 					itemModifiedAppearanceID
 				)
 
-				assert.spy(elementNewSpy).was.not_called()
+				assert.spy(buildPayloadSpy).was.not_called()
 				assert
 					.spy(logWarnSpy).was
 					.called_with(
@@ -302,12 +308,12 @@ describe("Transmog module", function()
 			end
 		)
 
-		it("TRANSMOG_COLLECTION_SOURCE_ADDED logs warning when element creation fails", function()
+		it("TRANSMOG_COLLECTION_SOURCE_ADDED logs warning when BuildPayload returns nil", function()
 			local itemModifiedAppearanceID = 12345
 			local transmogLink = "|cff9d9d9d|Htransmogappearance:12345|h[Test Transmog]|h|r"
 
 			-- Inject adapter with a successful response.
-			TransmogModule._transmogCollectionAdapter = {
+			TransmogModule._transmogAdapter = {
 				GetAppearanceSourceInfo = function(_id)
 					return {
 						category = 1,
@@ -324,10 +330,13 @@ describe("Transmog module", function()
 				CreateItemFromItemLink = function(_link)
 					return nil
 				end,
+				GetErrLearnTransmogS = function()
+					return "%s has been added to your appearance collection."
+				end,
 			}
 
-			-- Force element creation to return nil to trigger the warning path.
-			stub(TransmogModule.Element, "new").returns(nil)
+			-- Force BuildPayload to return nil to trigger the warning path.
+			stub(TransmogModule, "BuildPayload").returns(nil)
 
 			TransmogModule:TRANSMOG_COLLECTION_SOURCE_ADDED(
 				"TRANSMOG_COLLECTION_SOURCE_ADDED",

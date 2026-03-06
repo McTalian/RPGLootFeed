@@ -18,7 +18,7 @@ describe("PartyLoot Module", function()
 
 		-- Build minimal ns from scratch – no nsMocks framework needed.
 		-- Only fields actually referenced by PartyLoot.lua and LootElementBase.lua
-		-- are included.  G_RLF.db is present because LootElementBase:new() reads
+		-- are included.  G_RLF.db is present because LootElementBase:fromPayload() reads
 		-- db.global.animations at construction time and feature code reads partyLoot
 		-- config at runtime.
 		ns = {
@@ -42,7 +42,7 @@ describe("PartyLoot Module", function()
 					return nil
 				end,
 			},
-			-- Runtime lookup by LootElementBase:new() and lifecycle code.
+			-- Runtime lookup by LootElementBase:fromPayload() and lifecycle code.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },
@@ -61,13 +61,11 @@ describe("PartyLoot Module", function()
 					},
 				},
 			},
+			-- G_RLF.WoWAPI.PartyLoot is captured at module-root load time;
+			-- provide an empty table so the assignment doesn't fail.
+			-- Tests then override PartyLoot._partyLootAdapter in before_each.
+			WoWAPI = { PartyLoot = {} },
 		}
-
-		-- LibStub must be available before loadfile: PartyLoot.lua calls
-		-- LibStub("C_Everywhere") at module root to capture the C library into the
-		-- PartyLootAdapter closure.  The adapter's GetItemInfo is replaced after
-		-- loadfile so the actual C_Everywhere mock content doesn't matter.
-		require("RPGLootFeed_spec._mocks.Libs.LibStub")
 
 		-- Load real LootElementBase so elements are fully constructed.
 		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
@@ -89,7 +87,6 @@ describe("PartyLoot Module", function()
 				}
 			end,
 		}
-
 		-- Load PartyLoot – FeatureBase, LootElementBase, ItemInfo, Expansion,
 		-- and ItemQualEnum are all captured as locals at load time.
 		PartyLoot = assert(loadfile("RPGLootFeed/Features/PartyLoot/PartyLoot.lua"))("TestAddon", ns)
@@ -265,9 +262,9 @@ describe("PartyLoot Module", function()
 			end
 			ns.db.global.partyLoot.onlyEpicAndAboveInRaid = true
 			PartyLoot:SetPartyLootFilters()
-			local elementNew = spy.on(PartyLoot.Element, "new")
+			local buildPayloadSpy = spy.on(PartyLoot, "BuildPayload")
 			PartyLoot:OnPartyReadyToShow(itemInfoPoor, 1, "party1")
-			assert.spy(elementNew).was_not.called()
+			assert.spy(buildPayloadSpy).was_not.called()
 		end)
 
 		it("skips poor quality loot when in instance with epic filter", function()
@@ -279,9 +276,9 @@ describe("PartyLoot Module", function()
 			end
 			ns.db.global.partyLoot.onlyEpicAndAboveInInstance = true
 			PartyLoot:SetPartyLootFilters()
-			local elementNew = spy.on(PartyLoot.Element, "new")
+			local buildPayloadSpy = spy.on(PartyLoot, "BuildPayload")
 			PartyLoot:OnPartyReadyToShow(itemInfoPoor, 1, "party1")
-			assert.spy(elementNew).was_not.called()
+			assert.spy(buildPayloadSpy).was_not.called()
 		end)
 
 		it("allows all quality when neither epic filter is active", function()
@@ -295,14 +292,8 @@ describe("PartyLoot Module", function()
 			ns.db.global.partyLoot.onlyEpicAndAboveInInstance = false
 			ns.db.global.partyLoot.itemQualityFilter = { [1] = true }
 			PartyLoot:SetPartyLootFilters()
-			local shown = false
-			stub(PartyLoot.Element, "new").returns({
-				Show = function()
-					shown = true
-				end,
-			})
 			PartyLoot:OnPartyReadyToShow(itemInfoPoor, 1, "party1")
-			assert.is_true(shown)
+			assert.spy(sendMessageSpy).was.called(1)
 		end)
 	end)
 
@@ -327,9 +318,8 @@ describe("PartyLoot Module", function()
 
 		it("returns early when partyLoot is disabled", function()
 			ns.db.global.partyLoot.enabled = false
-			local elementNew = spy.on(PartyLoot.Element, "new")
 			PartyLoot:CHAT_MSG_LOOT("CHAT_MSG_LOOT", chatMsg, "PartyMember")
-			assert.spy(elementNew).was_not.called()
+			assert.spy(sendMessageSpy).was_not.called()
 		end)
 
 		it("ignores messages flagged as secret values", function()
@@ -342,9 +332,8 @@ describe("PartyLoot Module", function()
 
 		it("ignores raid loot history messages (HlootHistory)", function()
 			local raidMsg = "Player received |cFFFFFFFF|HlootHistory:1:0|h[Item]|h|r"
-			local elementNew = spy.on(PartyLoot.Element, "new")
 			PartyLoot:CHAT_MSG_LOOT("CHAT_MSG_LOOT", raidMsg, "PartyMember")
-			assert.spy(elementNew).was_not.called()
+			assert.spy(sendMessageSpy).was_not.called()
 		end)
 
 		it("ignores own loot via GUID match (retail path)", function()
@@ -352,7 +341,6 @@ describe("PartyLoot Module", function()
 				return true
 			end
 			-- guid is the 12th vararg after eventName
-			local elementNew = spy.on(PartyLoot.Element, "new")
 			PartyLoot:CHAT_MSG_LOOT(
 				"CHAT_MSG_LOOT",
 				chatMsg,
@@ -368,7 +356,7 @@ describe("PartyLoot Module", function()
 				nil, -- 11th vararg
 				"Player-GUID-1234" -- guid (12th vararg)
 			)
-			assert.spy(elementNew).was_not.called()
+			assert.spy(sendMessageSpy).was_not.called()
 		end)
 
 		it("ignores own loot via playerName2 match (classic path)", function()
@@ -381,10 +369,9 @@ describe("PartyLoot Module", function()
 				end
 				return nil, nil
 			end
-			local elementNew = spy.on(PartyLoot.Element, "new")
 			-- playerName2 at 5th vararg position matches UnitName("player")
 			PartyLoot:CHAT_MSG_LOOT("CHAT_MSG_LOOT", chatMsg, "TestPlayer", nil, nil, "TestPlayer")
-			assert.spy(elementNew).was_not.called()
+			assert.spy(sendMessageSpy).was_not.called()
 		end)
 
 		it("ignores messages from players not in the nameUnitMap", function()
@@ -396,9 +383,8 @@ describe("PartyLoot Module", function()
 			local upgradeMsg = "PartyMember received"
 				.. " |cffa335ee|Hitem:18803::::::::60:::::|h[Old Item]|h|r"
 				.. " |cffa335ee|Hitem:18804::::::::60:::::|h[New Item]|h|r"
-			local elementNew = spy.on(PartyLoot.Element, "new")
 			PartyLoot:CHAT_MSG_LOOT("CHAT_MSG_LOOT", upgradeMsg, "PartyMember")
-			assert.spy(elementNew).was_not.called()
+			assert.spy(sendMessageSpy).was_not.called()
 		end)
 
 		it("shows loot element for valid single-item party loot", function()
@@ -414,14 +400,10 @@ describe("PartyLoot Module", function()
 				end,
 			}
 			stub(ns.ItemInfo, "new").returns(itemInfo)
-			local shown = false
-			stub(PartyLoot.Element, "new").returns({
-				Show = function()
-					shown = true
-				end,
-			})
+			-- epic quality must be enabled in the filter for the item to show
+			ns.db.global.partyLoot.itemQualityFilter = { [4] = true }
 			PartyLoot:CHAT_MSG_LOOT("CHAT_MSG_LOOT", chatMsg, "PartyMember")
-			assert.is_true(shown)
+			assert.spy(sendMessageSpy).was.called(1)
 		end)
 	end)
 
@@ -446,17 +428,13 @@ describe("PartyLoot Module", function()
 				end,
 			}
 			stub(ns.ItemInfo, "new").returns(itemInfo)
-			local shown = false
-			stub(PartyLoot.Element, "new").returns({
-				Show = function()
-					shown = true
-				end,
-			})
+			-- epic quality must be enabled in the filter for the item to show
+			ns.db.global.partyLoot.itemQualityFilter = { [4] = true }
 			PartyLoot.pendingPartyRequests[18803] = { itemLink, 1, "party1" }
 			PartyLoot:GET_ITEM_INFO_RECEIVED("GET_ITEM_INFO_RECEIVED", 18803, true)
 			-- pendingPartyRequests entry must be cleared after resolution
 			assert.is_nil(PartyLoot.pendingPartyRequests[18803])
-			assert.is_true(shown)
+			assert.spy(sendMessageSpy).was.called(1)
 		end)
 
 		it("errors when item load fails", function()
@@ -474,9 +452,9 @@ describe("PartyLoot Module", function()
 		end)
 	end)
 
-	-- ── Element:new ───────────────────────────────────────────────────────────
+	-- ── BuildPayload ──────────────────────────────────────────────────────────
 
-	describe("Element", function()
+	describe("BuildPayload", function()
 		-- Helper to build a minimal info object; overrides are merged.
 		local function makeInfo(overrides)
 			local base = {
@@ -499,35 +477,34 @@ describe("PartyLoot Module", function()
 		end
 
 		it("sets type, isLink, and eventChannel", function()
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.equals("PartyLoot", e.type)
-			assert.is_true(e.isLink)
-			assert.equals("RLF_NEW_PARTY_LOOT", e.eventChannel)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.equals("PartyLoot", payload.type)
+			assert.is_true(payload.isLink)
+			assert.equals("RLF_NEW_PARTY_LOOT", payload.eventChannel)
 		end)
 
-		it("sets itemId, key, and icon from itemInfo", function()
+		it("sets key and icon from itemInfo", function()
 			local info = makeInfo()
-			local e = PartyLoot.Element:new(info, 1, "party1")
-			assert.equals(18803, e.itemId)
-			assert.equals(info.itemLink, e.key)
-			assert.equals(123456, e.icon)
+			local payload = PartyLoot:BuildPayload(info, 1, "party1")
+			assert.equals(info.itemLink, payload.key)
+			assert.equals(123456, payload.icon)
 		end)
 
 		it("hides icon when partyLoot.enableIcon is false", function()
 			ns.db.global.partyLoot.enableIcon = false
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.is_nil(e.icon)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.is_nil(payload.icon)
 		end)
 
 		it("hides icon when misc.hideAllIcons is true", function()
 			ns.db.global.misc.hideAllIcons = true
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.is_nil(e.icon)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.is_nil(payload.icon)
 		end)
 
 		it("sets quality to Epic when keystoneInfo is non-nil", function()
-			local e = PartyLoot.Element:new(makeInfo({ keystoneInfo = {} }), 1, "party1")
-			assert.equals(4, e.quality) -- ItemQualEnum.Epic
+			local payload = PartyLoot:BuildPayload(makeInfo({ keystoneInfo = {} }), 1, "party1")
+			assert.equals(4, payload.quality) -- ItemQualEnum.Epic
 		end)
 
 		it("secondaryText is unit name only when hideServerNames is true", function()
@@ -535,8 +512,8 @@ describe("PartyLoot Module", function()
 			PartyLoot._partyLootAdapter.UnitName = function()
 				return "PartyMember", "ServerName"
 			end
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.equals("    PartyMember", e.secondaryText)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.equals("    PartyMember", payload.secondaryText)
 		end)
 
 		it("secondaryText includes server when hideServerNames is false", function()
@@ -544,47 +521,39 @@ describe("PartyLoot Module", function()
 			PartyLoot._partyLootAdapter.UnitName = function()
 				return "PartyMember", "ServerName"
 			end
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.equals("    PartyMember-ServerName", e.secondaryText)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.equals("    PartyMember-ServerName", payload.secondaryText)
 		end)
 
 		it("secondaryText falls back to default when UnitName returns nil", function()
 			PartyLoot._partyLootAdapter.UnitName = function()
 				return nil, nil
 			end
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.equals("A former party member", e.secondaryText)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.equals("A former party member", payload.secondaryText)
 		end)
 
 		it("textFn returns raw itemLink when no truncatedLink", function()
 			local info = makeInfo()
-			local e = PartyLoot.Element:new(info, 1, "party1")
-			assert.equals(info.itemLink, e.textFn(nil, nil))
+			local payload = PartyLoot:BuildPayload(info, 1, "party1")
+			assert.equals(info.itemLink, payload.textFn(nil, nil))
 		end)
 
 		it("textFn returns only the link with no quantity suffix", function()
-			local e = PartyLoot.Element:new(makeInfo(), 2, "party1")
-			local result = e.textFn(0, "[Finkle's Lava Dredger]")
+			local payload = PartyLoot:BuildPayload(makeInfo(), 2, "party1")
+			local result = payload.textFn(0, "[Finkle's Lava Dredger]")
 			assert.equals("[Finkle's Lava Dredger]", result)
 		end)
 
 		it("amountTextFn returns quantity suffix when quantity > 1", function()
-			local e = PartyLoot.Element:new(makeInfo(), 2, "party1")
-			assert.equals("x2", e.amountTextFn(0))
+			local payload = PartyLoot:BuildPayload(makeInfo(), 2, "party1")
+			assert.equals("x2", payload.amountTextFn(0))
 		end)
 
 		it("amountTextFn returns empty string when quantity is 1 and showOneQuantity is false", function()
 			ns.db.global.misc.showOneQuantity = false
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.equals("", e.amountTextFn(0))
-		end)
-
-		it("unitClass is set from second return value of UnitClass", function()
-			PartyLoot._partyLootAdapter.UnitClass = function()
-				return "Warrior", "WARRIOR"
-			end
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.equals("WARRIOR", e.unitClass)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.equals("", payload.amountTextFn(0))
 		end)
 
 		it("secondaryTextColor uses GetClassColor when expansion >= BFA", function()
@@ -595,8 +564,8 @@ describe("PartyLoot Module", function()
 			PartyLoot._partyLootAdapter.GetClassColor = function()
 				return classColor
 			end
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.same(classColor, e.secondaryTextColor)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.same(classColor, payload.secondaryTextColor)
 		end)
 
 		it("secondaryTextColor uses GetRaidClassColor when expansion < BFA", function()
@@ -607,8 +576,8 @@ describe("PartyLoot Module", function()
 			PartyLoot._partyLootAdapter.GetRaidClassColor = function()
 				return raidColor
 			end
-			local e = PartyLoot.Element:new(makeInfo(), 1, "party1")
-			assert.same(raidColor, e.secondaryTextColor)
+			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
+			assert.same(raidColor, payload.secondaryTextColor)
 		end)
 	end)
 end)

@@ -38,6 +38,8 @@ describe("Reputation Module", function()
 				return nil, nil
 			end,
 			SendMessage = sendMessageSpy,
+			-- Shared adapter namespace; tests override Rep._repAdapter directly.
+			WoWAPI = { Reputation = {} },
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 5 } },
@@ -46,6 +48,9 @@ describe("Reputation Module", function()
 						defaultRepColor = { 1, 1, 1, 1 },
 						enableIcon = true,
 						secondaryTextAlpha = 1,
+						enableRepLevel = true,
+						repLevelColor = { 0.5, 0.5, 1, 1 },
+						repLevelTextWrapChar = 1,
 					},
 					misc = { hideAllIcons = false },
 				},
@@ -207,7 +212,7 @@ describe("Reputation Module", function()
 				}
 			end,
 		}
-		-- LootElementBase must exist for Rep.Element:new.
+		-- LootElementBase must exist for Rep:BuildPayload -> fromPayload.
 		if not n.LootElementBase then
 			assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", n)
 			assert.is_not_nil(n.LootElementBase)
@@ -359,7 +364,7 @@ describe("Reputation Module", function()
 
 		it("logs error and returns when ParseFactionChangeMessage yields nil faction", function()
 			stub(RepModule, "ParseFactionChangeMessage").returns(nil, nil, false, false)
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:CHAT_MSG_COMBAT_FACTION_CHANGE("CHAT_MSG_COMBAT_FACTION_CHANGE", "Unrecognised msg.")
 
@@ -369,7 +374,7 @@ describe("Reputation Module", function()
 		it("logs warn and returns when factionMapEntry lookup fails", function()
 			stub(RepModule, "ParseFactionChangeMessage").returns("SomeFaction", 100, false, false)
 			stub(ns.LegacyRepParsing, "GetLocaleFactionMapData").returns(nil)
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:CHAT_MSG_COMBAT_FACTION_CHANGE("CHAT_MSG_COMBAT_FACTION_CHANGE", "msg")
 
@@ -382,7 +387,7 @@ describe("Reputation Module", function()
 			ns.RepUtils.GetFactionData = function()
 				return nil
 			end
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:CHAT_MSG_COMBAT_FACTION_CHANGE("CHAT_MSG_COMBAT_FACTION_CHANGE", "msg")
 
@@ -407,11 +412,11 @@ describe("Reputation Module", function()
 				}
 			end
 
-			local spyNew = spy.on(RepModule.Element, "new")
+			local spyBuild = spy.on(RepModule, "BuildPayload")
 			RepModule:CHAT_MSG_COMBAT_FACTION_CHANGE("CHAT_MSG_COMBAT_FACTION_CHANGE", "msg")
 
-			-- Verify name in the constructed element equals the parsed name, not the stored one
-			local callArgs = spyNew.calls[1].refs
+			-- Verify name in the faction data passed to BuildPayload equals the parsed name
+			local callArgs = spyBuild.calls[1].refs
 			assert.equals("ParsedName", callArgs[2].name)
 		end)
 	end)
@@ -442,7 +447,7 @@ describe("Reputation Module", function()
 			ns.RepUtils.GetDeltaAndUpdateCache = function()
 				return 350
 			end
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:UpdateReputationForFaction(1234)
 
@@ -454,7 +459,7 @@ describe("Reputation Module", function()
 			ns.RepUtils.GetDeltaAndUpdateCache = function()
 				return nil
 			end
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:UpdateReputationForFaction(1234)
 
@@ -465,7 +470,7 @@ describe("Reputation Module", function()
 			ns.RepUtils.GetDeltaAndUpdateCache = function()
 				return 0
 			end
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:UpdateReputationForFaction(1234)
 
@@ -477,7 +482,7 @@ describe("Reputation Module", function()
 				return nil
 			end
 			local deltaStub = stub(ns.RepUtils, "GetDeltaAndUpdateCache")
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:UpdateReputationForFaction(9999)
 
@@ -574,7 +579,7 @@ describe("Reputation Module", function()
 				return nil
 			end
 			local insertSpy = spy.on(ns.RepUtils, "InsertNewCacheEntry")
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:CheckForHiddenRenownFactions({})
 
@@ -602,7 +607,7 @@ describe("Reputation Module", function()
 			ns.RepUtils.GetDeltaAndUpdateCache = function()
 				return 500
 			end
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:CheckForHiddenRenownFactions({})
 
@@ -630,7 +635,7 @@ describe("Reputation Module", function()
 			ns.RepUtils.GetDeltaAndUpdateCache = function()
 				return 0
 			end
-			local elementSpy = spy.on(RepModule.Element, "new")
+			local elementSpy = spy.on(RepModule, "BuildPayload")
 
 			RepModule:CheckForHiddenRenownFactions({})
 

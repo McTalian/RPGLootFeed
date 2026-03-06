@@ -35,74 +35,13 @@ local ExtractCurrencyID = function(msg)
 end
 
 -- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Wraps GetExpansionLevel, currency info APIs (C_Everywhere + direct), honor
--- tracking, locale patterns, Constants, and Ethereal-Strands UI behind
--- testable functions so tests can inject mocks without patching _G.
-local C = LibStub("C_Everywhere")
-local CurrencyAdapter = {
-	GetExpansionLevel = function()
-		return GetExpansionLevel()
-	end,
-	IssecretValue = function(msg)
-		return issecretvalue and issecretvalue(msg)
-	end,
-	-- C_Everywhere unified queries used in Process (CURRENCY_DISPLAY_UPDATE path)
-	GetCurrencyInfo = function(currencyType)
-		return C.CurrencyInfo.GetCurrencyInfo(currencyType)
-	end,
-	GetBasicCurrencyInfo = function(currencyType, amount)
-		return C.CurrencyInfo.GetBasicCurrencyInfo(currencyType, amount)
-	end,
-	GetCurrencyLinkFromLib = function(currencyType)
-		return C.CurrencyInfo.GetCurrencyLink(currencyType)
-	end,
-	-- Predicate: does the modern C_CurrencyInfo.GetCurrencyLink API exist?
-	HasGetCurrencyLinkAPI = function()
-		return C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink ~= nil
-	end,
-	-- Classic fallback (bare global) for GetCurrencyLink
-	GetCurrencyLinkFromGlobal = function(currencyId, quantity)
-		return GetCurrencyLink(currencyId, quantity)
-	end,
-	-- Honor tracking for the Account-Wide Honor currency element
-	GetUnitHonorLevel = function(unit)
-		return UnitHonorLevel(unit)
-	end,
-	GetUnitHonorMax = function(unit)
-		return UnitHonorMax(unit)
-	end,
-	GetUnitHonor = function(unit)
-		return UnitHonor(unit)
-	end,
-	-- WoW Constants tables
-	GetAccountWideHonorCurrencyID = function()
-		return Constants and Constants.CurrencyConsts and Constants.CurrencyConsts.ACCOUNT_WIDE_HONOR_CURRENCY_ID
-	end,
-	GetPerksProgramCurrencyID = function()
-		return Constants
-			and Constants.CurrencyConsts
-			and Constants.CurrencyConsts.CURRENCY_ID_PERKS_PROGRAM_DISPLAY_INFO
-	end,
-	-- Classic locale patterns used in OnInitialize to build classicCurrencyPatterns
-	GetCurrencyGainedMultiplePattern = function()
-		return CURRENCY_GAINED_MULTIPLE
-	end,
-	GetCurrencyGainedMultipleBonusPattern = function()
-		return CURRENCY_GAINED_MULTIPLE_BONUS
-	end,
-	-- Ethereal Strands UI (3278) custom link handler
-	GenericTraitToggle = function()
-		GenericTraitUI_LoadUI()
-		GenericTraitFrame:SetSystemID(29)
-		GenericTraitFrame:SetTreeID(1115)
-		ToggleFrame(GenericTraitFrame)
-	end,
-}
+-- The shared adapter lives in WoWAPIAdapters.lua (G_RLF.WoWAPI.Currency).
+-- Tests replace Currency._currencyAdapter with a mock after loadfile.
 
 ---@class RLF_Currency: RLF_Module, AceEvent-3.0
 local Currency = FeatureBase:new(FeatureModule.Currency, "AceEvent-3.0")
 
-Currency._currencyAdapter = CurrencyAdapter
+Currency._currencyAdapter = G_RLF.WoWAPI.Currency
 
 --- @param content string
 --- @param message string
@@ -112,124 +51,146 @@ function Currency:LogDebug(content, message, id, amount)
 	LogDebug(message, addonName, self.moduleName, id, content, amount)
 end
 
-Currency.Element = {}
-
 local ETHEREAL_STRANDS_CURRENCY_ID = 3278
 
+--- Builds a uniform payload for LootElementBase:fromPayload().
 --- @param currencyLink string
 --- @param currencyInfo CurrencyInfo
 --- @param basicInfo CurrencyDisplayInfo
-function Currency.Element:new(currencyLink, currencyInfo, basicInfo)
-	---@class Currency.Element: RLF_BaseLootElement
-	local element = LootElementBase:new()
-
-	element.type = "Currency"
-	element.IsEnabled = function()
-		return Currency:IsEnabled()
-	end
-
-	element.isLink = true
-	-- Ethereal Strands
-	element.isCustomLink = currencyInfo.currencyID == ETHEREAL_STRANDS_CURRENCY_ID
-
+--- @return RLF_ElementPayload?
+function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 	if not currencyLink or not currencyInfo or not basicInfo then
 		Currency:LogDebug(
 			"Skip showing currency",
 			"SKIP: Missing currencyLink, currencyInfo, or basicInfo - " .. tostring(currencyLink)
 		)
-		return
+		return nil
 	end
 
-	element.key = "CURRENCY_" .. currencyInfo.currencyID
-	element.icon = currencyInfo.iconFileID
-	if not G_RLF.db.global.currency.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
-	end
-	element.quantity = basicInfo.displayAmount
-	element.itemCount = currencyInfo.quantity
-	element.quality = currencyInfo.quality
-	element.totalEarned = currencyInfo.totalEarned
-	element.cappedQuantity = currencyInfo.maxQuantity
+	local currencyID = currencyInfo.currencyID
+	local key = "CURRENCY_" .. currencyID
+	local cappedQuantity = currencyInfo.maxQuantity
+	local totalEarned = currencyInfo.totalEarned
+	local itemCount = currencyInfo.quantity
 
-	if element.key == Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
-		element.itemCount = Currency._currencyAdapter.GetUnitHonorLevel("player")
-		element.cappedQuantity = Currency._currencyAdapter.GetUnitHonorMax("player")
-		element.totalEarned = Currency._currencyAdapter.GetUnitHonor("player")
+	-- Honor currency special case (key is a string, adapter returns a number —
+	-- this comparison intentionally preserves the pre-existing runtime behaviour)
+	if key == Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
+		itemCount = Currency._currencyAdapter.GetUnitHonorLevel("player")
+		cappedQuantity = Currency._currencyAdapter.GetUnitHonorMax("player")
+		totalEarned = Currency._currencyAdapter.GetUnitHonor("player")
 		---@diagnostic disable-next-line: undefined-field
 		currencyLink = currencyLink:gsub(currencyInfo.name, _G.LIFETIME_HONOR)
 	end
 
-	element.textFn = function(existingQuantity, truncatedLink)
-		if not truncatedLink then
-			return currencyLink
-		end
-		return truncatedLink
-	end
+	---@type RLF_ElementPayload
+	local payload = {
+		-- Routing
+		key = key,
+		type = "Currency",
 
-	element.amountTextFn = function(existingQuantity)
-		local effectiveQuantity = (existingQuantity or 0) + element.quantity
-		if effectiveQuantity == 1 and not G_RLF.db.global.misc.showOneQuantity then
-			return ""
-		end
-		return "x" .. effectiveQuantity
-	end
+		-- Icon
+		icon = (G_RLF.db.global.currency.enableIcon and not G_RLF.db.global.misc.hideAllIcons)
+				and currencyInfo.iconFileID
+			or nil,
+		quality = currencyInfo.quality,
 
-	element.secondaryTextFn = function(...)
-		if element.cappedQuantity and element.cappedQuantity > 0 then
-			local percentage, numerator
-			if element.totalEarned > 0 then
-				numerator = element.totalEarned
-				percentage = element.totalEarned / element.cappedQuantity
-			else
-				numerator = element.itemCount
-				percentage = element.itemCount / element.cappedQuantity
+		-- Primary line
+		isLink = true,
+		isCustomLink = currencyID == ETHEREAL_STRANDS_CURRENCY_ID,
+		quantity = basicInfo.displayAmount,
+
+		textFn = function(existingQuantity, truncatedLink)
+			if not truncatedLink then
+				return currencyLink
 			end
+			return truncatedLink
+		end,
+
+		amountTextFn = function(existingQuantity)
+			local effectiveQuantity = (existingQuantity or 0) + basicInfo.displayAmount
+			if effectiveQuantity == 1 and not G_RLF.db.global.misc.showOneQuantity then
+				return ""
+			end
+			return "x" .. effectiveQuantity
+		end,
+
+		-- Item count display (replaces legacy type-switch in UpdateItemCount)
+		itemCountFn = function()
 			local currencyDb = G_RLF.db.global.currency
-			local lowThreshold = currencyDb.lowerThreshold
-			local upperThreshold = currencyDb.upperThreshold
-			local lowestColor = currencyDb.lowestColor
-			local midColor = currencyDb.midColor
-			local upperColor = currencyDb.upperColor
-			local color = RGBAToHexFormat(unpack(lowestColor))
-			if element.key ~= Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
-				if percentage < lowThreshold then
-					color = RGBAToHexFormat(unpack(lowestColor))
-				elseif percentage >= lowThreshold and percentage < upperThreshold then
-					color = RGBAToHexFormat(unpack(midColor))
+			if not currencyDb.currencyTotalTextEnabled then
+				return nil
+			end
+			return itemCount,
+				{
+					color = RGBAToHexFormat(unpack(currencyDb.currencyTotalTextColor)),
+					wrapChar = currencyDb.currencyTotalTextWrapChar,
+				}
+		end,
+
+		-- Secondary line
+		secondaryTextFn = function()
+			if cappedQuantity and cappedQuantity > 0 then
+				local percentage, numerator
+				if totalEarned > 0 then
+					numerator = totalEarned
+					percentage = totalEarned / cappedQuantity
 				else
-					color = RGBAToHexFormat(unpack(upperColor))
+					numerator = itemCount
+					percentage = itemCount / cappedQuantity
 				end
+				local currencyDb = G_RLF.db.global.currency
+				local lowThreshold = currencyDb.lowerThreshold
+				local upperThreshold = currencyDb.upperThreshold
+				local lowestColor = currencyDb.lowestColor
+				local midColor = currencyDb.midColor
+				local upperColor = currencyDb.upperColor
+				local color = RGBAToHexFormat(unpack(lowestColor))
+				if key ~= Currency._currencyAdapter.GetAccountWideHonorCurrencyID() then
+					if percentage < lowThreshold then
+						color = RGBAToHexFormat(unpack(lowestColor))
+					elseif percentage >= lowThreshold and percentage < upperThreshold then
+						color = RGBAToHexFormat(unpack(midColor))
+					else
+						color = RGBAToHexFormat(unpack(upperColor))
+					end
+				end
+
+				local secondaryText = "    " .. color .. numerator .. " / " .. cappedQuantity .. "|r"
+				local idStr = key:match("CURRENCY_(%d+)")
+				if idStr and idStr ~= "" and tonumber(idStr) == ETHEREAL_STRANDS_CURRENCY_ID then
+					secondaryText = secondaryText .. "    (" .. G_RLF.L["ClickToOpenCloakTree"] .. ")"
+				end
+				return secondaryText
 			end
 
-			local secondaryText = "    " .. color .. numerator .. " / " .. element.cappedQuantity .. "|r"
-			local id = element.key:match("CURRENCY_(%d+)")
-			if id and id ~= "" and tonumber(id) == ETHEREAL_STRANDS_CURRENCY_ID then
-				secondaryText = secondaryText .. "    (" .. G_RLF.L["ClickToOpenCloakTree"] .. ")"
-			end
-			return secondaryText
-		end
+			return ""
+		end,
 
-		return ""
-	end
+		-- Lifecycle
+		IsEnabled = function()
+			return Currency:IsEnabled()
+		end,
+	}
 
-	if element.isCustomLink then
-		element.customBehavior = function()
-			local id = element.key:match("CURRENCY_(%d+)")
-			if id == nil or id == "" then
+	if currencyID == ETHEREAL_STRANDS_CURRENCY_ID then
+		payload.customBehavior = function()
+			local idStr = key:match("CURRENCY_(%d+)")
+			if idStr == nil or idStr == "" then
 				Currency:LogDebug("Custom behavior", "SKIP: No ID found in custom currency link")
 				return
 			end
-			local customCurrencyId = tonumber(id)
+			local customCurrencyId = tonumber(idStr)
 
 			if customCurrencyId == ETHEREAL_STRANDS_CURRENCY_ID then
 				Currency._currencyAdapter.GenericTraitToggle()
 			else
-				Currency:LogDebug("Custom behavior", "SKIP: unhandled custom currency link", element.key)
+				Currency:LogDebug("Custom behavior", "SKIP: unhandled custom currency link", key)
 			end
 		end
 	end
 
-	return element
+	return payload
 end
 
 local function isHiddenCurrency(id)
@@ -362,11 +323,11 @@ function Currency:Process(eventName, currencyType, quantityChange)
 		-- Fallback for pre-SL clients
 		link = Currency._currencyAdapter.GetCurrencyLinkFromGlobal(currencyType, quantityChange)
 	end
-	local e = self.Element:new(link, info, basicInfo)
-	if e then
-		e:Show()
+	local payload = self:BuildPayload(link, info, basicInfo)
+	if payload then
+		LootElementBase:fromPayload(payload):Show()
 	else
-		self:LogDebug("Skip showing currency", "SKIP: Element was nil", currencyType, quantityChange)
+		self:LogDebug("Skip showing currency", "SKIP: Payload was nil", currencyType, quantityChange)
 	end
 end
 
@@ -454,11 +415,11 @@ function Currency:CHAT_MSG_CURRENCY(eventName, ...)
 	}
 
 	local currencyLink = Currency._currencyAdapter.GetCurrencyLinkFromGlobal(currencyId, currencyInfo.quantity)
-	local e = self.Element:new(currencyLink, currencyInfo, basicInfo)
-	if e then
-		e:Show()
+	local payload = self:BuildPayload(currencyLink, currencyInfo, basicInfo)
+	if payload then
+		LootElementBase:fromPayload(payload):Show()
 	else
-		self:LogDebug("Skip showing currency", "SKIP: Element was nil", tostring(currencyInfo.currencyID))
+		self:LogDebug("Skip showing currency", "SKIP: Payload was nil", tostring(currencyInfo.currencyID))
 	end
 end
 
