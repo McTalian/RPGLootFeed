@@ -10,4 +10,5 @@
     <Script file="v5.lua"/>
     <Script file="v6.lua"/>
     <Script file="v7.lua"/>
+    <Script file="v8.lua"/>
 </Ui>

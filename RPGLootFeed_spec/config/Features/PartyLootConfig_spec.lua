@@ -19,54 +19,35 @@ describe("PartyLootConfig module", function()
 
 	it("should set up the party loot configuration defaults", function()
 		-- Check that the party loot configuration is set up in the defaults
-		assert.is_table(ns.defaults.global.partyLoot)
-		assert.is_boolean(ns.defaults.global.partyLoot.enabled)
-		assert.is_boolean(ns.defaults.global.partyLoot.separateFrame)
-		assert.is_table(ns.defaults.global.partyLoot.itemQualityFilter)
-		assert.is_table(ns.defaults.global.partyLoot.positioning)
-		assert.is_table(ns.defaults.global.partyLoot.sizing)
-		assert.is_table(ns.defaults.global.partyLoot.styling)
-		assert.is_table(ns.defaults.global.partyLoot.ignoreItemIds)
+		local partyLootDefaults = ns.defaults.global.frames["**"].features.partyLoot
+		assert.is_table(partyLootDefaults)
+		assert.is_boolean(partyLootDefaults.enabled)
+		assert.is_table(partyLootDefaults.itemQualityFilter)
+		assert.is_table(partyLootDefaults.ignoreItemIds)
 	end)
 
-	it("should set up the party loot configuration options", function()
-		-- Check that the party loot configuration options are set up
-		assert.is_table(ns.options.args.features.args.partyLootConfig)
-		assert.equal("group", ns.options.args.features.args.partyLootConfig.type)
-		assert.is_not_nil(ns.options.args.features.args.partyLootConfig.name)
-		assert.equal(ns.mainFeatureOrder.PartyLoot, ns.options.args.features.args.partyLootConfig.order)
+	it("should export a BuildPartyLootArgs builder function", function()
+		assert.is_function(ns.BuildPartyLootArgs)
+	end)
+
+	it("should return a valid options group from BuildPartyLootArgs", function()
+		-- Set up mock per-frame DB
+		local partyLootDefaults = ns.defaults.global.frames["**"].features.partyLoot
+		ns.db = { global = { frames = { [1] = { features = { partyLoot = partyLootDefaults } } } } }
+		local group = ns.BuildPartyLootArgs(1, 3)
+		assert.is_table(group)
+		assert.equal("group", group.type)
+		assert.equal(3, group.order)
+		assert.is_table(group.args)
+		assert.is_table(group.args.partyLootOptions)
+		-- Ensure no legacy separate frame option blocks
+		assert.is_nil(group.args.partyLootOptions.args.positioning)
+		assert.is_nil(group.args.partyLootOptions.args.sizing)
+		assert.is_nil(group.args.partyLootOptions.args.styling)
 	end)
 
 	it("should register the PartyLootConfig handler", function()
 		-- Check that the handler is registered
 		assert.is_table(ns.ConfigHandlers.PartyLootConfig)
-	end)
-
-	it("should have the required configuration methods", function()
-		-- Check that the required methods exist
-		local handler = ns.ConfigHandlers.PartyLootConfig
-		assert.is_function(handler.GetPositioningOptions)
-		assert.is_function(handler.GetSizingOptions)
-		assert.is_function(handler.GetStylingOptions)
-	end)
-
-	it("should set up correct positioning defaults", function()
-		local positioning = ns.defaults.global.partyLoot.positioning
-		assert.is_table(positioning)
-		assert.equal("UIParent", positioning.relativePoint)
-		assert.equal("LEFT", positioning.anchorPoint)
-		assert.equal(0, positioning.xOffset)
-		assert.equal(375, positioning.yOffset)
-		assert.equal("MEDIUM", positioning.frameStrata)
-	end)
-
-	it("should set up correct sizing defaults", function()
-		local sizing = ns.defaults.global.partyLoot.sizing
-		assert.is_table(sizing)
-		assert.equal(330, sizing.feedWidth)
-		assert.equal(10, sizing.maxRows)
-		assert.equal(22, sizing.rowHeight)
-		assert.equal(2, sizing.padding)
-		assert.equal(18, sizing.iconSize)
 	end)
 end)

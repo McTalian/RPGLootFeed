@@ -94,6 +94,10 @@ describe("LootDisplayRowMixin", function()
 		ns.db.global.animations = ns.db.global.animations or {}
 		ns.db.global.animations.update = ns.db.global.animations.update or {}
 		ns.db.global.animations.update.disableHighlight = true
+		-- Make DbAccessor:Animations() return the mock animations table
+		ns.DbAccessor.Animations = function(_, frameType)
+			return ns.db.global.animations
+		end
 		return r, captures
 	end
 

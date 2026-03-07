@@ -28,6 +28,8 @@ addonNamespaceMocks.LoadSections = {
 	ConfigFeatureXP = 3.07,
 	ConfigFeatureRep = 3.08,
 	ConfigFeatureSkills = 3.09,
+	ConfigFeatureTravelPoints = 3.10,
+	ConfigFeatureTransmog = 3.11,
 	ConfigFeaturesAll = 3.99,
 	Config = 4,
 	BlizzOverrides = 5,
@@ -187,32 +189,18 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 	if loadSection >= addonNamespaceMocks.LoadSections.ConfigOptions then
 		ns.ConfigHandlers = {}
 		addonNamespaceMocks.ConfigHandlers = {}
-		ns.defaults = {
-			global = {
-				lastVersionLoaded = "v1.0.0",
-				logger = {},
-				migrationVersion = 0,
-			},
-			char = {},
-			locale = {
-				factionMap = {},
-				accountWideFactionMap = {},
-			},
-			profile = {},
+		-- Load ConfigOptions.lua to get the canonical defaults (including frames["**"])
+		assert(loadfile("RPGLootFeed/config/ConfigOptions.lua"))("TestAddon", ns)
+		ns.defaults.char = ns.defaults.char or {}
+		ns.defaults.locale = ns.defaults.locale or {
+			factionMap = {},
+			accountWideFactionMap = {},
 		}
-		ns.level1OptionsOrder = {
-			["testMode"] = 1,
-			["clearRows"] = 2,
-			["lootHistory"] = 3,
-			["features"] = 4,
-			["positioning"] = 5,
-			["sizing"] = 6,
-			["styling"] = 7,
-			["animations"] = 8,
-			["blizz"] = 9,
-			["about"] = -1,
-		}
+		ns.defaults.profile = ns.defaults.profile or {}
 		ns.options = {
+			args = {},
+		}
+		ns.options.args.global = {
 			args = {},
 		}
 	end
@@ -226,9 +214,7 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 			Reputation = 6,
 			Profession = 7,
 			TravelPoints = 8,
-		}
-		ns.options.args.features = {
-			args = {},
+			Transmog = 9,
 		}
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.ConfigFeaturePartyLoot then
@@ -251,7 +237,16 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		addonNamespaceMocks.DbAccessor.Sizing = stub(ns.DbAccessor, "Sizing")
 		addonNamespaceMocks.DbAccessor.Positioning = stub(ns.DbAccessor, "Positioning")
 		addonNamespaceMocks.DbAccessor.Styling = stub(ns.DbAccessor, "Styling")
+		addonNamespaceMocks.DbAccessor.Animations = stub(ns.DbAccessor, "Animations")
+		addonNamespaceMocks.DbAccessor.Feature = stub(ns.DbAccessor, "Feature")
+		addonNamespaceMocks.DbAccessor.AnyFeatureConfig = stub(ns.DbAccessor, "AnyFeatureConfig")
+		addonNamespaceMocks.DbAccessor.IsFeatureNeededByAnyFrame = stub(ns.DbAccessor, "IsFeatureNeededByAnyFrame")
+		addonNamespaceMocks.DbAccessor.UpdateFeatureModuleState = stub(ns.DbAccessor, "UpdateFeatureModuleState")
 		addonNamespaceMocks.ShouldRunMigration = stub(ns, "ShouldRunMigration").returns(false)
+		ns.FramesConfig = {}
+		addonNamespaceMocks.FramesConfig = {}
+		addonNamespaceMocks.FramesConfig.OnInitialize = stub(ns.FramesConfig, "OnInitialize")
+		addonNamespaceMocks.FramesConfig.RebuildArgs = stub(ns.FramesConfig, "RebuildArgs")
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.BlizzOverrides then
 		addonNamespaceMocks.retryHook = stub(ns, "retryHook")
@@ -280,8 +275,7 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		embedLibs(ns.LootDisplay, "AceBucket-3.0", "AceEvent-3.0", "AceHook-3.0")
 		addonNamespaceMocks.LootDisplay = {}
 		addonNamespaceMocks.LootDisplay.OnPlayerCombatChange = stub(ns.LootDisplay, "OnPlayerCombatChange")
-		addonNamespaceMocks.LootDisplay.CreatePartyFrame = stub(ns.LootDisplay, "CreatePartyFrame")
-		addonNamespaceMocks.LootDisplay.DestroyPartyFrame = stub(ns.LootDisplay, "DestroyPartyFrame")
+		addonNamespaceMocks.LootDisplay.GetAllFrames = stub(ns.LootDisplay, "GetAllFrames")
 		addonNamespaceMocks.LootDisplay.SetBoundingBoxVisibility = stub(ns.LootDisplay, "SetBoundingBoxVisibility")
 		addonNamespaceMocks.LootDisplay.ShowSampleRows = stub(ns.LootDisplay, "ShowSampleRows")
 		addonNamespaceMocks.LootDisplay.HideSampleRows = stub(ns.LootDisplay, "HideSampleRows")
@@ -295,9 +289,7 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		addonNamespaceMocks.LootDisplay.UpdateFadeDelay = stub(ns.LootDisplay, "UpdateFadeDelay")
 		addonNamespaceMocks.LootDisplay.BAG_UPDATE_DELAY = stub(ns.LootDisplay, "BAG_UPDATE_DELAY")
 		addonNamespaceMocks.LootDisplay.OnLootReady = stub(ns.LootDisplay, "OnLootReady")
-		addonNamespaceMocks.LootDisplay.OnPartyLootReady = stub(ns.LootDisplay, "OnPartyLootReady")
 		addonNamespaceMocks.LootDisplay.OnRowReturn = stub(ns.LootDisplay, "OnRowReturn")
-		addonNamespaceMocks.LootDisplay.OnPartyRowReturn = stub(ns.LootDisplay, "OnPartyRowReturn")
 		addonNamespaceMocks.LootDisplay.HideLoot = stub(ns.LootDisplay, "HideLoot")
 	end
 	-- No namespace changes in GameTesting
@@ -370,6 +362,31 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 					cachedFactionDetailsById = {},
 					count = 0,
 				},
+				--- Per-frame configuration, mirroring the real defaults populated by
+				--- migration v8.  Frame 1 has all features enabled (except partyLoot);
+				--- added here so code that reads db.global.frames works in tests.
+				---@type table<integer, RLF_FrameConfig>
+				frames = {
+					[1] = {
+						name = "Main",
+						positioning = {},
+						sizing = {},
+						styling = {},
+						animations = {},
+						features = {
+							itemLoot = { enabled = true },
+							partyLoot = { enabled = true },
+							currency = { enabled = true },
+							money = { enabled = true },
+							experience = { enabled = true },
+							reputation = { enabled = true },
+							profession = { enabled = true },
+							travelPoints = { enabled = true },
+							transmog = { enabled = true },
+						},
+					},
+				},
+				nextFrameId = 2,
 			},
 			locale = {
 				factionMap = {},

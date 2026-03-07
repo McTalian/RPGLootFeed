@@ -176,7 +176,7 @@ function RLF_RowAnimationMixin:StyleHighlightBorder()
 	end
 
 	---@type RLF_ConfigAnimations
-	local animationsDb = G_RLF.db.global.animations
+	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
 
 	if
 		self.cachedUpdateDisableHighlight ~= animationsDb.update.disableHighlight
@@ -240,7 +240,7 @@ function RLF_RowAnimationMixin:StyleExitAnimation()
 	end
 
 	---@type RLF_ConfigAnimations
-	local animationsDb = G_RLF.db.global.animations
+	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
 	local animationsExitDb = animationsDb.exit
 	local disableExitAnimation = animationsExitDb.disable
 	local exitAnimationType = animationsExitDb.type
@@ -323,7 +323,7 @@ function RLF_RowAnimationMixin:StyleEnterAnimation()
 	local animationChanged = false
 
 	---@type RLF_ConfigAnimations
-	local animationsDb = G_RLF.db.global.animations
+	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
 	local animationsEnterDb = animationsDb.enter
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
 	local enterAnimationType = animationsEnterDb.type
@@ -513,8 +513,9 @@ function RLF_RowAnimationMixin:FadeInElements()
 end
 
 function RLF_RowAnimationMixin:IsStaggeredEnter()
-	local enterAnimationType = G_RLF.db.global.animations.enter.type
-	local slideDirection = G_RLF.db.global.animations.enter.slide.direction
+	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
+	local enterAnimationType = animationsDb.enter.type
+	local slideDirection = animationsDb.enter.slide.direction
 
 	if
 		enterAnimationType == G_RLF.EnterAnimationType.SLIDE
@@ -611,7 +612,7 @@ end
 
 function RLF_RowAnimationMixin:SetUpHoverEffect()
 	---@type RLF_ConfigAnimations
-	local animationsDb = G_RLF.db.global.animations
+	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
 	local hoverDb = animationsDb.hover
 	local highlightedAlpha = hoverDb.alpha
 	local baseDuration = hoverDb.baseDuration
@@ -653,23 +654,34 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 		end)
 	end
 
-	-- OnEnter: Play fade-in animation
+	-- OnEnter: Play fade-in animation; show sample row tooltip if present
 	self:SetScript("OnEnter", function()
 		---@type RLF_ConfigAnimations
-		local animationsDb = G_RLF.db.global.animations
-		if self.hasMouseOver or not animationsDb.hover.enabled then
+		local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
+		if self.hasMouseOver then
+			return
+		end
+		if not animationsDb.hover.enabled and not self.sampleTooltipText then
 			return
 		end
 		self.hasMouseOver = true
-		-- Stop fade-out if it's playing
-		if self.HighlightFadeOut:IsPlaying() then
-			self.HighlightFadeOut:Stop()
+		if animationsDb.hover.enabled then
+			-- Stop fade-out if it's playing
+			if self.HighlightFadeOut:IsPlaying() then
+				self.HighlightFadeOut:Stop()
+			end
+			-- Play fade-in
+			self.HighlightFadeIn:Play()
 		end
-		-- Play fade-in
-		self.HighlightFadeIn:Play()
+		-- Show sample row tooltip
+		if self.sampleTooltipText then
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(self.sampleTooltipText, 1, 1, 1, 1, true)
+			GameTooltip:Show()
+		end
 	end)
 
-	-- OnLeave: Play fade-out animation
+	-- OnLeave: Play fade-out animation; hide sample row tooltip if present
 	self:SetScript("OnLeave", function()
 		-- Prevent OnLeave from firing if the mouse is still over the row or any of its children
 		if isMouseOverSelfOrChildren(self) or not self.hasMouseOver then
@@ -682,6 +694,10 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 		end
 		-- Play fade-out
 		self.HighlightFadeOut:Play()
+		-- Hide sample row tooltip
+		if self.sampleTooltipText then
+			GameTooltip:Hide()
+		end
 	end)
 end
 

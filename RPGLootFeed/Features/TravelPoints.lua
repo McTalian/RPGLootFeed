@@ -46,10 +46,11 @@ TravelPoints._travelPointsAdapter = TravelPointsAdapter
 ---@param quantity number The point amount earned
 ---@return RLF_ElementPayload
 function TravelPoints:BuildPayload(quantity)
-	local r, g, b, a = unpack(G_RLF.db.global.travelPoints.textColor)
+	local tpConfig = G_RLF.DbAccessor:AnyFeatureConfig("travelPoints") or {}
+	local r, g, b, a = unpack(tpConfig.textColor or { 1, 0.988, 0.498, 1 })
 
 	local icon = DefaultIcons.TRAVELPOINTS
-	if not G_RLF.db.global.travelPoints.enableIcon or G_RLF.db.global.misc.hideAllIcons then
+	if not tpConfig.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		icon = nil
 	end
 
@@ -120,7 +121,7 @@ local function calcTravelersJourneyVal(activityID)
 end
 
 function TravelPoints:OnInitialize()
-	if IsRetail() and G_RLF.db.global.travelPoints.enabled then
+	if IsRetail() and G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("travelPoints") then
 		self:Enable()
 	else
 		self:Disable()

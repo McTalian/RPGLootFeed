@@ -89,7 +89,8 @@ function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 		type = "Currency",
 
 		-- Icon
-		icon = (G_RLF.db.global.currency.enableIcon and not G_RLF.db.global.misc.hideAllIcons)
+		icon = (G_RLF.DbAccessor:AnyFeatureConfig("currency") or {}).enableIcon
+				and not G_RLF.db.global.misc.hideAllIcons
 				and currencyInfo.iconFileID
 			or nil,
 		quality = currencyInfo.quality,
@@ -116,7 +117,7 @@ function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 
 		-- Item count display (replaces legacy type-switch in UpdateItemCount)
 		itemCountFn = function()
-			local currencyDb = G_RLF.db.global.currency
+			local currencyDb = G_RLF.DbAccessor:AnyFeatureConfig("currency") or {}
 			if not currencyDb.currencyTotalTextEnabled then
 				return nil
 			end
@@ -138,7 +139,7 @@ function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 					numerator = itemCount
 					percentage = itemCount / cappedQuantity
 				end
-				local currencyDb = G_RLF.db.global.currency
+				local currencyDb = G_RLF.DbAccessor:AnyFeatureConfig("currency") or {}
 				local lowThreshold = currencyDb.lowerThreshold
 				local upperThreshold = currencyDb.upperThreshold
 				local lowestColor = currencyDb.lowestColor
@@ -234,7 +235,10 @@ end
 
 local classicCurrencyPatterns
 function Currency:OnInitialize()
-	if G_RLF.db.global.currency.enabled and Currency._currencyAdapter.GetExpansionLevel() >= Expansion.WOTLK then
+	if
+		G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("currency")
+		and Currency._currencyAdapter.GetExpansionLevel() >= Expansion.WOTLK
+	then
 		self:Enable()
 	else
 		self:Disable()

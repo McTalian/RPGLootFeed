@@ -13,7 +13,8 @@ RPGLootFeed/
 │   ├── MoneyAlerts.lua      # Money alert overrides
 │   └── retryHook.lua        # Hook retry utility
 ├── config/                   # Configuration & options UI
-│   ├── ConfigOptions.lua    # Base options structure
+│   ├── ConfigOptions.lua    # Base options structure + level1OptionsOrder
+│   ├── General.lua          # General tab (quick actions, misc, minimap, tooltips, loot history)
 │   ├── About.lua            # About panel
 │   ├── Animations.lua       # Animation settings
 │   ├── BlizzardUI.lua       # Blizzard UI override settings
@@ -21,7 +22,7 @@ RPGLootFeed/
 │   ├── Sizing.lua           # Frame sizing options
 │   ├── Styling.lua          # Visual styling options
 │   ├── Features/            # Feature-specific configs
-│   │   ├── Features.lua     # Main feature toggles
+│   │   ├── Features.lua     # Loot Feeds tab skeleton (options.args.lootFeeds); sub-configs inject themselves
 │   │   ├── CurrencyConfig.lua
 │   │   ├── ExperienceConfig.lua
 │   │   ├── ItemLootConfig.lua
@@ -141,7 +142,7 @@ RPGLootFeed/
 
 **Key Pattern**: Each config module defines its portion of `G_RLF.defaults` and `G_RLF.options`
 
-**Example**: `CurrencyConfig.lua` defines `G_RLF.defaults.global.currency` and `G_RLF.options.args.features.args.currencyConfig`
+**Example**: `CurrencyConfig.lua` defines `G_RLF.defaults.global.currency` and `G_RLF.options.args.lootFeeds.args.currencyConfig`
 
 ### `/Features`
 
@@ -408,7 +409,7 @@ The load order is defined in `RPGLootFeed.toc` and is critical:
 3. **Core.lua** — sets up `G_RLF.RLF` (AceAddon instance) **first**, before any feature files
 4. **Utils** (Enums, Logger, Notifications, Queue, Utils)
 5. **Config base** (ConfigOptions)
-6. **Config modules** (Positioning, Sizing, Styling, Animations, Features, etc.)
+6. **Config modules** (General, Positioning, Sizing, Styling, Animations, Loot Feeds features, etc.)
 7. **BlizzOverrides**
 8. **Feature internals** (`_Internals/`: TextTemplateEngine → LootElementBase → FeatureBase → LootDisplayProperties → ...)
 9. **Feature implementations** (ItemLoot, Currency, Money, TravelPoints, etc.)

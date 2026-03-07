@@ -132,7 +132,8 @@ end
 ---@return RLF_ElementPayload|nil
 function ItemLoot:BuildPayload(info, quantity, fromLink)
 	-- Quality filter: return nil when the item's quality tier is disabled
-	local itemQualitySettings = G_RLF.db.global.item.itemQualitySettings[info.itemQuality]
+	local itemConfig = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}
+	local itemQualitySettings = (itemConfig.itemQualitySettings or {})[info.itemQuality]
 	if not itemQualitySettings or not itemQualitySettings.enabled then
 		LogDebug(
 			tostring(info.itemName) .. " ignored by quality: " .. tostring(ItemLoot:ItemQualityName(info.itemQuality)),
@@ -157,7 +158,7 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 	end
 
 	local icon = info.itemTexture
-	if not G_RLF.db.global.item.enableIcon or G_RLF.db.global.misc.hideAllIcons then
+	if not itemConfig.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		icon = nil
 	end
 
@@ -189,7 +190,7 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 	local isNewTransmog = not info:IsAppearanceCollected()
 
 	-- ── Highlight ────────────────────────────────────────────────────────────
-	local itemHighlights = G_RLF.db.global.item.itemHighlights
+	local itemHighlights = itemConfig.itemHighlights or {}
 	local highlightReason = (isMount and itemHighlights.mounts and "Mount")
 		or (isLegendary and itemHighlights.legendary and "Legendary")
 		or (isBetterThanEquipped and itemHighlights.betterThanEquipped and "Better than Equipped")
@@ -203,13 +204,14 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 
 	-- ── Quest color override ─────────────────────────────────────────────────
 	local r, g, b, a = nil, nil, nil, nil
-	if isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
-		r, g, b, a = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
+	local textStyleOverrides = itemConfig.textStyleOverrides or {}
+	if isQuestItem and textStyleOverrides.quest and textStyleOverrides.quest.enabled then
+		r, g, b, a = unpack(textStyleOverrides.quest.color)
 	end
 
 	-- ── Sound: first matching condition wins ─────────────────────────────────
 	local soundPath = nil
-	local soundsConfig = G_RLF.db.global.item.sounds
+	local soundsConfig = itemConfig.sounds or {}
 	if isMount and soundsConfig.mounts.enabled and soundsConfig.mounts.sound ~= "" then
 		soundPath = soundsConfig.mounts.sound
 	elseif isLegendary and soundsConfig.legendary.enabled and soundsConfig.legendary.sound ~= "" then
@@ -251,8 +253,9 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 			return itemLink
 		end
 		local text = truncatedLink
-		if isQuestItem and G_RLF.db.global.item.textStyleOverrides.quest.enabled then
-			local qr, qg, qb, qa = unpack(G_RLF.db.global.item.textStyleOverrides.quest.color)
+		local tso = (G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}).textStyleOverrides or {}
+		if isQuestItem and tso.quest and tso.quest.enabled then
+			local qr, qg, qb, qa = unpack(tso.quest.color)
 			-- Replace the color in the link portion of the text with the quest color
 			text = text:gsub("|c.-|", RGBAToHexFormat(qr, qg, qb, qa) .. "|")
 		end
@@ -288,10 +291,11 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 		end
 
 		local effectiveQuantity = ... or 1
-		local vendorIcon = G_RLF.db.global.item.vendorIconTexture
-		local auctionIcon = G_RLF.db.global.item.auctionHouseIconTexture
+		local itemCfg = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}
+		local vendorIcon = itemCfg.vendorIconTexture
+		local auctionIcon = itemCfg.auctionHouseIconTexture
 		local vendorPrice, auctionPrice = 0, 0
-		local pricesForSellableItems = G_RLF.db.global.item.pricesForSellableItems
+		local pricesForSellableItems = itemCfg.pricesForSellableItems
 		if info.sellPrice and info.sellPrice > 0 then
 			vendorPrice = info.sellPrice
 		end
@@ -333,7 +337,7 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 
 	-- itemCountFn: replaces the ItemLoot branch in RowTextMixin:UpdateItemCount
 	payload.itemCountFn = function()
-		local itemDb = G_RLF.db.global.item
+		local itemDb = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}
 		if not itemDb.itemCountTextEnabled then
 			return nil
 		end
@@ -371,7 +375,7 @@ end
 
 function ItemLoot:OnInitialize()
 	self.pendingItemRequests = {}
-	if G_RLF.db.global.item.enabled then
+	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("itemLoot") then
 		self:Enable()
 	else
 		self:Disable()

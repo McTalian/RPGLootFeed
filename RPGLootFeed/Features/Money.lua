@@ -36,17 +36,14 @@ Money._moneyAdapter = MoneyAdapter
 --- Plays the configured money loot sound if the override is enabled.
 --- Calls Money._moneyAdapter.PlaySoundFile so tests can inject a mock.
 function Money:PlaySoundIfEnabled()
-	if G_RLF.db.global.money.overrideMoneyLootSound and G_RLF.db.global.money.moneyLootSound ~= "" then
-		local willPlay, handle = Money._moneyAdapter.PlaySoundFile(G_RLF.db.global.money.moneyLootSound)
+	local moneyConfig = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+	if moneyConfig.overrideMoneyLootSound and (moneyConfig.moneyLootSound or "") ~= "" then
+		local willPlay, handle = Money._moneyAdapter.PlaySoundFile(moneyConfig.moneyLootSound)
 		if not willPlay then
-			LogWarn(
-				"Failed to play sound " .. G_RLF.db.global.money.moneyLootSound,
-				addonName,
-				Money.moduleName or "Money"
-			)
+			LogWarn("Failed to play sound " .. moneyConfig.moneyLootSound, addonName, Money.moduleName or "Money")
 		else
 			LogDebug(
-				"Sound queued to play " .. G_RLF.db.global.money.moneyLootSound .. " " .. handle,
+				"Sound queued to play " .. moneyConfig.moneyLootSound .. " " .. handle,
 				addonName,
 				Money.moduleName or "Money"
 			)
@@ -61,13 +58,15 @@ local function createMoneyContextProvider()
 		-- Get coin string for the total amount
 		context.coinString = Money._moneyAdapter.GetCoinTextureString(context.absTotal)
 
+		local moneyConfig = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+
 		-- Support for accountant mode
-		if G_RLF.db.global.money.accountantMode then
+		if moneyConfig.accountantMode then
 			context.coinString = "(" .. context.coinString .. ")"
 		end
 
 		-- Current money total for secondary text
-		if G_RLF.db.global.money.showMoneyTotal then
+		if moneyConfig.showMoneyTotal then
 			local currentMoney = Money._moneyAdapter.GetMoney()
 			if currentMoney > 10000000 then -- More than 1000 gold
 				currentMoney = math.floor(currentMoney / 10000) * 10000 -- truncate silver and copper
@@ -75,7 +74,7 @@ local function createMoneyContextProvider()
 			context.currentMoney = Money._moneyAdapter.GetCoinTextureString(currentMoney)
 
 			-- Handle abbreviation if enabled
-			if G_RLF.db.global.money.abbreviateTotal and currentMoney > 10000000 then
+			if moneyConfig.abbreviateTotal and currentMoney > 10000000 then
 				local goldOnly = math.floor(currentMoney / 10000)
 				context.currentMoney =
 					context.currentMoney:gsub(tostring(goldOnly), TextTemplateEngine:AbbreviateNumber(goldOnly))
@@ -98,7 +97,8 @@ function Money:BuildPayload(quantity)
 	end
 
 	local icon = DefaultIcons.MONEY
-	if not G_RLF.db.global.money.enableIcon or G_RLF.db.global.misc.hideAllIcons then
+	local moneyBuildConfig = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+	if not moneyBuildConfig.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		icon = nil
 	end
 
@@ -149,8 +149,8 @@ function Money:BuildPayload(quantity)
 		end,
 	}
 
-	if G_RLF.db.global.money.overrideMoneyLootSound and G_RLF.db.global.money.moneyLootSound ~= "" then
-		payload.sound = G_RLF.db.global.money.moneyLootSound
+	if moneyBuildConfig.overrideMoneyLootSound and (moneyBuildConfig.moneyLootSound or "") ~= "" then
+		payload.sound = moneyBuildConfig.moneyLootSound
 	end
 
 	return payload
@@ -191,7 +191,7 @@ end
 
 function Money:OnInitialize()
 	self.startingMoney = 0
-	if G_RLF.db.global.money.enabled then
+	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("money") then
 		self:Enable()
 	else
 		self:Disable()
@@ -226,7 +226,8 @@ function Money:PLAYER_MONEY(eventName)
 		return
 	end
 	self.startingMoney = newMoney
-	if G_RLF.db.global.money.onlyIncome and amountInCopper < 0 then
+	local moneyFilterConfig = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+	if moneyFilterConfig.onlyIncome and amountInCopper < 0 then
 		return
 	end
 

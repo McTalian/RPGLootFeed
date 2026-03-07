@@ -104,6 +104,12 @@ describe("RLF_RowUnitPortraitMixin", function()
 			before_each(function()
 				row.unit = "party1"
 				ns.db.global.partyLoot.enablePartyAvatar = true
+				ns.DbAccessor.Feature = function(_, frameId, featureKey)
+					if featureKey == "partyLoot" then
+						return ns.db.global.partyLoot
+					end
+					return nil
+				end
 			end)
 
 			it("shows UnitPortrait", function()
@@ -123,6 +129,12 @@ describe("RLF_RowUnitPortraitMixin", function()
 			before_each(function()
 				row.unit = "party1"
 				ns.db.global.partyLoot.enablePartyAvatar = false
+				ns.DbAccessor.Feature = function(_, frameId, featureKey)
+					if featureKey == "partyLoot" then
+						return ns.db.global.partyLoot
+					end
+					return nil
+				end
 			end)
 
 			it("hides UnitPortrait", function()

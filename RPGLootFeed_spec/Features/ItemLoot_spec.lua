@@ -95,7 +95,20 @@ describe("ItemLoot Module", function()
 				Styling = function(_, _)
 					return { secondaryFontSize = 12 }
 				end,
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "itemLoot" then
+						return ns.db.global.item
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
 			},
+			Frames = { MAIN = 1 },
 			Frames = { MAIN = "MAIN" },
 			-- WoWAPI namespace: ItemLoot.lua captures G_RLF.WoWAPI.ItemLoot as
 			-- _itemLootAdapter at load time.  The spec replaces _itemLootAdapter
@@ -272,8 +285,10 @@ describe("ItemLoot Module", function()
 			assert.is_table(ItemLoot._itemLootAdapter)
 		end)
 
-		it("enables when db.global.item.enabled is true", function()
-			ns.db.global.item.enabled = true
+		it("enables when any frame needs itemLoot", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			spy.on(ItemLoot, "Enable")
 			spy.on(ItemLoot, "Disable")
 
@@ -283,8 +298,10 @@ describe("ItemLoot Module", function()
 			assert.spy(ItemLoot.Disable).was_not.called()
 		end)
 
-		it("disables when db.global.item.enabled is false", function()
-			ns.db.global.item.enabled = false
+		it("disables when no frame needs itemLoot", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			spy.on(ItemLoot, "Enable")
 			spy.on(ItemLoot, "Disable")
 

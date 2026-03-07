@@ -30,6 +30,12 @@ describe("AuctionIntegrations module", function()
 	insulate("no integrations installed", function()
 		before_each(function()
 			ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+			ns.DbAccessor.AnyFeatureConfig = function(_, featureKey)
+				if featureKey == "itemLoot" then
+					return ns.db.global.item
+				end
+				return nil
+			end
 			ns.db.global.item.auctionHouseSource = nil
 
 			_G.Auctionator = nil
@@ -82,6 +88,12 @@ describe("AuctionIntegrations module", function()
 		before_each(function()
 			mockInteg = require("RPGLootFeed_spec._mocks.Libs.Auctionator")
 			ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+			ns.DbAccessor.AnyFeatureConfig = function(_, featureKey)
+				if featureKey == "itemLoot" then
+					return ns.db.global.item
+				end
+				return nil
+			end
 			ns.db.global.item.auctionHouseSource = nil
 
 			_G.TSM_API = nil
@@ -116,6 +128,12 @@ describe("AuctionIntegrations module", function()
 		before_each(function()
 			mockInteg = require("RPGLootFeed_spec._mocks.Libs.TSM")
 			ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+			ns.DbAccessor.AnyFeatureConfig = function(_, featureKey)
+				if featureKey == "itemLoot" then
+					return ns.db.global.item
+				end
+				return nil
+			end
 			ns.db.global.item.auctionHouseSource = nil
 
 			_G.Auctionator = nil
@@ -152,6 +170,12 @@ describe("AuctionIntegrations module", function()
 			require("RPGLootFeed_spec._mocks.Libs.Auctionator")
 			require("RPGLootFeed_spec._mocks.Libs.TSM")
 			ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
+			ns.DbAccessor.AnyFeatureConfig = function(_, featureKey)
+				if featureKey == "itemLoot" then
+					return ns.db.global.item
+				end
+				return nil
+			end
 			ns.db.global.item.auctionHouseSource = nil
 
 			-- Load the auction integrations module

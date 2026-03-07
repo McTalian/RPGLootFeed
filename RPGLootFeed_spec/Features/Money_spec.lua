@@ -56,6 +56,21 @@ describe("Money", function()
 					misc = { hideAllIcons = false, showOneQuantity = false },
 				},
 			},
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "money" then
+						return ns.db.global.money
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 		}
 
 		-- Load real LootElementBase so elements are fully constructed.
@@ -111,7 +126,9 @@ describe("Money", function()
 			local enableStub = stub(Money, "Enable").returns()
 			local disableStub = stub(Money, "Disable").returns()
 
-			ns.db.global.money.enabled = true
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			Money:OnInitialize()
 			assert.spy(enableStub).was.called(1)
 			assert.spy(disableStub).was.not_called()
@@ -119,7 +136,9 @@ describe("Money", function()
 			enableStub:clear()
 			disableStub:clear()
 
-			ns.db.global.money.enabled = false
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			Money:OnInitialize()
 			assert.spy(disableStub).was.called(1)
 			assert.spy(enableStub).was.not_called()

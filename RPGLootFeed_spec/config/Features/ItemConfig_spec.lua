@@ -17,26 +17,37 @@ describe("ItemConfig module", function()
 
 	it("should set up the item configuration defaults", function()
 		-- Check that the item configuration is set up in the defaults
-		assert.is_table(ns.defaults.global.item)
-		assert.is_boolean(ns.defaults.global.item.enabled)
-		assert.is_boolean(ns.defaults.global.item.itemCountTextEnabled)
-		assert.is_table(ns.defaults.global.item.itemCountTextColor)
-		assert.is_table(ns.defaults.global.item.itemQualitySettings)
-		assert.is_table(ns.defaults.global.item.itemHighlights)
-		assert.is_table(ns.defaults.global.item.sounds)
+		assert.is_table(ns.defaults.global.frames["**"].features.itemLoot)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.itemLoot.enabled)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.itemLoot.itemCountTextEnabled)
+		assert.is_table(ns.defaults.global.frames["**"].features.itemLoot.itemCountTextColor)
+		assert.is_table(ns.defaults.global.frames["**"].features.itemLoot.itemQualitySettings)
+		assert.is_table(ns.defaults.global.frames["**"].features.itemLoot.itemHighlights)
+		assert.is_table(ns.defaults.global.frames["**"].features.itemLoot.sounds)
 	end)
 
-	it("should set up the item configuration options", function()
-		-- Check that the item configuration options are set up
-		assert.is_table(ns.options.args.features.args.itemLootConfig)
-		assert.equal("group", ns.options.args.features.args.itemLootConfig.type)
-		assert.is_not_nil(ns.options.args.features.args.itemLootConfig.name)
-		assert.equal(ns.mainFeatureOrder.ItemLoot, ns.options.args.features.args.itemLootConfig.order)
+	it("should export a BuildItemLootArgs builder function", function()
+		assert.is_function(ns.BuildItemLootArgs)
+	end)
+
+	it("should return a valid options group from BuildItemLootArgs", function()
+		-- Set up mock per-frame DB
+		ns.db = {
+			global = {
+				frames = { [1] = { features = { itemLoot = ns.defaults.global.frames["**"].features.itemLoot } } },
+			},
+		}
+		local group = ns.BuildItemLootArgs(1, 5)
+		assert.is_table(group)
+		assert.equal("group", group.type)
+		assert.equal(5, group.order)
+		assert.is_not_nil(group.name)
+		assert.is_table(group.args)
 	end)
 
 	it("should set up item quality settings", function()
 		-- Check that all item qualities are configured
-		local qualities = ns.defaults.global.item.itemQualitySettings
+		local qualities = ns.defaults.global.frames["**"].features.itemLoot.itemQualitySettings
 		local qualityEnum = ns.ItemQualEnum
 
 		assert.is_table(qualities[qualityEnum.Poor])
@@ -47,11 +58,5 @@ describe("ItemConfig module", function()
 		assert.is_table(qualities[qualityEnum.Legendary])
 		assert.is_table(qualities[qualityEnum.Artifact])
 		assert.is_table(qualities[qualityEnum.Heirloom])
-	end)
-
-	it("should have a SoundOptionValues function", function()
-		local handler = ns.options.args.features.args.itemLootConfig.handler
-		assert.is_table(handler)
-		assert.is_function(handler.SoundOptionValues)
 	end)
 end)

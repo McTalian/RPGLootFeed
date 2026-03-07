@@ -45,6 +45,18 @@ describe("TravelPoints module", function()
 					misc = { hideAllIcons = false },
 				},
 			},
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					return ns.db.global.travelPoints
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 		}
 
 		-- Load real LootElementBase so elements are fully constructed.
@@ -206,8 +218,10 @@ describe("TravelPoints module", function()
 	end)
 
 	describe("Module lifecycle", function()
-		it("OnInitialize enables module when retail and travel points enabled", function()
-			ns.db.global.travelPoints.enabled = true
+		it("OnInitialize enables module when retail and any frame needs travelPoints", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			local isRetailStub = stub(ns, "IsRetail").returns(true)
 			local enableSpy = spy.on(TravelPointsModule, "Enable")
 
@@ -218,7 +232,9 @@ describe("TravelPoints module", function()
 		end)
 
 		it("OnInitialize disables module when not retail", function()
-			ns.db.global.travelPoints.enabled = true
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			local isRetailStub = stub(ns, "IsRetail").returns(false)
 			local disableSpy = spy.on(TravelPointsModule, "Disable")
 
@@ -228,8 +244,10 @@ describe("TravelPoints module", function()
 			isRetailStub:revert()
 		end)
 
-		it("OnInitialize disables module when travel points disabled in config", function()
-			ns.db.global.travelPoints.enabled = false
+		it("OnInitialize disables module when no frame needs travelPoints", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			local isRetailStub = stub(ns, "IsRetail").returns(true)
 			local disableSpy = spy.on(TravelPointsModule, "Disable")
 

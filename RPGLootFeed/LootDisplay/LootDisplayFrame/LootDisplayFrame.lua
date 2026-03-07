@@ -13,6 +13,37 @@ local G_RLF = ns
 ---@field ArrowRight Texture
 LootDisplayFrameMixin = {}
 
+-- Maps a loot element's .type field (G_RLF.FeatureModule value) to the
+-- matching key in db.global.frames[id].features.
+local featureKeyForType = {
+	[G_RLF.FeatureModule.ItemLoot] = "itemLoot",
+	[G_RLF.FeatureModule.PartyLoot] = "partyLoot",
+	[G_RLF.FeatureModule.Currency] = "currency",
+	[G_RLF.FeatureModule.Money] = "money",
+	[G_RLF.FeatureModule.Experience] = "experience",
+	[G_RLF.FeatureModule.Reputation] = "reputation",
+	[G_RLF.FeatureModule.Profession] = "profession",
+	[G_RLF.FeatureModule.TravelPoints] = "travelPoints",
+	[G_RLF.FeatureModule.Transmog] = "transmog",
+}
+
+--- Check whether this frame should display the given loot element based on
+--- the frame's per-feature configuration.
+--- @param element RLF_BaseLootElement
+--- @return boolean
+function LootDisplayFrameMixin:IsFeatureEnabled(element)
+	local featureKey = featureKeyForType[element.type]
+	if not featureKey then
+		return false
+	end
+	local frameConfig = G_RLF.db.global.frames[self.frameType]
+	if not frameConfig then
+		return false
+	end
+	local featureCfg = frameConfig.features[featureKey]
+	return featureCfg and featureCfg.enabled or false
+end
+
 function LootDisplayFrameMixin:getFrameHeight()
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
 	local padding = sizingDb.padding
@@ -74,9 +105,12 @@ function LootDisplayFrameMixin:ConfigureTestArea()
 
 	self:MakeUnmovable()
 
+	-- Use the frame's configured display name when available; fall back to the
+	-- addon name alone for the main frame or when the DB entry is absent.
 	local firstLine = addonName
-	if self.frameType == G_RLF.Frames.PARTY then
-		firstLine = firstLine .. " " .. G_RLF.L["Party Loot"]
+	local frameConfig = G_RLF.db and G_RLF.db.global.frames and G_RLF.db.global.frames[self.frameType]
+	if frameConfig and frameConfig.name and self.frameType ~= G_RLF.Frames.MAIN then
+		firstLine = firstLine .. " " .. frameConfig.name
 	end
 	self.InstructionText:SetText(firstLine .. "\n" .. G_RLF.L["Drag to Move"]) -- Set localized text
 	self.InstructionText:Hide() -- Hide initially
@@ -322,9 +356,12 @@ function LootDisplayFrameMixin:GetRow(key)
 	return self.keyRowMap[key] --[[@as RLF_LootDisplayRow]]
 end
 
-function LootDisplayFrameMixin:LeaseRow(key)
+--- @param key string
+--- @param isSampleRow? boolean When true, bypass the maxRows cap
+--- @return RLF_LootDisplayRow|nil
+function LootDisplayFrameMixin:LeaseRow(key, isSampleRow)
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
-	if self:getNumberOfRows() >= sizingDb.maxRows then
+	if self:getNumberOfRows() >= sizingDb.maxRows and not isSampleRow then
 		-- Skip this, we've already allocated too much
 		return nil
 	end
@@ -375,14 +412,17 @@ function LootDisplayFrameMixin:ReleaseRow(row)
 	row:UpdateNeighborPositions(self)
 	self.rows:remove(row)
 	row:SetParent(nil)
+	if row.onReleased then
+		row.onReleased()
+		row.onReleased = nil
+	end
 	row.key = nil
 	row:Reset()
 	self.rowFramePool:Release(row)
-	if self.frameType == G_RLF.Frames.MAIN then
-		G_RLF:SendMessage("RLF_ROW_RETURNED")
-	else
-		G_RLF:SendMessage("RLF_PARTY_ROW_RETURNED")
-	end
+	-- Notify LootDisplay that capacity has opened on this specific frame so its
+	-- queue can be drained.  A single parameterised message replaces the old
+	-- dual-message RLF_ROW_RETURNED / RLF_PARTY_ROW_RETURNED scheme.
+	G_RLF:SendMessage("RLF_ROW_RETURNED", self.frameType)
 	self:UpdateTabVisibility()
 end
 
@@ -454,11 +494,12 @@ function LootDisplayFrameMixin:CreateHistoryFrame()
 	self.historyFrame:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
 	self.historyFrame.title = self.historyFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
 	self.historyFrame.title:SetPoint("BOTTOMLEFT", self.historyFrame, "TOPLEFT", 0, 0)
-	if self.frameType == G_RLF.Frames.PARTY then
-		self.historyFrame.title:SetText(G_RLF.L["Party Loot History"] --[[@as string]])
-	else
-		self.historyFrame.title:SetText(G_RLF.L["Loot History"] --[[@as string]])
+	local frameName = G_RLF.db.global.frames[self.frameType] and G_RLF.db.global.frames[self.frameType].name or ""
+	local titleText = G_RLF.L["Loot History"] --[[@as string]]
+	if frameName ~= "" then
+		titleText = frameName .. " " .. titleText
 	end
+	self.historyFrame.title:SetText(titleText)
 
 	self.historyContent = CreateFrame("Frame", "LootHistoryFrameContent", self.historyFrame)
 	self.historyContent:SetSize(self:GetSize())

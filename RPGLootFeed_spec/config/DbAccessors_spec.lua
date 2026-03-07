@@ -16,13 +16,19 @@ describe("DbAccessors module", function()
 		-- Create mock database structure
 		mockDb = {
 			global = {
-				sizing = { mockSizing = true },
-				positioning = { mockPositioning = true },
-				styling = { mockStyling = true },
-				partyLoot = {
-					sizing = { mockPartySizing = true },
-					positioning = { mockPartyPositioning = true },
-					styling = { mockPartyStyling = true },
+				frames = {
+					[1] = {
+						sizing = { mockFrameMainSizing = true },
+						positioning = { mockFrameMainPositioning = true },
+						styling = { mockFrameMainStyling = true },
+						animations = { mockFrameMainAnimations = true },
+					},
+					[2] = {
+						sizing = { mockFramePartySizing = true },
+						positioning = { mockFramePartyPositioning = true },
+						styling = { mockFramePartyStyling = true },
+						animations = { mockFramePartyAnimations = true },
+					},
 				},
 			},
 		}
@@ -32,8 +38,7 @@ describe("DbAccessors module", function()
 
 		-- Define frame types
 		ns.Frames = {
-			PARTY = "PARTY",
-			MAIN = "MAIN",
+			MAIN = 1,
 		}
 
 		-- Load the module being tested
@@ -42,62 +47,50 @@ describe("DbAccessors module", function()
 	end)
 
 	describe("Sizing", function()
-		it("returns party loot sizing when frame is PARTY", function()
-			local result = DbAccessor:Sizing(ns.Frames.PARTY)
-			assert.are.same(mockDb.global.partyLoot.sizing, result)
-			assert.is_true(result.mockPartySizing)
+		it("returns per-frame sizing for frame 2", function()
+			local result = DbAccessor:Sizing(2)
+			assert.is_true(result.mockFramePartySizing)
 		end)
 
-		it("returns global sizing when frame is not PARTY", function()
+		it("returns per-frame sizing for the main frame", function()
 			local result = DbAccessor:Sizing(ns.Frames.MAIN)
-			assert.are.same(mockDb.global.sizing, result)
-			assert.is_true(result.mockSizing)
-		end)
-
-		it("returns global sizing when frame is nil", function()
-			local result = DbAccessor:Sizing(nil)
-			assert.are.same(mockDb.global.sizing, result)
-			assert.is_true(result.mockSizing)
+			assert.is_true(result.mockFrameMainSizing)
 		end)
 	end)
 
 	describe("Positioning", function()
-		it("returns party loot positioning when frame is PARTY", function()
-			local result = DbAccessor:Positioning(ns.Frames.PARTY)
-			assert.are.same(mockDb.global.partyLoot.positioning, result)
-			assert.is_true(result.mockPartyPositioning)
+		it("returns per-frame positioning for frame 2", function()
+			local result = DbAccessor:Positioning(2)
+			assert.is_true(result.mockFramePartyPositioning)
 		end)
 
-		it("returns global positioning when frame is not PARTY", function()
+		it("returns per-frame positioning for the main frame", function()
 			local result = DbAccessor:Positioning(ns.Frames.MAIN)
-			assert.are.same(mockDb.global.positioning, result)
-			assert.is_true(result.mockPositioning)
-		end)
-
-		it("returns global positioning when frame is nil", function()
-			local result = DbAccessor:Positioning(nil)
-			assert.are.same(mockDb.global.positioning, result)
-			assert.is_true(result.mockPositioning)
+			assert.is_true(result.mockFrameMainPositioning)
 		end)
 	end)
 
 	describe("Styling", function()
-		it("returns party loot styling when frame is PARTY", function()
-			local result = DbAccessor:Styling(ns.Frames.PARTY)
-			assert.are.same(mockDb.global.partyLoot.styling, result)
-			assert.is_true(result.mockPartyStyling)
+		it("returns per-frame styling for frame 2", function()
+			local result = DbAccessor:Styling(2)
+			assert.is_true(result.mockFramePartyStyling)
 		end)
 
-		it("returns global styling when frame is not PARTY", function()
+		it("returns per-frame styling for the main frame", function()
 			local result = DbAccessor:Styling(ns.Frames.MAIN)
-			assert.are.same(mockDb.global.styling, result)
-			assert.is_true(result.mockStyling)
+			assert.is_true(result.mockFrameMainStyling)
+		end)
+	end)
+
+	describe("Animations", function()
+		it("returns per-frame animations for frame 1", function()
+			local result = DbAccessor:Animations(1)
+			assert.is_true(result.mockFrameMainAnimations)
 		end)
 
-		it("returns global styling when frame is nil", function()
-			local result = DbAccessor:Styling(nil)
-			assert.are.same(mockDb.global.styling, result)
-			assert.is_true(result.mockStyling)
+		it("returns per-frame animations for frame 2", function()
+			local result = DbAccessor:Animations(2)
+			assert.is_true(result.mockFramePartyAnimations)
 		end)
 	end)
 end)

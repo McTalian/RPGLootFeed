@@ -114,6 +114,21 @@ describe("Currency Module", function()
 					misc = { hideAllIcons = false, showOneQuantity = false },
 				},
 			},
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "currency" then
+						return ns.db.global.currency
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 		}
 
 		-- WoWAPIAdapters.lua provides G_RLF.WoWAPI.Currency at runtime; supply an
@@ -151,8 +166,10 @@ describe("Currency Module", function()
 	-- ── Lifecycle ──────────────────────────────────────────────────────────────
 
 	describe("Lifecycle event handlers", function()
-		it("OnInitialize enables when db flag is true and expansion >= WOTLK", function()
-			ns.db.global.currency.enabled = true
+		it("OnInitialize enables when any frame needs currency and expansion >= WOTLK", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			CurrencyModule._currencyAdapter.GetExpansionLevel = function()
 				return 3 -- WOTLK
 			end
@@ -163,8 +180,10 @@ describe("Currency Module", function()
 			assert.spy(spyDisable).was_not.called()
 		end)
 
-		it("OnInitialize disables when db flag is false", function()
-			ns.db.global.currency.enabled = false
+		it("OnInitialize disables when no frame needs currency", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			CurrencyModule._currencyAdapter.GetExpansionLevel = function()
 				return 3
 			end
@@ -176,7 +195,9 @@ describe("Currency Module", function()
 		end)
 
 		it("OnInitialize disables when expansion < WOTLK", function()
-			ns.db.global.currency.enabled = true
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			CurrencyModule._currencyAdapter.GetExpansionLevel = function()
 				return 2 -- TBC
 			end
@@ -419,7 +440,9 @@ describe("Currency Module", function()
 			end
 			-- Call OnInitialize to pre-compute classicCurrencyPatterns from the
 			-- adapter-provided locale strings (pure Lua string work, no WoW API).
-			ns.db.global.currency.enabled = true
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			CurrencyModule:OnInitialize()
 		end)
 
@@ -572,7 +595,9 @@ describe("Currency Module", function()
 			CurrencyModule._currencyAdapter.GetCurrencyInfo = function()
 				return currencyInfo
 			end
-			ns.db.global.currency.enabled = true
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			CurrencyModule:OnInitialize()
 		end)
 

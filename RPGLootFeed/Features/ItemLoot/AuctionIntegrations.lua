@@ -53,7 +53,7 @@ function AuctionIntegrations:Init()
 
 	LogDebug("Active AH integrations: " .. self.numActiveIntegrations)
 
-	local ahSource = G_RLF.db.global.item.auctionHouseSource
+	local ahSource = (G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}).auctionHouseSource
 
 	if self.numActiveIntegrations == 1 then
 		for _, integration in pairs(self.activeIntegrations) do
@@ -70,7 +70,10 @@ function AuctionIntegrations:Init()
 	end
 
 	if self.activeIntegration and ahSource ~= self.activeIntegration:ToString() then
-		G_RLF.db.global.item.auctionHouseSource = self.activeIntegration:ToString()
+		local itemFeature = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot")
+		if itemFeature then
+			itemFeature.auctionHouseSource = self.activeIntegration:ToString()
+		end
 	end
 end
 

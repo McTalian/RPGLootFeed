@@ -79,7 +79,9 @@ functions.UnitClass = stub(_G, "UnitClass").returns("Warrior", "WARRIOR", 1)
 functions.UnitSex = stub(_G, "UnitSex").returns(2)
 functions.GetMoney = stub(_G, "GetMoney").returns(123456)
 functions.GetText = stub(_G, "GetText").returns("Test Text")
-functions.CreateAtlasMarkup = stub(_G, "CreateAtlasMarkup").returns("<AtlasMarkup>")
+functions.CreateAtlasMarkup = stub(_G, "CreateAtlasMarkup", function(atlas, w, h, x, y)
+	return "<AtlasMarkup:" .. tostring(atlas) .. ">"
+end)
 functions.SetPortraitTexture = stub(_G, "SetPortraitTexture")
 
 return functions
