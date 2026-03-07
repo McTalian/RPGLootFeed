@@ -66,7 +66,6 @@ The uniform payload maps directly to row visual components. Full type definition
 | **Interaction**    | `isCustomLink`, `customBehavior`                              | Custom tooltip / click behavior                         |
 | **Party**          | `unit`                                                        | Unit token for portrait display                         |
 | **Lifecycle**      | `showForSeconds`, `isSampleRow`, `logFn`, `IsEnabled`         | Display timing, test mode, logging, permission gate     |
-| **Compat**         | `itemCount`                                                   | Backwards compat for non-migrated modules               |
 
 ### Key Design: `itemCountFn` replaces type-switch
 
@@ -106,26 +105,26 @@ Modules are migrated one at a time. Each migration includes:
 5. Update SmokeTest element constructor assertions
 6. Verify busted tests + in-game smoke/integration tests pass
 
-| Module         | Status         | Notes                                                                                                           |
-| -------------- | -------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Reputation** | ✅ Complete    | Proof-of-concept; dual event path (Retail/Classic)                                                              |
-| Experience     | ✅ Complete    | Simple scalar; adapter moved to WoWAPI.Experience                                                               |
-| Money          | ✅ Complete    | Simple scalar; adapter to WoWAPI.Money; `PlaySoundIfEnabled` promoted to module method                          |
-| ItemLoot       | ⏳ Not Started | Complex; ItemInfo object, stat deltas, async                                                                    |
-| Currency       | ✅ Complete    | 3-tuple API data; hidden currency filtering; `itemCountFn` replaces type-switch                                 |
-| PartyLoot      | ✅ Complete    | Unit-aware; routes to separate frame; filter logic consolidated into service layer; adapter to WoWAPI.PartyLoot |
-| Professions    | ✅ Complete    | Chat-parsed; `itemCountFn` replaces Professions type-switch; adapter to WoWAPI.Professions                      |
-| Transmog       | ✅ Complete    | Async item loading; custom link behavior; two inline adapters consolidated to WoWAPI.Transmog                   |
-| TravelPoints   | ✅ Complete    | Simple; two inline adapters consolidated to WoWAPI.TravelPoints                                                 |
+| Module            | Status      | Notes                                                                                                                   |
+| ----------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Reputation**    | ✅ Complete | Proof-of-concept; dual event path (Retail/Classic)                                                                      |
+| **Experience**    | ✅ Complete | Simple scalar; adapter moved to WoWAPI.Experience                                                                       |
+| **Money**         | ✅ Complete | Simple scalar; adapter to WoWAPI.Money; `PlaySoundIfEnabled` promoted to module method                                  |
+| **TravelPoints**  | ✅ Complete | Two inline adapters consolidated to WoWAPI.TravelPoints                                                                 |
+| **Currency**      | ✅ Complete | 3-tuple API data; hidden currency filtering; `itemCountFn` replaces type-switch                                         |
+| **Professions**   | ✅ Complete | Chat-parsed; `itemCountFn` replaces Professions type-switch; adapter to WoWAPI.Professions                              |
+| **PartyLoot**     | ✅ Complete | Unit-aware; routes to separate frame; filter logic consolidated into service layer; adapter to WoWAPI.PartyLoot         |
+| **Transmog**      | ✅ Complete | Async item loading; custom link behavior; two inline adapters consolidated to WoWAPI.Transmog                           |
+| **ItemLoot**      | ✅ Complete | Most complex; async item-loading, stat deltas, bag count via `itemCountFn`; `UpdateItemCount` type-switch fully removed |
+| **Notifications** | ✅ Complete | Internal support module; no adapter needed; migrated from `Element:new()` to `BuildPayload()` + `fromPayload()`         |
 
 ## Key Decisions
 
 1. **One module at a time** — Each migration is self-contained and testable. No big-bang rewrite.
-2. **Generic `fromPayload()` over per-module `Element:new()`** — Enforces uniform contract, reduces code duplication, builds test confidence in the generic path.
+2. **Generic `fromPayload()` over per-module `Element:new()`** — Enforces uniform contract, reduces code duplication, builds test confidence in the generic path. Migration is now complete — no `Element:new()` pattern exists anywhere in the codebase.
 3. **Shared adapters (`G_RLF.WoWAPI.*`)** — Single place to update for API deprecations/changes. Centralizes mock boundary for testing.
-4. **`itemCountFn` on payload** — Moves type-specific rendering logic from the row layer back to the module that owns it. Row rendering becomes module-agnostic.
-5. **Backwards compatibility** — `LootElementBase:new()` still works. Non-migrated modules continue to function. `itemCount` field preserved on payload for compat.
-6. **TextTemplateEngine as default, closures as escape hatch** — Don't force all modules through templates if their text logic is genuinely complex.
+4. **`itemCountFn` on payload** — Moves type-specific rendering logic from the row layer back to the module that owns it. Row rendering is fully module-agnostic — the `UpdateItemCount` legacy type-switch has been completely removed.
+5. **TextTemplateEngine as default, closures as escape hatch** — Don't force all modules through templates if their text logic is genuinely complex.
 
 ## Files Created/Modified So Far
 
@@ -205,8 +204,32 @@ Modules are migrated one at a time. Each migration includes:
 - [Transmog_spec.lua](../../RPGLootFeed_spec/Features/Transmog_spec.lua) — Added `WoWAPI = { Transmog = {} }` ns mock; replaced `_transmogCollectionAdapter`/`_globalStringsAdapter` with single `_transmogAdapter`; `Element creation` describe → `BuildPayload`; all `Element:new` calls → `BuildPayload`; event handler tests use `spy.on(Transmog, "BuildPayload")`; warning test stubs `BuildPayload` instead of `Element.new`
 - [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Transmog integration test uses `BuildPayload` → `fromPayload` → `Show` directly (synthetic transmog link; avoids async `C_TransmogCollection` dependency)
 
+### Modified (ItemLoot Migration)
+
+- [ItemLoot/ItemLoot.lua](../../RPGLootFeed/Features/ItemLoot/ItemLoot.lua) — Removed inline `ItemLootAdapter`; `_itemLootAdapter = G_RLF.WoWAPI.ItemLoot` captured at module root; replaced `ItemLoot.Element:new()` with `ItemLoot:BuildPayload(info, quantity, fromLink)` service method; quality filter, icon, highlight, sound, stat-comparison, color overrides, and `itemCountFn` (bag count) all computed inside `BuildPayload`; `PlaySoundIfEnabled` promoted to module method; `isPassingFilter` removed (filter is now a pre-condition in `BuildPayload` returning `nil`)
+- [WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua) — Added `G_RLF.WoWAPI.ItemLoot` (9th adapter: `GetExpansionLevel`, `UnitName`, `UnitClass`, `UnitLevel`, `IssecretValue`, `GetPlayerGuid`, `GetInventoryItemLink`, `GetItemQualityColor`, `GetCoinTextureString`, `CreateAtlasMarkup`, `PlaySoundFile`, `GetAHPrice`, `GetItemInfo`, `GetItemIDForItemInfo`, `GetItemCount`, `GetItemStatDelta`)
+- [RowTextMixin.lua](../../RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua) — Removed the `if self.type == "ItemLoot"` branch — the last remaining legacy type-switch entry. `UpdateItemCount` now only has the `itemCountFn` path; the entire type-switch is gone
+- [LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua) — Removed `ItemLoot.Element` from `RLF_LootElement` type alias; alias now reads `@alias RLF_LootElement RLF_BaseLootElement`
+- [ItemLoot_spec.lua](../../RPGLootFeed_spec/Features/ItemLoot_spec.lua) — Replaced `Element:new()` tests with `BuildPayload` tests; removed `LibStub` require (replaced by `WoWAPI = { ItemLoot = {} }` ns mock); added `itemCountTextEnabled`/`itemCountTextColor`/`itemCountTextWrapChar` to test db; added `itemCountFn` tests; `isPassingFilter` tests replaced by `BuildPayload` returning `nil` for disabled quality tiers
+- [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) / [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Updated to use `BuildPayload` → `fromPayload` pipeline
+
+### Modified (Notifications Migration)
+
+- [RLF_Notifications.lua](../../RPGLootFeed/Features/_Internals/RLF_Notifications.lua) — Removed `Notifications.Element = {}` and `Notifications.Element:new()`; added `Notifications:BuildPayload(key, text, secondaryText, index)`; `ViewNotification` now calls `LootElementBase:fromPayload(self:BuildPayload(...)):Show()`
+
+## Migration — Complete ✅
+
+All feature modules (including `RLF_Notifications`) now use the `BuildPayload` → `LootElementBase:fromPayload()` → `Show()` pipeline. There are no remaining `Module.Element:new()` constructors in the codebase. The `UpdateItemCount` legacy type-switch in `RowTextMixin.lua` has been fully removed — all modules provide `itemCountFn` closures on their payloads.
+
+**Final state:**
+
+- `G_RLF.WoWAPI.*` has 9 feature adapters: `Reputation`, `Experience`, `Money`, `TravelPoints`, `Currency`, `Professions`, `PartyLoot`, `Transmog`, `ItemLoot`
+- `LootElementBase:new()` still exists (foundation, used by `fromPayload` internally and the sample row in `LootDisplay.lua`) but is no longer called directly by feature modules
+- `RLF_LootElement` type alias is now simply `RLF_BaseLootElement` — no per-module subtype unions
+
 ## Future Considerations
 
-- **Midnight API changes**: WoW Midnight locks down `CHAT_MSG_*` processing in combat/instances. Modules relying on chat parsing (Reputation legacy, Professions, ItemLoot) will need to move to first-class events. The adapter layer isolates this migration.
+- **Multi-type sample rows**: Replace the single generic sample row in the settings panel with one representative row per enabled feature type. See `.github/docs/sample-rows-plan.md` for the full plan.
+- **Midnight API changes**: WoW Midnight locks down `CHAT_MSG_*` processing in combat/instances. Modules relying on chat parsing (Reputation legacy, Professions) will need to move to first-class events. The adapter layer isolates this migration.
 - **Replay/regression framework**: With adapters, it becomes possible to record adapter outputs and replay them in tests to reproduce specific scenarios.
 - **Adapter-level integration tests**: A future testing tier could exercise adapter → service → payload without the full WoW client, using recorded adapter outputs.
