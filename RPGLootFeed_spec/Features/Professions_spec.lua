@@ -24,11 +24,14 @@ describe("Professions Module", function()
 			DefaultIcons = { PROFESSION = 134400 },
 			ItemQualEnum = { Rare = 3 },
 			FeatureModule = { Profession = "Profession" },
+			-- WoWAPI stub so Professions._professionsAdapter = G_RLF.WoWAPI.Professions
+			-- resolves at load time (overridden per-test in before_each).
+			WoWAPI = { Professions = {} },
 			-- Closure wrappers call these as G_RLF:Method(...).
 			LogDebug = function() end,
 			LogInfo = function() end,
 			LogWarn = function() end,
-			-- RGBAToHexFormat used by Element:new to build the color prefix.
+			-- RGBAToHexFormat used by BuildPayload to build the color prefix.
 			RGBAToHexFormat = function()
 				return "|cFFFFFFFF"
 			end,
@@ -49,6 +52,8 @@ describe("Professions Module", function()
 						enabled = true,
 						enableIcon = true,
 						skillColor = { 1, 1, 1, 1 },
+						showSkillChange = true,
+						skillTextWrapChar = ".",
 					},
 					misc = { hideAllIcons = false },
 				},
@@ -243,49 +248,67 @@ describe("Professions Module", function()
 		end)
 	end)
 
-	describe("Element", function()
-		it("creates a new element correctly", function()
-			local element = Professions.Element:new(1, "Expansion1", "icon1", 10, 20, 5)
-			assert.are.same("Expansion1", element.name)
-			assert.are.same("icon1", element.icon)
-			assert.are.same(10, element.level)
-			assert.are.same(20, element.maxLevel)
-			assert.are.same(5, element.quantity)
-			assert.are.same("PROF_1", element.key)
+	describe("BuildPayload", function()
+		it("creates a payload correctly", function()
+			local payload = Professions:BuildPayload(1, "Expansion1", "icon1", 10, 5)
+			assert.are.same("PROF_1", payload.key)
+			assert.are.same("Professions", payload.type)
+			assert.are.same("icon1", payload.icon)
+			assert.are.same(5, payload.quantity)
+			assert.are.same(3, payload.quality)
+			assert.is_not_nil(payload.textFn)
+			assert.is_not_nil(payload.itemCountFn)
+			assert.is_not_nil(payload.IsEnabled)
 		end)
 
 		it("sets quality to ItemQualEnum.Rare", function()
-			local element = Professions.Element:new(1, "Alchemy", "icon1", 150, 300, 1)
-			assert.are.equal(3, element.quality)
+			local payload = Professions:BuildPayload(1, "Alchemy", "icon1", 150, 1)
+			assert.are.equal(3, payload.quality)
 		end)
 
 		it("clears icon when enableIcon is false", function()
 			ns.db.global.prof.enableIcon = false
-			local element = Professions.Element:new(1, "Cooking", "icon1", 10, 20, 1)
-			assert.is_nil(element.icon)
+			local payload = Professions:BuildPayload(1, "Cooking", "icon1", 10, 1)
+			assert.is_nil(payload.icon)
 		end)
 
 		it("clears icon when hideAllIcons is true", function()
 			ns.db.global.misc.hideAllIcons = true
-			local element = Professions.Element:new(1, "Cooking", "icon1", 10, 20, 1)
-			assert.is_nil(element.icon)
+			local payload = Professions:BuildPayload(1, "Cooking", "icon1", 10, 1)
+			assert.is_nil(payload.icon)
 		end)
 
 		it("textFn returns colored name with skill level", function()
-			local element = Professions.Element:new(1, "Cooking", "icon1", 150, 300, 1)
-			local text = element.textFn()
+			local payload = Professions:BuildPayload(1, "Cooking", "icon1", 150, 1)
+			local text = payload.textFn()
 			assert.is_not_nil(text:find("Cooking"))
 			assert.is_not_nil(text:find("150"))
 		end)
 
 		it("secondaryTextFn returns empty string", function()
-			local element = Professions.Element:new(1, "Cooking", "icon1", 150, 300, 1)
-			assert.are.equal("", element.secondaryTextFn())
+			local payload = Professions:BuildPayload(1, "Cooking", "icon1", 150, 1)
+			assert.are.equal("", payload.secondaryTextFn())
 		end)
 
 		it("IsEnabled delegates to Professions:IsEnabled", function()
-			local element = Professions.Element:new(1, "Alchemy", "icon1", 100, 300, 1)
-			assert.is_true(element.IsEnabled())
+			local payload = Professions:BuildPayload(1, "Alchemy", "icon1", 100, 1)
+			assert.is_true(payload.IsEnabled())
+		end)
+
+		it("itemCountFn returns quantity and options when showSkillChange is enabled", function()
+			ns.db.global.prof.showSkillChange = true
+			local payload = Professions:BuildPayload(1, "Cooking", "icon1", 150, 5)
+			local value, options = payload.itemCountFn()
+			assert.are.equal(5, value)
+			assert.are.equal(".", options.wrapChar)
+			assert.is_true(options.showSign)
+		end)
+
+		it("itemCountFn returns nil when showSkillChange is disabled", function()
+			ns.db.global.prof.showSkillChange = false
+			local payload = Professions:BuildPayload(1, "Cooking", "icon1", 150, 5)
+			local value = payload.itemCountFn()
+			assert.is_nil(value)
 		end)
 	end)
 end)

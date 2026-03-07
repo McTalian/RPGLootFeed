@@ -36,61 +36,67 @@ local ExtractDynamicsFromPattern = function(message, segs)
 end
 
 -- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Wraps GetProfessions, GetProfessionInfo, issecretvalue, and SKILL_RANK_UP so
--- tests can inject mocks without patching _G directly.
-local ProfessionsAdapter = {
-	GetProfessions = function()
-		return GetProfessions()
-	end,
-	GetProfessionInfo = function(id)
-		return GetProfessionInfo(id)
-	end,
-	IssecretValue = function(msg)
-		return issecretvalue and issecretvalue(msg)
-	end,
-	GetSkillRankUpPattern = function()
-		return _G.SKILL_RANK_UP
-	end,
-}
+-- The shared adapter lives in WoWAPIAdapters.lua (G_RLF.WoWAPI.Professions).
+-- Tests replace Professions._professionsAdapter with a mock after loadfile.
 
 ---@class RLF_Professions: RLF_Module, AceEvent-3.0
 local Professions = FeatureBase:new(FeatureModule.Profession, "AceEvent-3.0")
 
-Professions._professionsAdapter = ProfessionsAdapter
+Professions._professionsAdapter = G_RLF.WoWAPI.Professions
 
-Professions.Element = {}
-
-function Professions.Element:new(...)
-	---@class Professions.Element: RLF_BaseLootElement
-	local element = LootElementBase:new()
-
-	element.type = "Professions"
-	element.IsEnabled = function()
-		return Professions:IsEnabled()
-	end
-
-	local keyPrefix = "PROF_"
-
-	local key
-	key, element.name, element.icon, element.level, element.maxLevel, element.quantity = ...
-	element.quality = ItemQualEnum.Rare
-	if not G_RLF.db.global.prof.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
-	end
-
-	element.key = keyPrefix .. key
-
+--- Builds a uniform payload for LootElementBase:fromPayload().
+--- Replaces Professions.Element:new; event handlers call this then fromPayload → Show().
+---@param key string Unique key for this profession (typically skillName)
+---@param name string Profession name to display
+---@param icon number|string Profession icon texture ID
+---@param level number Current skill level
+---@param quantity number Skill level delta (change amount this gain)
+---@return RLF_ElementPayload
+function Professions:BuildPayload(key, name, icon, level, quantity)
 	local color = RGBAToHexFormat(unpack(G_RLF.db.global.prof.skillColor))
 
-	element.textFn = function()
-		return color .. element.name .. " " .. element.level .. "|r"
-	end
+	---@type RLF_ElementPayload
+	local payload = {
+		-- Routing
+		key = "PROF_" .. key,
+		type = "Professions",
 
-	element.secondaryTextFn = function()
-		return ""
-	end
+		-- Icon
+		icon = (G_RLF.db.global.prof.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and icon or nil,
+		quality = ItemQualEnum.Rare,
 
-	return element
+		-- Primary line
+		quantity = quantity,
+		textFn = function()
+			return color .. name .. " " .. level .. "|r"
+		end,
+
+		-- Secondary line
+		secondaryTextFn = function()
+			return ""
+		end,
+
+		-- Item count display (skill delta)
+		itemCountFn = function()
+			local profDb = G_RLF.db.global.prof
+			if not profDb.showSkillChange then
+				return nil
+			end
+			return quantity,
+				{
+					color = RGBAToHexFormat(unpack(profDb.skillColor)),
+					wrapChar = profDb.skillTextWrapChar,
+					showSign = true,
+				}
+		end,
+
+		-- Lifecycle
+		IsEnabled = function()
+			return Professions:IsEnabled()
+		end,
+	}
+
+	return payload
 end
 
 local segments
@@ -171,15 +177,14 @@ function Professions:CHAT_MSG_SKILL(event, message)
 		if not icon then
 			icon = DefaultIcons.PROFESSION
 		end
-		local e = self.Element:new(
+		local payload = self:BuildPayload(
 			skillName,
 			skillName,
 			icon,
 			skillLevel,
-			nil,
 			skillLevel - self.professions[skillName].lastSkillLevel
 		)
-		e:Show()
+		LootElementBase:fromPayload(payload):Show()
 		self.professions[skillName].lastSkillLevel = skillLevel
 	end
 end

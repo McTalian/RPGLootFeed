@@ -199,16 +199,20 @@ local function runReputationIntegrationTest()
 	return rowsShown
 end
 
+--- Exercises the Profession BuildPayload → fromPayload → Show pipeline directly.
 local function runProfessionIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Profession) --[[@as RLF_Professions]]
+	local LootElementBase = G_RLF.LootElementBase
 	local icon = 4620671
 	-- So far, MoP Classic and below doesn't have this icon
 	if not G_RLF:IsRetail() then
 		icon = G_RLF.DefaultIcons.PROFESSION
 	end
-	local e = module.Element:new("Cooking", "Cooking", icon, 3, nil, 1)
+	local payload = module:BuildPayload("Cooking", "Cooking", icon, 3, 1)
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Professions", e)
-	e = module.Element:new("Cooking", "Cooking", icon, 4, nil, 2)
+	payload = module:BuildPayload("Cooking", "Cooking", icon, 4, 2)
+	e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Professions Quantity Update", e)
 	return 1
 end

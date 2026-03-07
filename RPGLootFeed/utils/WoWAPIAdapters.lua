@@ -176,4 +176,23 @@ G_RLF.WoWAPI.Currency = {
 	end,
 }
 
+-- ── Professions API Adapter ──────────────────────────────────────────────────
+-- Wraps GetProfessions, GetProfessionInfo, issecretvalue, and SKILL_RANK_UP
+-- for the Professions feature module.
+---@class RLF_WoWAPI_Professions
+G_RLF.WoWAPI.Professions = {
+	GetProfessions = function()
+		return GetProfessions()
+	end,
+	GetProfessionInfo = function(id)
+		return GetProfessionInfo(id)
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	GetSkillRankUpPattern = function()
+		return _G.SKILL_RANK_UP
+	end,
+}
+
 return G_RLF.WoWAPI

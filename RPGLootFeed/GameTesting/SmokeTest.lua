@@ -390,14 +390,15 @@ local function testElementConstructors()
 	-- Professions
 	local profModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Profession, true)
 	if profModule and profModule:IsEnabled() then
-		local icon = G_RLF.DefaultIcons.PROFESSION
-		local e = profModule.Element:new("TestCooking", "Cooking", icon, 5, nil, 1)
-		runner:assertEqual(e ~= nil, true, "Element: Professions created")
-		if e then
+		local payload = profModule:BuildPayload("TestCooking", "Cooking", G_RLF.DefaultIcons.PROFESSION, 5, 1)
+		runner:assertEqual(payload ~= nil, true, "BuildPayload: Professions created")
+		if payload then
+			local e = G_RLF.LootElementBase:fromPayload(payload)
 			runner:assertEqual(e.type, "Professions", "Element: Professions.type")
 			runner:assertEqual(e.key, "PROF_TestCooking", "Element: Professions.key")
 			runner:assertEqual(e.quantity, 1, "Element: Professions.quantity")
 			runner:assertEqual(type(e.textFn), "function", "Element: Professions.textFn")
+			runner:assertEqual(type(e.itemCountFn), "function", "Element: Professions.itemCountFn")
 			runner:assertEqual(type(e.IsEnabled), "function", "Element: Professions.IsEnabled")
 			runner:assertEqual(type(e.Show), "function", "Element: Professions.Show")
 		end

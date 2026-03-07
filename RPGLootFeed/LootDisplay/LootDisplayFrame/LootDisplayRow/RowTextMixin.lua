@@ -350,21 +350,6 @@ function RLF_RowTextMixin:UpdateItemCount()
 	end
 
 	-- ── Legacy type-switch for non-migrated modules ──────────────────────────
-	if self.type == "Professions" then
-		---@type RLF_ConfigProfession
-		local profDb = G_RLF.db.global.prof
-		if not profDb.showSkillChange then
-			return
-		end
-		RunNextFrame(function()
-			self:ShowItemCountText(self.amount, {
-				color = G_RLF:RGBAToHexFormat(unpack(profDb.skillColor)),
-				wrapChar = profDb.skillTextWrapChar,
-				showSign = true,
-			})
-		end)
-		return
-	end
 
 	if self.itemCount == nil then
 		return
