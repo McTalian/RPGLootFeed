@@ -195,6 +195,22 @@ G_RLF.WoWAPI.Professions = {
 	end,
 }
 
+-- ── Transmog API Adapter ──────────────────────────────────────────────────────
+-- Wraps C_TransmogCollection.GetAppearanceSourceInfo, Item:CreateFromItemLink,
+-- and the ERR_LEARN_TRANSMOG_S locale string for the Transmog feature module.
+---@class RLF_WoWAPI_Transmog
+G_RLF.WoWAPI.Transmog = {
+	GetAppearanceSourceInfo = function(itemModifiedAppearanceID)
+		return C_TransmogCollection.GetAppearanceSourceInfo(itemModifiedAppearanceID)
+	end,
+	CreateItemFromItemLink = function(itemLink)
+		return Item:CreateFromItemLink(itemLink)
+	end,
+	GetErrLearnTransmogS = function()
+		return _G["ERR_LEARN_TRANSMOG_S"]
+	end,
+}
+
 -- ── PartyLoot API Adapter ─────────────────────────────────────────────────────
 -- Wraps UnitName, UnitClass, IsInRaid, IsInInstance, GetNumGroupMembers,
 -- GetExpansionLevel, GetPlayerGuid, C_ClassColor, RAID_CLASS_COLORS,

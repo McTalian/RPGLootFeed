@@ -224,19 +224,17 @@ local function runProfessionIntegrationTest()
 	return 1
 end
 
+--- Exercises the Transmog BuildPayload → fromPayload → Show pipeline directly.
 local function runTransmogIntegrationTest()
-	local appearanceId = 285269
 	if not G_RLF:IsRetail() then
 		return 0
 	end
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Transmog) --[[@as RLF_Transmog]]
-	runner:runTestSafely(
-		module.TRANSMOG_COLLECTION_SOURCE_ADDED,
-		"LootDisplay: Transmog",
-		module,
-		"TRANSMOG_COLLECTION_SOURCE_ADDED",
-		appearanceId
-	)
+	local LootElementBase = G_RLF.LootElementBase
+	local transmogLink = "|cff9d9d9d|Htransmogappearance:285269|h[Test Transmog]|h|r"
+	local payload = module:BuildPayload(transmogLink, nil)
+	local e = LootElementBase:fromPayload(payload)
+	runner:runTestSafely(e.Show, "LootDisplay: Transmog", e)
 	return 1
 end
 

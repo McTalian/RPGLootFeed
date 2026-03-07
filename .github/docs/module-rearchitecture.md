@@ -115,7 +115,7 @@ Modules are migrated one at a time. Each migration includes:
 | Currency       | ✅ Complete    | 3-tuple API data; hidden currency filtering; `itemCountFn` replaces type-switch                                 |
 | PartyLoot      | ✅ Complete    | Unit-aware; routes to separate frame; filter logic consolidated into service layer; adapter to WoWAPI.PartyLoot |
 | Professions    | ✅ Complete    | Chat-parsed; `itemCountFn` replaces Professions type-switch; adapter to WoWAPI.Professions                      |
-| Transmog       | ⏳ Not Started | Async item loading; custom link behavior                                                                        |
+| Transmog       | ✅ Complete    | Async item loading; custom link behavior; two inline adapters consolidated to WoWAPI.Transmog                   |
 | TravelPoints   | ✅ Complete    | Simple; two inline adapters consolidated to WoWAPI.TravelPoints                                                 |
 
 ## Key Decisions
@@ -197,6 +197,13 @@ Modules are migrated one at a time. Each migration includes:
 - [LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua) — Removed `PartyLoot.Element` from `RLF_LootElement` type alias
 - [PartyLoot_spec.lua](../../RPGLootFeed_spec/Features/PartyLoot_spec.lua) — Added `WoWAPI = { PartyLoot = {} }` ns mock; removed `LibStub` require (no longer needed); filter tests use `spy.on(PartyLoot, "BuildPayload")`; CHAT_MSG_LOOT/GET_ITEM_INFO_RECEIVED tests check `sendMessageSpy` instead of stub on `Element.new`; `Element` describe → `BuildPayload`; `unitClass` test removed; all `Element:new` calls → `BuildPayload`
 - [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — PartyLoot integration test uses `BuildPayload` → `fromPayload` → `Show`
+
+### Modified (Transmog Migration)
+
+- [Transmog.lua](../../RPGLootFeed/Features/Transmog.lua) — Removed `Transmog.Element:new()`, added `Transmog:BuildPayload(transmogLink, icon)`; two inline adapters (`TransmogCollectionAdapter`, `GlobalStringsAdapter`) consolidated into `G_RLF.WoWAPI.Transmog`/`_transmogAdapter`; `TRANSMOG_COLLECTION_SOURCE_ADDED` handler (both sync and async `ContinueOnItemLoad` path) uses `BuildPayload` → `fromPayload` → `Show`
+- [WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua) — Added `G_RLF.WoWAPI.Transmog` (`GetAppearanceSourceInfo`, `CreateItemFromItemLink`, `GetErrLearnTransmogS`)
+- [Transmog_spec.lua](../../RPGLootFeed_spec/Features/Transmog_spec.lua) — Added `WoWAPI = { Transmog = {} }` ns mock; replaced `_transmogCollectionAdapter`/`_globalStringsAdapter` with single `_transmogAdapter`; `Element creation` describe → `BuildPayload`; all `Element:new` calls → `BuildPayload`; event handler tests use `spy.on(Transmog, "BuildPayload")`; warning test stubs `BuildPayload` instead of `Element.new`
+- [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Transmog integration test uses `BuildPayload` → `fromPayload` → `Show` directly (synthetic transmog link; avoids async `C_TransmogCollection` dependency)
 
 ## Future Considerations
 
