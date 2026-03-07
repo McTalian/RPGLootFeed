@@ -58,7 +58,9 @@ function G_RLF.LootElementBase:new()
 	element.colorFn = nil
 
 	-- ── Display timing ─────────────────────────────────────────────────────────
-	element.showForSeconds = G_RLF.db.global.animations.exit.fadeOutDelay
+	-- Use the Main frame's exit fade delay as the default; individual rows
+	-- override this from their own per-frame animations config at render time.
+	element.showForSeconds = G_RLF.DbAccessor:Animations(G_RLF.Frames.MAIN).exit.fadeOutDelay
 
 	-- ── Capability stubs (feature modules must override) ──────────────────────
 	--- Returns true if the feature module is currently enabled.
@@ -181,6 +183,7 @@ function G_RLF.LootElementBase:fromPayload(payload)
 		element.showForSeconds = payload.showForSeconds
 	end
 	element.isSampleRow = payload.isSampleRow or false
+	element.sampleTooltipText = payload.sampleTooltipText or nil
 	if payload.logFn then
 		element.logFn = payload.logFn
 	end
@@ -218,6 +221,7 @@ end
 ---@field highlight? boolean Border glow / entry animation
 ---@field sound? string Sound file path
 ---@field isCustomLink? boolean Custom tooltip behavior flag
+---@field sampleTooltipText? string Label shown on row hover in the options preview (sample rows only)
 ---@field customBehavior? fun() Click handler for custom links
 ---@field unit? string Unit token for portrait display
 ---@field showForSeconds? number Override fade timer

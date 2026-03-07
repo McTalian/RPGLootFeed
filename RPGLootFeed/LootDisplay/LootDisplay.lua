@@ -10,25 +10,19 @@ local LootDisplay = G_RLF.RLF:NewModule(G_RLF.SupportModule.LootDisplay, "AceBuc
 local lsm = G_RLF.lsm
 
 -- Private variable declaration
----@type table<G_RLF.Frames, RLF_LootDisplayFrame | nil>
-local lootFrames = {
-	[G_RLF.Frames.MAIN] = nil,
-	[G_RLF.Frames.PARTY] = nil,
-}
----@type table<G_RLF.Frames, Queue>
-local lootQueues = {
-	[G_RLF.Frames.MAIN] = G_RLF.Queue:new(),
-	[G_RLF.Frames.PARTY] = G_RLF.Queue:new(),
-}
+---@type table<integer, RLF_LootDisplayFrame | nil>
+local lootFrames = {}
+---@type table<integer, Queue>
+local lootQueues = {}
+--- Tracks whether sample rows are currently displayed (set by ShowSampleRows/HideSampleRows)
+local sampleRowsVisible = false
 
--- Function to update queue labels
+-- Function to update queue labels for all active frames
 local function updateQueueLabels()
-	if lootFrames[G_RLF.Frames.MAIN] ~= nil then
-		lootFrames[G_RLF.Frames.MAIN]:UpdateQueueLabel(lootQueues[G_RLF.Frames.MAIN]:size())
-	end
-
-	if lootFrames[G_RLF.Frames.PARTY] ~= nil then
-		lootFrames[G_RLF.Frames.PARTY]:UpdateQueueLabel(lootQueues[G_RLF.Frames.PARTY]:size())
+	for id, frame in pairs(lootFrames) do
+		if frame ~= nil then
+			frame:UpdateQueueLabel(lootQueues[id]:size())
+		end
 	end
 end
 -- Wrapper function to update queue labels after calling the original function
@@ -40,21 +34,45 @@ local function updateQueueLabelsWrapper(func)
 	end
 end
 
-lootQueues[G_RLF.Frames.MAIN].enqueue = updateQueueLabelsWrapper(lootQueues[G_RLF.Frames.MAIN].enqueue)
-lootQueues[G_RLF.Frames.MAIN].dequeue = updateQueueLabelsWrapper(lootQueues[G_RLF.Frames.MAIN].dequeue)
-lootQueues[G_RLF.Frames.PARTY].enqueue = updateQueueLabelsWrapper(lootQueues[G_RLF.Frames.PARTY].enqueue)
-lootQueues[G_RLF.Frames.PARTY].dequeue = updateQueueLabelsWrapper(lootQueues[G_RLF.Frames.PARTY].dequeue)
+--- Initialise a queue for the given frame ID and wrap enqueue/dequeue with the
+--- label-update callback.
+local function initQueueForFrame(id)
+	local q = G_RLF.Queue:new()
+	q.enqueue = updateQueueLabelsWrapper(q.enqueue)
+	q.dequeue = updateQueueLabelsWrapper(q.dequeue)
+	lootQueues[id] = q
+end
 
 -- Public methods
-function LootDisplay:OnInitialize()
+
+--- Create and register a single loot display WoW frame for the given DB frame ID.
+--- Safe to call multiple times — returns early if the frame already exists.
+--- @param id integer Frame ID (integer key into db.global.frames)
+function LootDisplay:InitFrame(id)
+	if lootFrames[id] ~= nil then
+		return
+	end
+
+	initQueueForFrame(id)
+
 	---@type RLF_LootDisplayFrame
-	lootFrames[G_RLF.Frames.MAIN] = CreateFrame("Frame", "RLF_MainLootFrame", UIParent, "RLF_LootDisplayFrameTemplate") --[[@as RLF_LootDisplayFrame]]
-	G_RLF.RLF_MainLootFrame = lootFrames[G_RLF.Frames.MAIN]
-	lootFrames[G_RLF.Frames.MAIN]:Load(G_RLF.Frames.MAIN)
-	---@type RLF_LootDisplayFrame | nil
-	G_RLF.RLF_PartyLootFrame = nil
-	if G_RLF.db.global.partyLoot.enabled and G_RLF.db.global.partyLoot.separateFrame then
-		self:CreatePartyFrame()
+	local frame
+	if id == G_RLF.Frames.MAIN then
+		frame = CreateFrame("Frame", "RLF_MainLootFrame", UIParent, "RLF_LootDisplayFrameTemplate") --[[@as RLF_LootDisplayFrame]]
+		G_RLF.RLF_MainLootFrame = frame
+	else
+		frame = CreateFrame("Frame", nil, UIParent, "RLF_LootDisplayFrameTemplate") --[[@as RLF_LootDisplayFrame]]
+	end
+
+	lootFrames[id] = frame
+	frame:Load(id)
+end
+
+function LootDisplay:OnInitialize()
+	-- Create a WoW frame for every entry already stored in db.global.frames.
+	-- Migration v8 (Phase 1) ensures these exist for all existing users.
+	for id in pairs(G_RLF.db.global.frames) do
+		self:InitFrame(id)
 	end
 end
 
@@ -63,9 +81,7 @@ function LootDisplay:OnEnable()
 	self:RegisterEvent("PLAYER_REGEN_ENABLED", "OnPlayerCombatChange")
 	self:RegisterBucketEvent("BAG_UPDATE_DELAYED", 0.5, "BAG_UPDATE_DELAYED")
 	self:RegisterMessage("RLF_NEW_LOOT", "OnLootReady")
-	self:RegisterMessage("RLF_NEW_PARTY_LOOT", "OnPartyLootReady")
 	self:RegisterBucketMessage("RLF_ROW_RETURNED", 0.3, "OnRowReturn")
-	self:RegisterBucketMessage("RLF_PARTY_ROW_RETURNED", 0.3, "OnPartyRowReturn")
 
 	RunNextFrame(function()
 		---@type RLF_TestMode
@@ -107,50 +123,46 @@ function LootDisplay:OnEnable()
 end
 
 function LootDisplay:OnPlayerCombatChange()
-	if lootFrames[G_RLF.Frames.MAIN] == nil then
-		return
-	end
-
-	lootFrames[G_RLF.Frames.MAIN]:UpdateTabVisibility()
-end
-
-function LootDisplay:CreatePartyFrame()
-	if lootFrames[G_RLF.Frames.PARTY] == nil then
-		lootFrames[G_RLF.Frames.PARTY] =
-			CreateFrame("Frame", "RLF_PartyLootFrame", UIParent, "RLF_LootDisplayFrameTemplate") --[[@as RLF_LootDisplayFrame]]
-		G_RLF.RLF_PartyLootFrame = lootFrames[G_RLF.Frames.PARTY]
-		lootFrames[G_RLF.Frames.PARTY]:Load(G_RLF.Frames.PARTY)
-
-		if lootFrames[G_RLF.Frames.MAIN] and lootFrames[G_RLF.Frames.MAIN].BoundingBox:IsVisible() then
-			lootFrames[G_RLF.Frames.PARTY]:ShowTestArea()
+	for _, frame in pairs(lootFrames) do
+		if frame then
+			frame:UpdateTabVisibility()
 		end
 	end
 end
 
-function LootDisplay:DestroyPartyFrame()
-	if lootFrames[G_RLF.Frames.PARTY] then
-		lootFrames[G_RLF.Frames.PARTY]:Hide()
-		lootFrames[G_RLF.Frames.PARTY]:ClearFeed()
-		lootFrames[G_RLF.Frames.PARTY]:HideTestArea()
-		lootFrames[G_RLF.Frames.PARTY] = nil
-		G_RLF.RLF_PartyLootFrame = nil
+--- Destroy the WoW frame for `id`, clear its queue, and remove it from the DB.
+--- Frame ID 1 (Main) cannot be destroyed.
+--- @param id integer
+function LootDisplay:DestroyFrame(id)
+	if id == G_RLF.Frames.MAIN then
+		return
 	end
+
+	if lootFrames[id] then
+		lootFrames[id]:Hide()
+		lootFrames[id]:ClearFeed()
+		lootFrames[id]:HideTestArea()
+		lootFrames[id] = nil
+	end
+
+	if lootQueues[id] then
+		while not lootQueues[id]:isEmpty() do
+			lootQueues[id]:dequeue()
+		end
+		lootQueues[id] = nil
+	end
+
+	G_RLF.db.global.frames[id] = nil
 end
 
 function LootDisplay:SetBoundingBoxVisibility(show)
-	if lootFrames[G_RLF.Frames.MAIN] == nil then
-		return
-	end
-
-	if show then
-		lootFrames[G_RLF.Frames.MAIN]:ShowTestArea()
-		if lootFrames[G_RLF.Frames.PARTY] then
-			lootFrames[G_RLF.Frames.PARTY]:ShowTestArea()
-		end
-	else
-		lootFrames[G_RLF.Frames.MAIN]:HideTestArea()
-		if lootFrames[G_RLF.Frames.PARTY] then
-			lootFrames[G_RLF.Frames.PARTY]:HideTestArea()
+	for _, frame in pairs(lootFrames) do
+		if frame then
+			if show then
+				frame:ShowTestArea()
+			else
+				frame:HideTestArea()
+			end
 		end
 	end
 end
@@ -160,10 +172,6 @@ function LootDisplay:ToggleBoundingBox()
 		return
 	end
 	self:SetBoundingBoxVisibility(not lootFrames[G_RLF.Frames.MAIN].BoundingBox:IsVisible())
-
-	if lootFrames[G_RLF.Frames.PARTY] and G_RLF.db.global.partyLoot.separateFrame then
-		self:SetBoundingBoxVisibility(not lootFrames[G_RLF.Frames.PARTY].BoundingBox:IsVisible())
-	end
 end
 
 --- update the position of the frame
@@ -273,7 +281,11 @@ end
 function LootDisplay:BAG_UPDATE_DELAYED()
 	G_RLF:LogInfo("BAG_UPDATE_DELAYED", "WOWEVENT", self.moduleName, nil, "BAG_UPDATE_DELAYED")
 
-	lootFrames[G_RLF.Frames.MAIN]:UpdateRowItemCounts()
+	for _, frame in pairs(lootFrames) do
+		if frame then
+			frame:UpdateRowItemCounts()
+		end
+	end
 end
 
 --- process the row for the proper frame
@@ -312,6 +324,15 @@ local function processRow(element, frame)
 
 		RunNextFrame(function()
 			row:BootstrapFromElement(element)
+			-- Sample rows re-enqueue themselves on dismiss so the user can cycle
+			-- through all preview rows when maxRows < total sample count
+			if element.isSampleRow then
+				row.onReleased = function()
+					if sampleRowsVisible then
+						lootQueues[frame]:enqueue(element)
+					end
+				end
+			end
 		end)
 	end
 end
@@ -321,6 +342,9 @@ end
 local function processFromQueue(frame)
 	frame = frame or G_RLF.Frames.MAIN
 	local queue = lootQueues[frame]
+	if not queue then
+		return
+	end
 	local snapshotQueueSize = queue:size()
 	if snapshotQueueSize > 0 then
 		-- In my testing this was fine, but it's possible it could cause performance issues
@@ -341,36 +365,42 @@ local function processFromQueue(frame)
 end
 
 function LootDisplay:OnLootReady(_, element)
-	processRow(element, G_RLF.Frames.MAIN)
-end
-
-function LootDisplay:OnPartyLootReady(_, element)
-	local frameType = G_RLF.Frames.MAIN
-	if G_RLF.db.global.partyLoot.separateFrame then
-		frameType = G_RLF.Frames.PARTY
+	for id, frame in pairs(lootFrames) do
+		if frame and frame:IsFeatureEnabled(element) then
+			frame._testAcceptCount = (frame._testAcceptCount or 0) + 1
+			processRow(element, id)
+		end
 	end
-	processRow(element, frameType)
 end
 
-function LootDisplay:OnRowReturn()
-	processFromQueue(G_RLF.Frames.MAIN)
+--- Return the live frame widget for the given ID, or nil.
+--- Intended for integration tests that need to read per-frame counters.
+--- @param id integer
+--- @return RLF_LootDisplayFrame|nil
+function LootDisplay:GetFrame(id)
+	return lootFrames[id]
 end
 
-function LootDisplay:OnPartyRowReturn()
-	local frameType = G_RLF.Frames.MAIN
-	if G_RLF.db.global.partyLoot.separateFrame then
-		frameType = G_RLF.Frames.PARTY
+--- Return an iterator over all live (id, frame) pairs.
+--- @return fun(): integer?, RLF_LootDisplayFrame?
+function LootDisplay:GetAllFrames()
+	return pairs(lootFrames)
+end
+
+--- Called by the AceBucket when one or more rows have been released.
+--- @param frames table<integer, integer> Table whose keys are the frame IDs
+---   that returned rows during the bucket window.
+function LootDisplay:OnRowReturn(frames)
+	for id in pairs(frames) do
+		processFromQueue(id)
 	end
-	processFromQueue(frameType)
 end
 
 local function emptyQueues()
-	while not lootQueues[G_RLF.Frames.MAIN]:isEmpty() do
-		lootQueues[G_RLF.Frames.MAIN]:dequeue()
-	end
-
-	while not lootQueues[G_RLF.Frames.PARTY]:isEmpty() do
-		lootQueues[G_RLF.Frames.PARTY]:dequeue()
+	for _, q in pairs(lootQueues) do
+		while not q:isEmpty() do
+			q:dequeue()
+		end
 	end
 end
 
@@ -380,63 +410,27 @@ function LootDisplay:HideLoot()
 	end
 
 	emptyQueues()
-	lootFrames[G_RLF.Frames.MAIN]:ClearFeed()
-
-	if lootFrames[G_RLF.Frames.PARTY] then
-		lootFrames[G_RLF.Frames.PARTY]:ClearFeed()
+	for _, frame in pairs(lootFrames) do
+		if frame then
+			frame:ClearFeed()
+		end
 	end
 end
 
 --- Show sample rows in existing frames for options preview
 function LootDisplay:ShowSampleRows()
-	if lootFrames[G_RLF.Frames.MAIN] then
-		self:CreateSampleRow(G_RLF.Frames.MAIN)
-	end
-
-	if lootFrames[G_RLF.Frames.PARTY] and G_RLF.db.global.partyLoot.separateFrame then
-		self:CreateSampleRow(G_RLF.Frames.PARTY)
+	sampleRowsVisible = true
+	for id, frame in pairs(lootFrames) do
+		if frame then
+			self:CreateSampleRows(id)
+		end
 	end
 end
 
 --- Hide sample rows from existing frames
 function LootDisplay:HideSampleRows()
+	sampleRowsVisible = false
 	self:HideLoot()
-end
-
---- Create a sample row in the specified frame
---- @param frame G_RLF.Frames
-function LootDisplay:CreateSampleRow(frame)
-	if not lootFrames[frame] then
-		return
-	end
-
-	-- Create a sample element using hardcoded data
-	---@class RLF_SampleElement: RLF_BaseLootElement
-	local sampleElement = G_RLF.LootElementBase:new()
-
-	sampleElement.key = "sample_preview_item"
-	sampleElement.type = "SampleItem"
-	sampleElement.icon = G_RLF.DefaultIcons.MONEY
-	sampleElement.quantity = 1
-	sampleElement.quality = G_RLF.ItemQualEnum.Epic
-	sampleElement.textFn = function(existingQuantity, truncatedLink)
-		return "SamplePrimaryText"
-	end
-	sampleElement.secondaryText = "SampleSecondaryText"
-	sampleElement.highlight = false
-	sampleElement.isLink = false
-	sampleElement.isSampleRow = true
-	sampleElement.eventChannel = "RLF_NEW_LOOT"
-	if frame == G_RLF.Frames.PARTY then
-		sampleElement.eventChannel = "RLF_NEW_PARTY_LOOT"
-	end
-
-	-- Override IsEnabled to always return true for sample
-	sampleElement.IsEnabled = function(self)
-		return true
-	end
-
-	sampleElement:Show()
 end
 
 --- Update sample rows when settings change
@@ -452,18 +446,7 @@ end
 
 --- Check if sample rows are currently shown and refresh them
 function LootDisplay:RefreshSampleRowsIfShown()
-	-- Check if we have any sample rows currently displayed
-	local hasSampleRows = false
-
-	if lootFrames[G_RLF.Frames.MAIN] then
-		local row = lootFrames[G_RLF.Frames.MAIN]:GetRow("sample_preview_item")
-		if row and row.isSampleRow then
-			hasSampleRows = true
-		end
-	end
-
-	-- If we have sample rows, refresh them with new settings
-	if hasSampleRows then
+	if sampleRowsVisible then
 		self:UpdateSampleRows()
 	end
 end

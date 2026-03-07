@@ -70,13 +70,15 @@ function Xp:BuildPayload(quantity)
 	-- Generate text elements using the data-driven approach
 	local textElements = self:GenerateTextElements(quantity)
 
+	local xpConfig = G_RLF.DbAccessor:AnyFeatureConfig("experience") or {}
+
 	---@type RLF_LootElementData
 	local elementData = {
 		key = "EXPERIENCE",
 		type = "Experience",
 		textElements = textElements,
 		quantity = quantity,
-		icon = (G_RLF.db.global.xp.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and DefaultIcons.XP or nil,
+		icon = (xpConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and DefaultIcons.XP or nil,
 		quality = ItemQualEnum.Epic,
 	}
 
@@ -103,13 +105,14 @@ function Xp:BuildPayload(quantity)
 
 		-- Item count display (current level)
 		itemCountFn = function()
-			if not G_RLF.db.global.xp.showCurrentLevel then
+			local xpCfg = G_RLF.DbAccessor:AnyFeatureConfig("experience") or {}
+			if not xpCfg.showCurrentLevel then
 				return nil
 			end
 			return currentLevel,
 				{
-					color = RGBAToHexFormat(unpack(G_RLF.db.global.xp.currentLevelColor)),
-					wrapChar = G_RLF.db.global.xp.currentLevelTextWrapChar,
+					color = RGBAToHexFormat(unpack(xpCfg.currentLevelColor or { 0.749, 0.737, 0.012, 1 })),
+					wrapChar = xpCfg.currentLevelTextWrapChar,
 				}
 		end,
 
@@ -128,7 +131,7 @@ end
 function Xp:GenerateTextElements(quantity)
 	local elements = {}
 
-	local xpTextColor = G_RLF.db.global.xp.experienceTextColor
+	local xpTextColor = (G_RLF.DbAccessor:AnyFeatureConfig("experience") or {}).experienceTextColor or { 1, 0, 1, 0.8 }
 
 	-- Row 1: Primary experience display
 	elements[1] = {}
@@ -164,7 +167,7 @@ local function initXpValues()
 end
 
 function Xp:OnInitialize()
-	if G_RLF.db.global.xp.enabled then
+	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("experience") then
 		self:Enable()
 	else
 		self:Disable()

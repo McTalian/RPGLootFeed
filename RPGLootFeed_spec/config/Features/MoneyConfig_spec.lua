@@ -17,27 +17,34 @@ describe("MoneyConfig module", function()
 
 	it("should set up the money configuration defaults", function()
 		-- Check that the money configuration is set up in the defaults
-		assert.is_table(ns.defaults.global.money)
-		assert.is_boolean(ns.defaults.global.money.enabled)
-		assert.is_boolean(ns.defaults.global.money.showMoneyTotal)
-		assert.is_table(ns.defaults.global.money.moneyTotalColor)
-		assert.is_not_nil(ns.defaults.global.money.moneyTextWrapChar)
-		assert.is_boolean(ns.defaults.global.money.abbreviateTotal)
-		assert.is_boolean(ns.defaults.global.money.accountantMode)
-		assert.is_boolean(ns.defaults.global.money.overrideMoneyLootSound)
-		assert.is_string(ns.defaults.global.money.moneyLootSound)
+		assert.is_table(ns.defaults.global.frames["**"].features.money)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.money.enabled)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.money.showMoneyTotal)
+		assert.is_table(ns.defaults.global.frames["**"].features.money.moneyTotalColor)
+		assert.is_not_nil(ns.defaults.global.frames["**"].features.money.moneyTextWrapChar)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.money.abbreviateTotal)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.money.accountantMode)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.money.overrideMoneyLootSound)
+		assert.is_string(ns.defaults.global.frames["**"].features.money.moneyLootSound)
 	end)
 
-	it("should set up the money configuration options", function()
-		-- Check that the money configuration options are set up
-		assert.is_table(ns.options.args.features.args.moneyConfig)
-		assert.equal("group", ns.options.args.features.args.moneyConfig.type)
-		assert.is_not_nil(ns.options.args.features.args.moneyConfig.name)
-		assert.equal(ns.mainFeatureOrder.Money, ns.options.args.features.args.moneyConfig.order)
+	it("should export a BuildMoneyArgs builder function", function()
+		assert.is_function(ns.BuildMoneyArgs)
+	end)
+
+	it("should return a valid options group from BuildMoneyArgs", function()
+		ns.db = {
+			global = { frames = { [1] = { features = { money = ns.defaults.global.frames["**"].features.money } } } },
+		}
+		local group = ns.BuildMoneyArgs(1, 4)
+		assert.is_table(group)
+		assert.equal("group", group.type)
+		assert.equal(4, group.order)
+		assert.is_table(group.args)
 	end)
 
 	it("should have correct color defaults for money total", function()
-		local totalColor = ns.defaults.global.money.moneyTotalColor
+		local totalColor = ns.defaults.global.frames["**"].features.money.moneyTotalColor
 		assert.is_table(totalColor)
 		assert.equal(0.333, totalColor[1])
 		assert.equal(0.333, totalColor[2])
@@ -46,11 +53,15 @@ describe("MoneyConfig module", function()
 	end)
 
 	it("should use bar as default wrap character", function()
-		assert.equal(ns.WrapCharEnum.BAR, ns.defaults.global.money.moneyTextWrapChar)
+		assert.equal(ns.WrapCharEnum.BAR, ns.defaults.global.frames["**"].features.money.moneyTextWrapChar)
 	end)
 
 	it("should have required sound functions", function()
-		local handler = ns.options.args.features.args.moneyConfig.handler
+		ns.db = {
+			global = { frames = { [1] = { features = { money = ns.defaults.global.frames["**"].features.money } } } },
+		}
+		local group = ns.BuildMoneyArgs(1, 4)
+		local handler = group.handler
 		assert.is_table(handler)
 		assert.is_function(handler.OverrideSound)
 	end)

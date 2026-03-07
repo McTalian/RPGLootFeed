@@ -44,6 +44,21 @@ describe("Transmog module", function()
 					misc = { hideAllIcons = false },
 				},
 			},
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "transmog" then
+						return ns.db.global.transmog
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 		}
 
 		-- Load real LootElementBase so elements are fully constructed.
@@ -168,8 +183,10 @@ describe("Transmog module", function()
 	end)
 
 	describe("Module lifecycle", function()
-		it("OnInitialize enables module when transmog is enabled in config", function()
-			ns.db.global.transmog.enabled = true
+		it("OnInitialize enables module when any frame needs transmog", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			local enableSpy = spy.on(TransmogModule, "Enable")
 
 			TransmogModule:OnInitialize()
@@ -177,8 +194,10 @@ describe("Transmog module", function()
 			assert.spy(enableSpy).was.called(1)
 		end)
 
-		it("OnInitialize disables module when transmog is disabled in config", function()
-			ns.db.global.transmog.enabled = false
+		it("OnInitialize disables module when no frame needs transmog", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			local disableSpy = spy.on(TransmogModule, "Disable")
 
 			TransmogModule:OnInitialize()

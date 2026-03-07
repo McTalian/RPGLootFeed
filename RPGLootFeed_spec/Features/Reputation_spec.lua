@@ -40,6 +40,21 @@ describe("Reputation Module", function()
 			SendMessage = sendMessageSpy,
 			-- Shared adapter namespace; tests override Rep._repAdapter directly.
 			WoWAPI = { Reputation = {} },
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "reputation" then
+						return ns.db.global.rep
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 5 } },
@@ -247,8 +262,10 @@ describe("Reputation Module", function()
 			assert.spy(initSpy).was_not.called()
 		end)
 
-		it("calls Enable when db.global.rep.enabled is true", function()
-			ns.db.global.rep.enabled = true
+		it("calls Enable when any frame needs reputation", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			local enableSpy = spy.on(RepModule, "Enable")
 			local disableSpy = spy.on(RepModule, "Disable")
 			RepModule:OnInitialize()
@@ -256,8 +273,10 @@ describe("Reputation Module", function()
 			assert.spy(disableSpy).was_not.called()
 		end)
 
-		it("calls Disable when db.global.rep.enabled is false", function()
-			ns.db.global.rep.enabled = false
+		it("calls Disable when no frame needs reputation", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			local enableSpy = spy.on(RepModule, "Enable")
 			local disableSpy = spy.on(RepModule, "Disable")
 			RepModule:OnInitialize()

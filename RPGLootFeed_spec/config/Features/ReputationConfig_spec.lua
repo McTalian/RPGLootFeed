@@ -17,25 +17,34 @@ describe("ReputationConfig module", function()
 
 	it("should set up the reputation configuration defaults", function()
 		-- Check that the reputation configuration is set up in the defaults
-		assert.is_table(ns.defaults.global.rep)
-		assert.is_boolean(ns.defaults.global.rep.enabled)
-		assert.is_table(ns.defaults.global.rep.defaultRepColor)
-		assert.is_number(ns.defaults.global.rep.secondaryTextAlpha)
-		assert.is_boolean(ns.defaults.global.rep.enableRepLevel)
-		assert.is_table(ns.defaults.global.rep.repLevelColor)
-		assert.is_not_nil(ns.defaults.global.rep.repLevelTextWrapChar)
+		assert.is_table(ns.defaults.global.frames["**"].features.reputation)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.reputation.enabled)
+		assert.is_table(ns.defaults.global.frames["**"].features.reputation.defaultRepColor)
+		assert.is_number(ns.defaults.global.frames["**"].features.reputation.secondaryTextAlpha)
+		assert.is_boolean(ns.defaults.global.frames["**"].features.reputation.enableRepLevel)
+		assert.is_table(ns.defaults.global.frames["**"].features.reputation.repLevelColor)
+		assert.is_not_nil(ns.defaults.global.frames["**"].features.reputation.repLevelTextWrapChar)
 	end)
 
-	it("should set up the reputation configuration options", function()
-		-- Check that the reputation configuration options are set up
-		assert.is_table(ns.options.args.features.args.repConfig)
-		assert.equal("group", ns.options.args.features.args.repConfig.type)
-		assert.is_not_nil(ns.options.args.features.args.repConfig.name)
-		assert.equal(ns.mainFeatureOrder.Reputation, ns.options.args.features.args.repConfig.order)
+	it("should export a BuildReputationArgs builder function", function()
+		assert.is_function(ns.BuildReputationArgs)
+	end)
+
+	it("should return a valid options group from BuildReputationArgs", function()
+		ns.db = {
+			global = {
+				frames = { [1] = { features = { reputation = ns.defaults.global.frames["**"].features.reputation } } },
+			},
+		}
+		local group = ns.BuildReputationArgs(1, 6)
+		assert.is_table(group)
+		assert.equal("group", group.type)
+		assert.equal(6, group.order)
+		assert.is_table(group.args)
 	end)
 
 	it("should have correct color defaults for reputation text", function()
-		local repColor = ns.defaults.global.rep.defaultRepColor
+		local repColor = ns.defaults.global.frames["**"].features.reputation.defaultRepColor
 		assert.is_table(repColor)
 		assert.equal(0.5, repColor[1])
 		assert.equal(0.5, repColor[2])
@@ -43,7 +52,7 @@ describe("ReputationConfig module", function()
 	end)
 
 	it("should have correct color defaults for reputation level text", function()
-		local levelColor = ns.defaults.global.rep.repLevelColor
+		local levelColor = ns.defaults.global.frames["**"].features.reputation.repLevelColor
 		assert.is_table(levelColor)
 		assert.equal(0.5, levelColor[1])
 		assert.equal(0.5, levelColor[2])
@@ -52,10 +61,10 @@ describe("ReputationConfig module", function()
 	end)
 
 	it("should have correct secondary text alpha", function()
-		assert.equal(0.7, ns.defaults.global.rep.secondaryTextAlpha)
+		assert.equal(0.7, ns.defaults.global.frames["**"].features.reputation.secondaryTextAlpha)
 	end)
 
 	it("should use angle brackets as default wrap character for reputation level", function()
-		assert.equal(ns.WrapCharEnum.ANGLE, ns.defaults.global.rep.repLevelTextWrapChar)
+		assert.equal(ns.WrapCharEnum.ANGLE, ns.defaults.global.frames["**"].features.reputation.repLevelTextWrapChar)
 	end)
 end)

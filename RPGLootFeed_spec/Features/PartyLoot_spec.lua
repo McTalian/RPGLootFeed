@@ -65,6 +65,21 @@ describe("PartyLoot Module", function()
 			-- provide an empty table so the assignment doesn't fail.
 			-- Tests then override PartyLoot._partyLootAdapter in before_each.
 			WoWAPI = { PartyLoot = {} },
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "partyLoot" then
+						return ns.db.global.partyLoot
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 		}
 
 		-- Load real LootElementBase so elements are fully constructed.
@@ -170,8 +185,10 @@ describe("PartyLoot Module", function()
 		assert.spy(PartyLoot.UnregisterEvent).was.called_with(_, "GROUP_ROSTER_UPDATE")
 	end)
 
-	it("OnInitialize enables when db flag is true", function()
-		ns.db.global.partyLoot.enabled = true
+	it("OnInitialize enables when any frame needs partyLoot", function()
+		ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+			return true
+		end
 		spy.on(PartyLoot, "Enable")
 		spy.on(PartyLoot, "Disable")
 		PartyLoot:OnInitialize()
@@ -179,8 +196,10 @@ describe("PartyLoot Module", function()
 		assert.spy(PartyLoot.Disable).was_not.called()
 	end)
 
-	it("OnInitialize disables when db flag is false", function()
-		ns.db.global.partyLoot.enabled = false
+	it("OnInitialize disables when no frame needs partyLoot", function()
+		ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+			return false
+		end
 		spy.on(PartyLoot, "Enable")
 		spy.on(PartyLoot, "Disable")
 		PartyLoot:OnInitialize()
@@ -316,8 +335,10 @@ describe("PartyLoot Module", function()
 			PartyLoot.nameUnitMap = { PartyMember = "party1" }
 		end)
 
-		it("returns early when partyLoot is disabled", function()
-			ns.db.global.partyLoot.enabled = false
+		it("returns early when partyLoot is not needed by any frame", function()
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			PartyLoot:CHAT_MSG_LOOT("CHAT_MSG_LOOT", chatMsg, "PartyMember")
 			assert.spy(sendMessageSpy).was_not.called()
 		end)
@@ -476,11 +497,11 @@ describe("PartyLoot Module", function()
 			return base
 		end
 
-		it("sets type, isLink, and eventChannel", function()
+		it("sets type and isLink, uses default RLF_NEW_LOOT channel", function()
 			local payload = PartyLoot:BuildPayload(makeInfo(), 1, "party1")
 			assert.equals("PartyLoot", payload.type)
 			assert.is_true(payload.isLink)
-			assert.equals("RLF_NEW_PARTY_LOOT", payload.eventChannel)
+			assert.is_nil(payload.eventChannel)
 		end)
 
 		it("sets key and icon from itemInfo", function()

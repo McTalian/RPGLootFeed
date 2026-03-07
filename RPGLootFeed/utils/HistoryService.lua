@@ -18,17 +18,14 @@ function G_RLF.HistoryService:ToggleHistoryFrame()
 	local show = not self.historyShown
 	self.historyShown = show
 
-	if show then
-		G_RLF.RLF_MainLootFrame:ShowHistoryFrame()
-		local partyFrame = G_RLF.RLF_PartyLootFrame
-		if partyFrame then
-			partyFrame:ShowHistoryFrame()
-		end
-	else
-		G_RLF.RLF_MainLootFrame:HideHistoryFrame()
-		local partyFrame = G_RLF.RLF_PartyLootFrame
-		if partyFrame then
-			partyFrame:HideHistoryFrame()
+	local LootDisplay = G_RLF.LootDisplay
+	for _, frame in LootDisplay:GetAllFrames() do
+		if frame then
+			if show then
+				frame:ShowHistoryFrame()
+			else
+				frame:HideHistoryFrame()
+			end
 		end
 	end
 end
@@ -36,10 +33,11 @@ end
 function G_RLF.HistoryService:HideHistoryFrame()
 	if self.historyShown then
 		self.historyShown = false
-		G_RLF.RLF_MainLootFrame:HideHistoryFrame()
-		local partyFrame = G_RLF.RLF_PartyLootFrame
-		if partyFrame then
-			partyFrame:HideHistoryFrame()
+		local LootDisplay = G_RLF.LootDisplay
+		for _, frame in LootDisplay:GetAllFrames() do
+			if frame then
+				frame:HideHistoryFrame()
+			end
 		end
 	end
 end

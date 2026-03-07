@@ -32,7 +32,12 @@ describe("HistoryService", function()
 			end,
 		}
 		G_RLF.RLF_MainLootFrame = mainFrame
-		G_RLF.RLF_PartyLootFrame = partyFrame
+		-- Provide LootDisplay:GetAllFrames() so HistoryService can iterate frames
+		G_RLF.LootDisplay = {
+			GetAllFrames = function()
+				return pairs({ [1] = mainFrame, [2] = partyFrame })
+			end,
+		}
 
 		-- Create a copy of HistoryService for testing
 		assert(loadfile("RPGLootFeed/utils/HistoryService.lua"))("TestAddon", G_RLF)

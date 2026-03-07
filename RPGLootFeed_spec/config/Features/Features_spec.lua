@@ -5,9 +5,6 @@ local io = require("io")
 local before_each = busted.before_each
 local describe = busted.describe
 local it = busted.it
-local setup = busted.setup
-local stub = busted.stub
-local _ = require("luassert.match")._
 
 describe("Features module", function()
 	describe("load order", function()
@@ -19,24 +16,22 @@ describe("Features module", function()
 		end)
 	end)
 
-	---@type test_G_RLF, number, table<number, string>
-	local ns, lastFeature, reverseMap
+	---@type test_G_RLF, number
+	local ns, lastFeature
 	before_each(function()
-		reverseMap = {}
 		-- Define the global G_RLF
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.All)
 		-- Load the list module before each test
 		assert(loadfile("RPGLootFeed/config/Features/Features.lua"))("TestAddon", ns)
 		lastFeature = 0
-		for k, v in pairs(ns.mainFeatureOrder) do
+		for _, v in pairs(ns.mainFeatureOrder) do
 			if v > lastFeature then
 				lastFeature = v
 			end
-			reverseMap[v] = k
 		end
 	end)
 
-	it("has parity with th FeatureModules enum", function()
+	it("has parity with the FeatureModules enum", function()
 		local featureModules = ns.FeatureModule
 		local featureOrder = ns.mainFeatureOrder
 
@@ -83,70 +78,7 @@ describe("Features module", function()
 		)
 	end)
 
-	describe("enable features", function()
-		local featureToggles = {}
-		before_each(function()
-			local orderLookup = {}
-			for _, orderValue in pairs(ns.mainFeatureOrder) do
-				orderLookup[orderValue] = true
-			end
-
-			local groupOptions = ns.options.args.features.args
-			for k, v in pairs(groupOptions) do
-				if type(v) == "table" and v.type == "toggle" and v.order and orderLookup[v.order] then
-					featureToggles[v.order] = v
-				end
-			end
-		end)
-
-		it("has a toggle for each feature", function()
-			for i = 1, lastFeature do
-				assert.is_not_nil(featureToggles[i])
-			end
-		end)
-
-		it("has a set handler that calls Enable Module when value is true", function()
-			local stubEnableModule = stub(ns.RLF, "EnableModule")
-			for _, v in pairs(featureToggles) do
-				---@diagnostic disable-next-line: redundant-parameter
-				assert.is_not_nil(v.set, v.name .. " should have a set handler")
-				v.set(nil, true)
-			end
-
-			assert.stub(stubEnableModule).was.called(9)
-			---@diagnostic disable: undefined-field
-			assert.equal(ns.FeatureModule.ItemLoot, stubEnableModule.calls[1].vals[2])
-			assert.equal(ns.FeatureModule.PartyLoot, stubEnableModule.calls[2].vals[2])
-			assert.equal(ns.FeatureModule.Currency, stubEnableModule.calls[3].vals[2])
-			assert.equal(ns.FeatureModule.Money, stubEnableModule.calls[4].vals[2])
-			assert.equal(ns.FeatureModule.Experience, stubEnableModule.calls[5].vals[2])
-			assert.equal(ns.FeatureModule.Reputation, stubEnableModule.calls[6].vals[2])
-			assert.equal(ns.FeatureModule.Profession, stubEnableModule.calls[7].vals[2])
-			assert.equal(ns.FeatureModule.TravelPoints, stubEnableModule.calls[8].vals[2])
-			assert.equal(ns.FeatureModule.Transmog, stubEnableModule.calls[9].vals[2])
-			---@diagnostic enable: undefined-field
-		end)
-
-		it("has a set handler that calls Disable Module when value is false", function()
-			local stubDisableModule = stub(ns.RLF, "DisableModule")
-			for _, v in pairs(featureToggles) do
-				---@diagnostic disable-next-line: redundant-parameter
-				assert.is_not_nil(v.set, v.name .. " should have a set handler")
-				v.set(nil, false)
-			end
-
-			assert.stub(stubDisableModule).was.called(9)
-			---@diagnostic disable: undefined-field
-			assert.equal(ns.FeatureModule.ItemLoot, stubDisableModule.calls[1].vals[2])
-			assert.equal(ns.FeatureModule.PartyLoot, stubDisableModule.calls[2].vals[2])
-			assert.equal(ns.FeatureModule.Currency, stubDisableModule.calls[3].vals[2])
-			assert.equal(ns.FeatureModule.Money, stubDisableModule.calls[4].vals[2])
-			assert.equal(ns.FeatureModule.Experience, stubDisableModule.calls[5].vals[2])
-			assert.equal(ns.FeatureModule.Reputation, stubDisableModule.calls[6].vals[2])
-			assert.equal(ns.FeatureModule.Profession, stubDisableModule.calls[7].vals[2])
-			assert.equal(ns.FeatureModule.TravelPoints, stubDisableModule.calls[8].vals[2])
-			assert.equal(ns.FeatureModule.Transmog, stubDisableModule.calls[9].vals[2])
-			---@diagnostic enable: undefined-field
-		end)
+	it("does not create the old lootFeeds options group", function()
+		assert.is_nil(ns.options.args.lootFeeds)
 	end)
 end)

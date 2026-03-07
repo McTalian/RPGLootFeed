@@ -47,6 +47,21 @@ describe("Reputation Regressions", function()
 			SendMessage = sendMessageSpy,
 			-- Shared adapter namespace; tests override Rep._repAdapter directly.
 			WoWAPI = { Reputation = {} },
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "reputation" then
+						return ns.db.global.rep
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 			-- Runtime lookups by LootElementBase:fromPayload() and feature code.
 			db = {
 				global = {

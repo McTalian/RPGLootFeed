@@ -169,9 +169,11 @@ G_RLF.TextAlignment = {
 }
 
 ---@enum G_RLF.Frames
+--- Integer frame IDs.  ID 1 (MAIN) is always present and cannot be deleted.
+--- Additional frames are created dynamically; IDs increment monotonically and
+--- are never reused after deletion.
 G_RLF.Frames = {
-	MAIN = "RLF_MAIN",
-	PARTY = "RLF_PARTY",
+	MAIN = 1,
 }
 
 ---@enum G_RLF.TertiaryStats

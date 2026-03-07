@@ -24,6 +24,7 @@ describe("LootDisplayFrameMixin", function()
 			assert.is_not_nil(_G.LootDisplayFrameMixin.LeaseRow)
 			assert.is_not_nil(_G.LootDisplayFrameMixin.ReleaseRow)
 			assert.is_not_nil(_G.LootDisplayFrameMixin.UpdateSize)
+			assert.is_not_nil(_G.LootDisplayFrameMixin.IsFeatureEnabled)
 		end)
 	end)
 
@@ -203,6 +204,37 @@ describe("LootDisplayFrameMixin", function()
 		assert.is_nil(result)
 	end)
 
+	it("leases a sample row even when at max capacity", function()
+		local mockRow = {
+			Init = spy.new(function() end),
+			SetParent = spy.new(function() end),
+			UpdatePosition = spy.new(function() end),
+			Hide = spy.new(function() end),
+			ResetHighlightBorder = spy.new(function() end),
+		}
+		frame.rowFramePool = {
+			Acquire = spy.new(function()
+				return mockRow
+			end),
+		}
+		frame.frameType = ns.Frames.MAIN
+		frame.rows = {
+			push = spy.new(function()
+				return true
+			end),
+			length = 0,
+		}
+		frame.keyRowMap = { length = 0 }
+		stub(frame, "UpdateTabVisibility")
+		stub(frame, "getNumberOfRows").returns(5)
+		mockSizing.returns({ maxRows = 5 })
+
+		local result = frame:LeaseRow("sample_item_loot", true)
+
+		assert.is_not_nil(result)
+		assert.equal(mockRow, result)
+	end)
+
 	it("releases a row correctly with ReleaseRow", function()
 		-- Set up mocks
 		local mockRow = {
@@ -250,9 +282,9 @@ describe("LootDisplayFrameMixin", function()
 		assert.spy(frame.rowFramePool.Release).was.called(1)
 		assert.spy(frame.rowFramePool.Release).was.called_with(frame.rowFramePool, mockRow)
 
-		-- Check that SendMessage was called
+		-- Check that SendMessage was called with the frame type
 		assert.spy(nsMocks.SendMessage).was.called(1)
-		assert.spy(nsMocks.SendMessage).was.called_with(ns, "RLF_ROW_RETURNED")
+		assert.spy(nsMocks.SendMessage).was.called_with(ns, "RLF_ROW_RETURNED", ns.Frames.MAIN)
 
 		-- Check that UpdateTabVisibility was called
 		assert.stub(stubUpdateTabVisibility).was.called(1)
@@ -426,5 +458,55 @@ describe("LootDisplayFrameMixin", function()
 		assert.spy(frame.ArrowDown.Hide).was.called(1)
 		assert.spy(frame.ArrowLeft.Hide).was.called(1)
 		assert.spy(frame.ArrowRight.Hide).was.called(1)
+	end)
+
+	describe("IsFeatureEnabled", function()
+		before_each(function()
+			frame.frameType = ns.Frames.MAIN
+		end)
+
+		it("returns true when the feature is enabled for this frame", function()
+			ns.db.global.frames[ns.Frames.MAIN] = {
+				features = {
+					itemLoot = { enabled = true },
+				},
+			}
+			local element = { type = ns.FeatureModule.ItemLoot }
+			assert.is_true(frame:IsFeatureEnabled(element))
+		end)
+
+		it("returns false when the feature is disabled for this frame", function()
+			ns.db.global.frames[ns.Frames.MAIN] = {
+				features = {
+					itemLoot = { enabled = false },
+				},
+			}
+			local element = { type = ns.FeatureModule.ItemLoot }
+			assert.is_false(frame:IsFeatureEnabled(element))
+		end)
+
+		it("returns false for an unknown element type", function()
+			ns.db.global.frames[ns.Frames.MAIN] = {
+				features = {
+					itemLoot = { enabled = true },
+				},
+			}
+			local element = { type = "UNKNOWN_FEATURE" }
+			assert.is_false(frame:IsFeatureEnabled(element))
+		end)
+
+		it("returns false when the frame has no config", function()
+			ns.db.global.frames[ns.Frames.MAIN] = nil
+			local element = { type = ns.FeatureModule.ItemLoot }
+			assert.is_false(frame:IsFeatureEnabled(element))
+		end)
+
+		it("returns false when the feature key is missing from config", function()
+			ns.db.global.frames[ns.Frames.MAIN] = {
+				features = {},
+			}
+			local element = { type = ns.FeatureModule.ItemLoot }
+			assert.is_false(frame:IsFeatureEnabled(element))
+		end)
 	end)
 end)

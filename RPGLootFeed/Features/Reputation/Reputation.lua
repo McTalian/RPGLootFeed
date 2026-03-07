@@ -95,7 +95,8 @@ function Rep:BuildPayload(unifiedFactionData)
 	if unifiedFactionData.color and unifiedFactionData.color.GetRGBA then
 		r, g, b, a = unifiedFactionData.color:GetRGBA()
 	else
-		r, g, b = unpack(G_RLF.db.global.rep.defaultRepColor)
+		local repConfig = G_RLF.DbAccessor:AnyFeatureConfig("reputation") or {}
+		r, g, b = unpack(repConfig.defaultRepColor or { 0.5, 0.5, 1 })
 		a = 1
 	end
 
@@ -110,7 +111,9 @@ function Rep:BuildPayload(unifiedFactionData)
 		type = "Reputation",
 
 		-- Icon
-		icon = (G_RLF.db.global.rep.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and unifiedFactionData.icon
+		icon = (G_RLF.DbAccessor:AnyFeatureConfig("reputation") or {}).enableIcon
+				and not G_RLF.db.global.misc.hideAllIcons
+				and unifiedFactionData.icon
 			or nil,
 		quality = unifiedFactionData.quality,
 
@@ -124,13 +127,14 @@ function Rep:BuildPayload(unifiedFactionData)
 
 		-- Item count display (replaces type-switch in UpdateItemCount)
 		itemCountFn = function()
-			if not G_RLF.db.global.rep.enableRepLevel then
+			local repCfg = G_RLF.DbAccessor:AnyFeatureConfig("reputation") or {}
+			if not repCfg.enableRepLevel then
 				return nil
 			end
 			return unifiedFactionData.rank,
 				{
-					color = RGBAToHexFormat(unpack(G_RLF.db.global.rep.repLevelColor)),
-					wrapChar = G_RLF.db.global.rep.repLevelTextWrapChar,
+					color = RGBAToHexFormat(unpack(repCfg.repLevelColor or { 0.5, 0.5, 1, 1 })),
+					wrapChar = repCfg.repLevelTextWrapChar,
 				}
 		end,
 
@@ -139,7 +143,8 @@ function Rep:BuildPayload(unifiedFactionData)
 			if not factionId then
 				return ""
 			end
-			local color = RGBAToHexFormat(r, g, b, G_RLF.db.global.rep.secondaryTextAlpha)
+			local repCfg = G_RLF.DbAccessor:AnyFeatureConfig("reputation") or {}
+			local color = RGBAToHexFormat(r, g, b, repCfg.secondaryTextAlpha or 0.7)
 			if unifiedFactionData.contextInfo then
 				return "    " .. color .. unifiedFactionData.contextInfo .. "|r"
 			end
@@ -166,7 +171,7 @@ function Rep:OnInitialize()
 		LegRep.InitializeLegacyReputationChatParsing()
 	end
 
-	if G_RLF.db.global.rep.enabled then
+	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("reputation") then
 		self:Enable()
 	else
 		self:Disable()

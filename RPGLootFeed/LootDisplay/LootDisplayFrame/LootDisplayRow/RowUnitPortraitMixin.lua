@@ -46,7 +46,8 @@ function RLF_RowUnitPortraitMixin:StyleUnitPortrait()
 				SetPortraitTexture(self.UnitPortrait, self.unit)
 			end
 		end)
-		if G_RLF.db.global.partyLoot.enablePartyAvatar then
+		local partyConfig = G_RLF.DbAccessor:Feature(self.frameType, "partyLoot") or {}
+		if partyConfig.enablePartyAvatar then
 			self.UnitPortrait:Show()
 		else
 			self.UnitPortrait:Hide()

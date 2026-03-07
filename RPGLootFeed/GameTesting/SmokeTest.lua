@@ -163,15 +163,16 @@ local function testWoWGlobals()
 	runner:assertEqual(type(FACTION_BAR_COLORS), "table", "Global: FACTION_BAR_COLORS")
 end
 
---- Feature module name → DB config key mapping
+--- Feature module name → DB feature key mapping
+--- These keys correspond to db.global.frames[frameId].features[key]
 local featureDbKeyMap = {
-	[G_RLF.FeatureModule.ItemLoot] = "item",
+	[G_RLF.FeatureModule.ItemLoot] = "itemLoot",
 	[G_RLF.FeatureModule.PartyLoot] = "partyLoot",
 	[G_RLF.FeatureModule.Currency] = "currency",
 	[G_RLF.FeatureModule.Money] = "money",
-	[G_RLF.FeatureModule.Experience] = "xp",
-	[G_RLF.FeatureModule.Reputation] = "rep",
-	[G_RLF.FeatureModule.Profession] = "prof",
+	[G_RLF.FeatureModule.Experience] = "experience",
+	[G_RLF.FeatureModule.Reputation] = "reputation",
+	[G_RLF.FeatureModule.Profession] = "profession",
 	[G_RLF.FeatureModule.TravelPoints] = "travelPoints",
 	[G_RLF.FeatureModule.Transmog] = "transmog",
 }
@@ -194,8 +195,8 @@ local function testModuleRegistration()
 end
 
 local function testFeatureEnabledState()
-	for moduleName, dbKey in pairs(featureDbKeyMap) do
-		local dbEnabled = G_RLF.db.global[dbKey].enabled
+	for moduleName, featureKey in pairs(featureDbKeyMap) do
+		local dbEnabled = G_RLF.DbAccessor:IsFeatureNeededByAnyFrame(featureKey)
 		local module = G_RLF.RLF:GetModule(moduleName, true)
 		if module then
 			local moduleEnabled = module:IsEnabled()
@@ -220,34 +221,35 @@ local function testDbStructure()
 	runner:assertEqual(type(G_RLF.db.global.guid), "string", "DB: guid is string")
 	runner:assertEqual(#G_RLF.db.global.guid > 0, true, "DB: guid is non-empty")
 
-	-- Required top-level config tables
+	-- Required top-level config tables (non-feature globals)
 	local requiredGlobalKeys = {
-		"item",
-		"partyLoot",
-		"currency",
-		"money",
-		"xp",
-		"rep",
-		"prof",
-		"travelPoints",
-		"transmog",
 		"misc",
 		"lootHistory",
 		"tooltips",
 		"minimap",
-		"positioning",
-		"sizing",
-		"styling",
-		"animations",
 		"blizzOverrides",
 	}
 	for _, key in ipairs(requiredGlobalKeys) do
 		runner:assertEqual(type(G_RLF.db.global[key]), "table", "DB: global." .. key .. " exists")
 	end
 
-	-- Each feature config has an enabled flag
-	for moduleName, dbKey in pairs(featureDbKeyMap) do
-		runner:assertEqual(type(G_RLF.db.global[dbKey].enabled), "boolean", "DB: " .. dbKey .. ".enabled is boolean")
+	-- Per-frame structure
+	runner:assertEqual(type(G_RLF.db.global.frames), "table", "DB: global.frames exists")
+	runner:assertEqual(type(G_RLF.db.global.frames[1]), "table", "DB: global.frames[1] exists")
+	local frame1 = G_RLF.db.global.frames[1]
+	runner:assertEqual(type(frame1.positioning), "table", "DB: frames[1].positioning exists")
+	runner:assertEqual(type(frame1.sizing), "table", "DB: frames[1].sizing exists")
+	runner:assertEqual(type(frame1.styling), "table", "DB: frames[1].styling exists")
+	runner:assertEqual(type(frame1.animations), "table", "DB: frames[1].animations exists")
+	runner:assertEqual(type(frame1.features), "table", "DB: frames[1].features exists")
+
+	-- Each feature config has an enabled flag under frames[1]
+	for moduleName, featureKey in pairs(featureDbKeyMap) do
+		local featureConfig = G_RLF.DbAccessor:Feature(1, featureKey)
+		runner:assertEqual(featureConfig ~= nil, true, "DB: frames[1].features." .. featureKey .. " exists")
+		if featureConfig then
+			runner:assertEqual(type(featureConfig.enabled), "boolean", "DB: " .. featureKey .. ".enabled is boolean")
+		end
 	end
 end
 
@@ -287,21 +289,16 @@ local function testLootDisplayFrame()
 	runner:assertEqual(type(mainFrame.rows), "table", "LootDisplay: MainLootFrame.rows is table")
 	runner:assertEqual(type(mainFrame.keyRowMap), "table", "LootDisplay: MainLootFrame.keyRowMap is table")
 
-	-- Party frame presence should match config
-	local partyEnabled = G_RLF.db.global.partyLoot.enabled
-	local separateFrame = G_RLF.db.global.partyLoot.separateFrame
-	local partyFrame = G_RLF.RLF_PartyLootFrame
-	if partyEnabled and separateFrame then
-		runner:assertEqual(partyFrame ~= nil, true, "LootDisplay: PartyLootFrame exists when configured")
-		if partyFrame then
-			runner:assertEqual(
-				partyFrame.frameType,
-				G_RLF.Frames.PARTY,
-				"LootDisplay: PartyLootFrame.frameType is PARTY"
-			)
+	-- Validate all configured frames have a live widget
+	local LootDisplay = G_RLF.RLF:GetModule(G_RLF.SupportModule.LootDisplay, true)
+	if LootDisplay then
+		for id in pairs(G_RLF.db.global.frames) do
+			local frame = LootDisplay:GetFrame(id)
+			runner:assertEqual(frame ~= nil, true, "LootDisplay: frame " .. id .. " has a live widget")
+			if frame then
+				runner:assertEqual(frame.frameType, id, "LootDisplay: frame " .. id .. " has correct frameType")
+			end
 		end
-	else
-		runner:assertEqual(partyFrame == nil, true, "LootDisplay: PartyLootFrame nil when not configured")
 	end
 
 	-- LootDisplay module should be enabled and registered for messages

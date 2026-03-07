@@ -61,12 +61,12 @@ function PartyLoot:BuildPayload(info, amount, unit)
 
 	payload.key = info.itemLink
 	payload.type = "PartyLoot"
-	payload.eventChannel = "RLF_NEW_PARTY_LOOT"
 	payload.isLink = true
 	payload.unit = unit
 
 	payload.icon = info.itemTexture
-	if not G_RLF.db.global.partyLoot.enableIcon or G_RLF.db.global.misc.hideAllIcons then
+	local partyConfig = G_RLF.DbAccessor:AnyFeatureConfig("partyLoot") or {}
+	if not partyConfig.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		payload.icon = nil
 	end
 
@@ -94,7 +94,8 @@ function PartyLoot:BuildPayload(info, amount, unit)
 	payload.secondaryText = "A former party member"
 	local name, server = PartyLoot._partyLootAdapter.UnitName(unit)
 	if name then
-		if server and G_RLF.db.global.partyLoot.hideServerNames == false then
+		local pConfig = G_RLF.DbAccessor:AnyFeatureConfig("partyLoot") or {}
+		if server and pConfig.hideServerNames == false then
 			payload.secondaryText = "    " .. name .. "-" .. server
 		else
 			payload.secondaryText = "    " .. name
@@ -129,7 +130,7 @@ function PartyLoot:OnInitialize()
 	self.pendingItemRequests = {}
 	self.pendingPartyRequests = {}
 	self.nameUnitMap = {}
-	if G_RLF.db.global.partyLoot.enabled then
+	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("partyLoot") then
 		self:Enable()
 	else
 		self:Disable()
@@ -178,12 +179,13 @@ function PartyLoot:SetNameUnitMap()
 end
 
 function PartyLoot:SetPartyLootFilters()
-	if PartyLoot._partyLootAdapter.IsInRaid() and G_RLF.db.global.partyLoot.onlyEpicAndAboveInRaid then
+	local plConfig = G_RLF.DbAccessor:AnyFeatureConfig("partyLoot") or {}
+	if PartyLoot._partyLootAdapter.IsInRaid() and plConfig.onlyEpicAndAboveInRaid then
 		onlyEpicPartyLoot = true
 		return
 	end
 
-	if PartyLoot._partyLootAdapter.IsInInstance() and G_RLF.db.global.partyLoot.onlyEpicAndAboveInInstance then
+	if PartyLoot._partyLootAdapter.IsInInstance() and plConfig.onlyEpicAndAboveInInstance then
 		onlyEpicPartyLoot = true
 		return
 	end
@@ -198,12 +200,13 @@ function PartyLoot:OnPartyReadyToShow(info, amount, unit)
 	if onlyEpicPartyLoot and info.itemQuality < ItemQualEnum.Epic then
 		return
 	end
+	local plFilterConfig = G_RLF.DbAccessor:AnyFeatureConfig("partyLoot") or {}
 	-- nil quality filter entry = quality not enabled (treat same as false)
-	if not G_RLF.db.global.partyLoot.itemQualityFilter[info.itemQuality] then
+	if not (plFilterConfig.itemQualityFilter or {})[info.itemQuality] then
 		return
 	end
 	-- Filter by ignored item IDs
-	local ignoredIds = G_RLF.db.global.partyLoot.ignoreItemIds
+	local ignoredIds = plFilterConfig.ignoreItemIds or {}
 	if #ignoredIds > 0 then
 		for _, id in ipairs(ignoredIds) do
 			if tonumber(id) == tonumber(info.itemId) then
@@ -249,7 +252,7 @@ local function extractItemLinks(message)
 end
 
 function PartyLoot:CHAT_MSG_LOOT(eventName, ...)
-	if not G_RLF.db.global.partyLoot.enabled then
+	if not G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("partyLoot") then
 		return
 	end
 

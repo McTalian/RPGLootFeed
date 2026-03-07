@@ -84,11 +84,12 @@ function RLF_RowScriptedEffectsMixin:PlayTransmogEffect()
 	-- Clear any existing effects
 	self:StopScriptedEffects()
 
-	if G_RLF.db.global.transmog.enableBlizzardTransmogSound then
+	local transmogConfig = G_RLF.DbAccessor:Feature(self.frameType, "transmog") or {}
+	if transmogConfig.enableBlizzardTransmogSound then
 		PlaySound(SOUNDKIT.UI_COSMETIC_ITEM_TOAST_SHOW)
 	end
 
-	if not G_RLF.db.global.transmog.enableTransmogEffect then
+	if not transmogConfig.enableTransmogEffect then
 		self.leftSideTexture:Hide()
 		self.rightSideTexture:Hide()
 		return

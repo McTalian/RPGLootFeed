@@ -58,6 +58,21 @@ describe("Professions Module", function()
 					misc = { hideAllIcons = false },
 				},
 			},
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "profession" then
+						return ns.db.global.prof
+					end
+					return nil
+				end,
+				Animations = function(_, frameId)
+					return ns.db.global.animations
+				end,
+			},
+			Frames = { MAIN = 1 },
 		}
 
 		-- Load real LootElementBase so elements are fully constructed.
@@ -110,7 +125,9 @@ describe("Professions Module", function()
 			local enableStub = stub(Professions, "Enable").returns()
 			local disableStub = stub(Professions, "Disable").returns()
 
-			ns.db.global.prof.enabled = true
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return true
+			end
 			Professions:OnInitialize()
 			assert.spy(enableStub).was.called(1)
 			assert.spy(disableStub).was.not_called()
@@ -118,7 +135,9 @@ describe("Professions Module", function()
 			enableStub:clear()
 			disableStub:clear()
 
-			ns.db.global.prof.enabled = false
+			ns.DbAccessor.IsFeatureNeededByAnyFrame = function()
+				return false
+			end
 			Professions:OnInitialize()
 			assert.spy(disableStub).was.called(1)
 			assert.spy(enableStub).was.not_called()

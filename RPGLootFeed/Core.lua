@@ -62,6 +62,7 @@ function RLF:OnInitialize()
 	G_RLF.noQualColor = {}
 	G_RLF.noQualColor.r, G_RLF.noQualColor.g, G_RLF.noQualColor.b = C_Item.GetItemQualityColor(G_RLF.ItemQualEnum.Poor)
 	DbMigrations()
+	G_RLF.FramesConfig:OnInitialize()
 	LibStub("AceConfig-3.0"):RegisterOptionsTable(addonName, G_RLF.options)
 	local rlfLDB = LibStub("LibDataBroker-1.1"):NewDataObject(addonName, {
 		type = "launcher",
@@ -199,7 +200,8 @@ function RLF:PLAYER_ENTERING_WORLD(event, isLogin, isReload)
 		C_CVar.SetCVar("autoLootDefault", "1")
 	end
 	G_RLF.AuctionIntegrations:Init()
-	if G_RLF.db.global.money.overrideMoneyLootSound then
+	local moneyConfig = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+	if moneyConfig.overrideMoneyLootSound then
 		MuteSoundFile(G_RLF.GameSounds.LOOT_SMALL_COIN)
 	else
 		UnmuteSoundFile(G_RLF.GameSounds.LOOT_SMALL_COIN)

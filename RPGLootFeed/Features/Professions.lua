@@ -52,7 +52,8 @@ Professions._professionsAdapter = G_RLF.WoWAPI.Professions
 ---@param quantity number Skill level delta (change amount this gain)
 ---@return RLF_ElementPayload
 function Professions:BuildPayload(key, name, icon, level, quantity)
-	local color = RGBAToHexFormat(unpack(G_RLF.db.global.prof.skillColor))
+	local profConfig = G_RLF.DbAccessor:AnyFeatureConfig("profession") or {}
+	local color = RGBAToHexFormat(unpack(profConfig.skillColor or { 0.333, 0.333, 1.0, 1.0 }))
 
 	---@type RLF_ElementPayload
 	local payload = {
@@ -61,7 +62,7 @@ function Professions:BuildPayload(key, name, icon, level, quantity)
 		type = "Professions",
 
 		-- Icon
-		icon = (G_RLF.db.global.prof.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and icon or nil,
+		icon = (profConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and icon or nil,
 		quality = ItemQualEnum.Rare,
 
 		-- Primary line
@@ -77,14 +78,14 @@ function Professions:BuildPayload(key, name, icon, level, quantity)
 
 		-- Item count display (skill delta)
 		itemCountFn = function()
-			local profDb = G_RLF.db.global.prof
-			if not profDb.showSkillChange then
+			local profCfg = G_RLF.DbAccessor:AnyFeatureConfig("profession") or {}
+			if not profCfg.showSkillChange then
 				return nil
 			end
 			return quantity,
 				{
-					color = RGBAToHexFormat(unpack(profDb.skillColor)),
-					wrapChar = profDb.skillTextWrapChar,
+					color = RGBAToHexFormat(unpack(profCfg.skillColor or { 0.333, 0.333, 1.0, 1.0 })),
+					wrapChar = profCfg.skillTextWrapChar,
 					showSign = true,
 				}
 		end,
@@ -103,7 +104,7 @@ function Professions:OnInitialize()
 	self.professions = {}
 	self.profNameIconMap = {}
 	self.profLocaleBaseNames = {}
-	if G_RLF.db.global.prof.enabled then
+	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("profession") then
 		self:Enable()
 	else
 		self:Disable()

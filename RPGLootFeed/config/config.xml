@@ -3,12 +3,14 @@
             xsi:schemaLocation="http://www.blizzard.com/wow/ui/
 ..\FrameXML\UI.xsd">
     <Script file="ConfigOptions.lua"/>
+    <Script file="General.lua"/>
     <Include file="common/common.xml"/>
     <Include file="Features/features.xml"/>
     <Script file="Positioning.lua"/>
     <Script file="Sizing.lua"/>
     <Script file="Styling.lua"/>
     <Script file="Animations.lua"/>
+    <Script file="FramesConfig.lua"/>
     <Script file="BlizzardUI.lua"/>
     <Script file="DbMigrations.lua"/>
     <Script file="DbAccessors.lua"/>

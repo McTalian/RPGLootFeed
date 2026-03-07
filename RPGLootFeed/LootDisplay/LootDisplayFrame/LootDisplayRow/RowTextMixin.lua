@@ -88,7 +88,12 @@ local function ApplyFontStyle(
 	fontShadowOffsetY
 )
 	fontString:SetFont(fontPath, fontSize, fontFlagsString)
-	fontString:SetShadowColor(unpack(fontShadowColor))
+	fontString:SetShadowColor(
+		fontShadowColor[1] or 0,
+		fontShadowColor[2] or 0,
+		fontShadowColor[3] or 0,
+		fontShadowColor[4] or 1
+	)
 	fontString:SetShadowOffset(fontShadowOffsetX or 1, fontShadowOffsetY or -1)
 end
 
@@ -262,7 +267,8 @@ function RLF_RowTextMixin:StyleText()
 		self.PrimaryLineLayout:ClearAllPoints()
 		self.PrimaryText:SetJustifyH(anchor)
 		if self.icon then
-			if self.unit and G_RLF.db.global.partyLoot.enablePartyAvatar then
+			local partyConfig = G_RLF.DbAccessor:Feature(self.frameType, "partyLoot") or {}
+			if self.unit and partyConfig.enablePartyAvatar then
 				self.PrimaryLineLayout:SetPoint(anchor, self.UnitPortrait, iconAnchor, xOffset, 0)
 			else
 				self.PrimaryLineLayout:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
@@ -276,7 +282,8 @@ function RLF_RowTextMixin:StyleText()
 			self.SecondaryText:SetJustifyH(anchor)
 			if self.icon then
 				if self.unit then
-					if G_RLF.db.global.partyLoot.enablePartyAvatar then
+					local partyConfig = G_RLF.DbAccessor:Feature(self.frameType, "partyLoot") or {}
+					if partyConfig.enablePartyAvatar then
 						self.SecondaryLineLayout:SetPoint(anchor, self.UnitPortrait, iconAnchor, xOffset, 0)
 					else
 						self.SecondaryLineLayout:SetPoint(anchor, self.Icon, iconAnchor, xOffset, 0)
@@ -412,7 +419,8 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 	local feedWidth = sizingDb.feedWidth
 
 	local portraitOffset = 0
-	if self.unit and G_RLF.db.global.partyLoot.enablePartyAvatar then
+	local partyConfig = G_RLF.DbAccessor:Feature(self.frameType, "partyLoot") or {}
+	if self.unit and partyConfig.enablePartyAvatar then
 		-- UnitPortrait is anchored at Icon.RIGHT + iconSize/4 (gap) with width portraitSize.
 		-- PrimaryLineLayout is then anchored at UnitPortrait.RIGHT + iconSize/4 (gap).
 		-- Extra width consumed beyond iconOffset: portraitSize + gap between icon and portrait.
@@ -473,7 +481,8 @@ function RLF_RowTextMixin:LayoutSecondaryLine()
 	local feedWidth = sizingDb.feedWidth
 
 	local portraitOffset = 0
-	if self.unit and G_RLF.db.global.partyLoot.enablePartyAvatar then
+	local partyConfig = G_RLF.DbAccessor:Feature(self.frameType, "partyLoot") or {}
+	if self.unit and partyConfig.enablePartyAvatar then
 		-- Mirrors the corrected portrait offset logic in LayoutPrimaryLine().
 		local portraitSize = iconSize * 0.8
 		portraitOffset = portraitSize + (iconSize / 4)

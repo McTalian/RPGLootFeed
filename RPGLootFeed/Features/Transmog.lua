@@ -56,7 +56,8 @@ function Transmog:BuildPayload(transmogLink, icon)
 	payload.isLink = true
 
 	payload.icon = icon or DefaultIcons.TRANSMOG
-	if not G_RLF.db.global.transmog.enableIcon or G_RLF.db.global.misc.hideAllIcons then
+	local transmogConfig = G_RLF.DbAccessor:AnyFeatureConfig("transmog") or {}
+	if not transmogConfig.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		payload.icon = nil
 	end
 
@@ -88,7 +89,7 @@ function Transmog:BuildPayload(transmogLink, icon)
 end
 
 function Transmog:OnInitialize()
-	if G_RLF.db.global.transmog.enabled then
+	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("transmog") then
 		self:Enable()
 	else
 		self:Disable()

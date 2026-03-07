@@ -1,4 +1,4 @@
-.PHONY: all_checks hardcode_string_check toc_check toc_update missing_translation_check wbt_setup i18n_check i18n_fmt test test-ci test-file test-pattern test-only local check_untracked_files help
+.PHONY: all_checks hardcode_string_check toc_check toc_update missing_translation_check wbt_setup i18n_check i18n_fmt test test-ci test-file test-pattern test-only local check_untracked_files options-dump options-html help
 
 all_checks: hardcode_string_check missing_translation_check i18n_check
 
@@ -21,6 +21,8 @@ help:
 	@echo "  generate_hidden_currencies - Generate hidden currencies list"
 	@echo "  lua_deps            - Install Lua dependencies"
 	@echo "  check_untracked_files - Check for untracked git files"
+	@echo "  options-dump        - Serialize G_RLF.options to .scripts/.output/options_dump.json"
+	@echo "  options-html        - Render options_dump.json to .scripts/.output/options.html"
 	@echo "  watch               - Watch for changes and build"
 	@echo "  dev                 - Build for development"
 	@echo "  build               - Build for production"
@@ -94,6 +96,18 @@ test-pattern:
 
 test-ci:
 	@rm -rf luacov-html && rm -rf luacov.*out && mkdir -p luacov-html && $(ROCKSBIN)/busted --coverage -o=TAP RPGLootFeed_spec && $(ROCKSBIN)/luacov
+
+# Serialize G_RLF.options to JSON for the AceConfig HTML renderer (Stage 1)
+# Output: .scripts/.output/options_dump.json
+options-dump:
+	@mkdir -p .scripts/.output
+	@$(ROCKSBIN)/busted --verbose .scripts/dump_options.lua
+
+# Render G_RLF.options JSON to a self-contained HTML file (Stage 2)
+# Run options-dump first if options_dump.json is missing.
+# Output: .scripts/.output/options.html
+options-html: options-dump
+	@uv run .scripts/render_options.py
 
 lua_deps:
 	@luarocks install rpglootfeed-1-1.rockspec --local --force --lua-version 5.4

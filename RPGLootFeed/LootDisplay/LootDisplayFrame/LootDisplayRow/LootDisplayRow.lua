@@ -70,7 +70,7 @@ function LootDisplayRowMixin:Init()
 	if self.isSampleRow then
 		self.showForSeconds = math.pow(2, 19) -- Never fade out
 	else
-		self.showForSeconds = G_RLF.db.global.animations.exit.fadeOutDelay
+		self.showForSeconds = G_RLF.DbAccessor:Animations(self.frameType).exit.fadeOutDelay
 	end
 
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
@@ -111,13 +111,13 @@ function LootDisplayRowMixin:Reset()
 	self.type = nil
 	self.highlight = nil
 	self.isHistoryMode = false
-	self.isSampleRow = false -- Reset sample row flag
-	self.pendingElement = nil
+	self.isSampleRow = false -- Reset sample row flag		self.sampleTooltipText = nil	self.pendingElement = nil
 	self.updatePending = false
 	self.waiting = false
 	self.isCustomLink = false
 	self.customBehavior = nil
 	self.amountTextFn = nil
+	self.onReleased = nil
 
 	-- Reset UI elements that were part of the template
 	self.TopBorder:SetAlpha(0)
@@ -209,6 +209,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	local unit = element.unit
 	local highlight = element.highlight
 	self.isSampleRow = element.isSampleRow or false
+	self.sampleTooltipText = element.sampleTooltipText or nil
 	self.itemCount = element.itemCount
 	self.itemCountFn = element.itemCountFn
 	self.elementSecondaryText = element.secondaryText or nil
@@ -322,7 +323,7 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	local amountText = element.amountTextFn and element.amountTextFn(oldAmount) or ""
 	self:ShowAmountText(amountText, r or 1, g or 1, b or 1, a or 1)
 
-	if not G_RLF.db.global.animations.update.disableHighlight then
+	if not G_RLF.DbAccessor:Animations(self.frameType).update.disableHighlight then
 		self.HighlightAnimation:Stop()
 		self.HighlightAnimation:Play()
 	end
@@ -417,22 +418,34 @@ function LootDisplayRowMixin:UpdateWithHistoryData(data)
 	self.link = data.link
 	self.quality = data.quality
 	self.unit = data.unit
-	self.PrimaryText:SetText(data.rowText)
-	self.PrimaryText:SetTextColor(unpack(data.textColor))
 
+	-- Set secondary text before StyleText/ShowText so layout considers it
 	---@type RLF_ConfigStyling
 	local stylingDb = G_RLF.DbAccessor:Styling(self.frameType)
 	if data.unit and data.secondaryText and stylingDb.enabledSecondaryRowText then
 		self.secondaryText = data.secondaryText
-		self.SecondaryText:SetText(data.secondaryText)
+	end
+
+	-- Setup tooltip for linkable items (must happen before LayoutPrimaryLine
+	-- sizes the ClickableButton, but after self.link is set)
+	if data.link then
+		self:SetupTooltip(true)
+	end
+
+	-- UpdateIcon sets self.icon, which StyleText needs for text positioning
+	if data.icon then
+		self:UpdateIcon(self.key, data.icon, self.quality)
+	end
+
+	self:UpdateStyles()
+
+	-- ShowText sets rawPrimaryText, triggers LayoutPrimaryLine (which positions
+	-- the ClickableButton over the text for tooltip interaction), and handles
+	-- secondary text layout.
+	self:ShowText(data.rowText, unpack(data.textColor))
+
+	-- Apply secondary text color after ShowText (ShowText only shows/hides it)
+	if data.unit and data.secondaryText and stylingDb.enabledSecondaryRowText then
 		self.SecondaryText:SetTextColor(unpack(data.secondaryTextColor))
 	end
-	self:StyleText()
-	if data.icon then
-		self:SetupTooltip(true)
-		self:UpdateIcon(self.key, data.icon, self.quality)
-	else
-		self.icon = nil
-	end
-	self:UpdateStyles()
 end

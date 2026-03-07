@@ -45,52 +45,233 @@ G_RLF.defaults = {
 			---@type table<number, CachedFactionDetails>
 			cachedFactionDetailsById = {},
 		},
+		--- Per-frame configuration table. Keyed by integer frame ID.
+		--- Populated at startup by migration v8; see docs/multi-frame-design.md.
+		--- The "**" wildcard provides inherited defaults for ALL frame IDs
+		--- (including explicitly-written ones like frame 1). This ensures
+		--- that new config keys added in future versions are automatically
+		--- available without a migration. New frames default to all features
+		--- disabled per Q13 in the design doc.
+		---@type table<integer, RLF_FrameConfig>
+		frames = {
+			["**"] = {
+				name = "",
+				positioning = {
+					relativePoint = "UIParent",
+					anchorPoint = "BOTTOMLEFT",
+					xOffset = 720,
+					yOffset = 375,
+					frameStrata = "MEDIUM",
+				},
+				sizing = {
+					feedWidth = 330,
+					maxRows = 10,
+					rowHeight = 22,
+					padding = 2,
+					iconSize = 18,
+				},
+				styling = {
+					enabledSecondaryRowText = false,
+					textAlignment = "LEFT",
+					growUp = true,
+					rowBackgroundType = 1, -- GRADIENT
+					rowBackgroundTexture = "Solid",
+					rowBackgroundTextureColor = { 0, 0, 0, 1 },
+					rowBackgroundGradientStart = { 0.1, 0.1, 0.1, 0.8 },
+					rowBackgroundGradientEnd = { 0.1, 0.1, 0.1, 0 },
+					backdropInsets = { left = 0, right = 0, top = 0, bottom = 0 },
+					enableRowBorder = false,
+					rowBorderSize = 1,
+					rowBorderColor = { 0, 0, 0, 1 },
+					rowBorderClassColors = false,
+					rowBorderTexture = "None",
+					useFontObjects = false,
+					font = "GameFontNormalSmall",
+					fontFace = "Friz Quadrata TT",
+					fontSize = 10,
+					secondaryFontSize = 8,
+					enableTopLeftIconText = true,
+					topLeftIconFontSize = 6,
+					topLeftIconTextColor = { 1, 1, 1, 1 },
+					topLeftIconTextUseQualityColor = true,
+					fontFlags = {
+						[""] = true, -- NONE
+						["OUTLINE"] = false,
+						["THICKOUTLINE"] = false,
+						["MONOCHROME"] = false,
+					},
+					fontShadowColor = { 0, 0, 0, 1 },
+					fontShadowOffsetX = 1,
+					fontShadowOffsetY = -1,
+					rowTextSpacing = 0,
+				},
+				animations = {
+					enter = {
+						type = "fade",
+						duration = 0.3,
+						slide = {
+							direction = "left",
+						},
+					},
+					exit = {
+						disable = false,
+						type = "fade",
+						duration = 1,
+						fadeOutDelay = 5,
+					},
+					hover = {
+						enabled = true,
+						alpha = 0.25,
+						baseDuration = 0.3,
+					},
+					update = {
+						disableHighlight = false,
+						duration = 0.2,
+						loop = false,
+					},
+				},
+				features = {
+					itemLoot = {
+						enabled = false,
+						itemCountTextEnabled = true,
+						itemCountTextColor = { 0.737, 0.737, 0.737, 1 },
+						itemCountTextWrapChar = 2, -- PARENTHESIS
+						itemQualitySettings = {
+							[0] = { enabled = true, duration = 0 },
+							[1] = { enabled = true, duration = 0 },
+							[2] = { enabled = true, duration = 0 },
+							[3] = { enabled = true, duration = 0 },
+							[4] = { enabled = true, duration = 0 },
+							[5] = { enabled = true, duration = 0 },
+							[6] = { enabled = true, duration = 0 },
+							[7] = { enabled = true, duration = 0 },
+							[8] = { enabled = true, duration = 0 },
+						},
+						itemHighlights = {
+							boe = false,
+							bop = false,
+							quest = false,
+							transmog = false,
+							mounts = true,
+							legendary = true,
+							betterThanEquipped = true,
+							hasTertiaryOrSocket = true,
+						},
+						auctionHouseSource = "None",
+						pricesForSellableItems = "vendor",
+						vendorIconTexture = "spellicon-256x256-selljunk",
+						auctionHouseIconTexture = "auctioneer",
+						sounds = {
+							mounts = { enabled = false, sound = "" },
+							legendary = { enabled = false, sound = "" },
+							betterThanEquipped = { enabled = false, sound = "" },
+							transmog = { enabled = false, sound = "" },
+						},
+						textStyleOverrides = {
+							quest = { enabled = false, color = { 1, 1, 0, 1 } },
+						},
+						enableIcon = true,
+					},
+					partyLoot = {
+						enabled = false,
+						itemQualityFilter = {
+							[0] = true,
+							[1] = true,
+							[2] = true,
+							[3] = true,
+							[4] = true,
+							[5] = true,
+							[6] = true,
+							[7] = true,
+						},
+						hideServerNames = false,
+						onlyEpicAndAboveInRaid = true,
+						onlyEpicAndAboveInInstance = true,
+						ignoreItemIds = {},
+						enableIcon = true,
+						enablePartyAvatar = true,
+					},
+					currency = {
+						enabled = false,
+						currencyTotalTextEnabled = true,
+						currencyTotalTextColor = { 0.737, 0.737, 0.737, 1 },
+						currencyTotalTextWrapChar = 2, -- PARENTHESIS
+						lowerThreshold = 0.7,
+						upperThreshold = 0.9,
+						lowestColor = { 1, 1, 1, 1 },
+						midColor = { 1, 0.608, 0, 1 },
+						upperColor = { 1, 0, 0, 1 },
+						enableIcon = true,
+					},
+					money = {
+						enabled = false,
+						showMoneyTotal = true,
+						moneyTotalColor = { 0.333, 0.333, 1.0, 1.0 },
+						moneyTextWrapChar = 6, -- BAR
+						abbreviateTotal = true,
+						accountantMode = false,
+						onlyIncome = false,
+						overrideMoneyLootSound = false,
+						moneyLootSound = "",
+						enableIcon = true,
+					},
+					experience = {
+						enabled = false,
+						experienceTextColor = { 1, 0, 1, 0.8 },
+						showCurrentLevel = true,
+						currentLevelColor = { 0.749, 0.737, 0.012, 1 },
+						currentLevelTextWrapChar = 5, -- ANGLE
+						enableIcon = true,
+					},
+					reputation = {
+						enabled = false,
+						defaultRepColor = { 0.5, 0.5, 1 },
+						secondaryTextAlpha = 0.7,
+						enableRepLevel = true,
+						repLevelColor = { 0.5, 0.5, 1, 1 },
+						repLevelTextWrapChar = 5, -- ANGLE
+						enableIcon = true,
+					},
+					profession = {
+						enabled = false,
+						showSkillChange = true,
+						skillColor = { 0.333, 0.333, 1.0, 1.0 },
+						skillTextWrapChar = 3, -- BRACKET
+						enableIcon = true,
+					},
+					travelPoints = {
+						enabled = false,
+						textColor = { 1, 0.988, 0.498, 1 },
+						enableIcon = true,
+					},
+					transmog = {
+						enabled = false,
+						enableTransmogEffect = true,
+						enableBlizzardTransmogSound = true,
+						enableIcon = true,
+					},
+				},
+			},
+		},
+		--- Monotonically increasing counter for the next frame ID.
+		--- Never decremented or reused after a frame is deleted.
+		nextFrameId = 2,
 	},
-}
-
----@type table<string, number>
-G_RLF.level1OptionsOrder = {
-	["testMode"] = 1,
-	["clearRows"] = 2,
-	["lootHistory"] = 3,
-	["features"] = 4,
-	["positioning"] = 5,
-	["sizing"] = 6,
-	["styling"] = 7,
-	["animations"] = 8,
-	["blizz"] = 9,
-	["about"] = -1,
 }
 
 G_RLF.options = {
 	name = addonName,
 	handler = ConfigOptions,
 	type = "group",
-	args = {
-		testMode = {
-			type = "execute",
-			name = G_RLF.L["Toggle Test Mode"],
-			func = function()
-				local TestMode = G_RLF.RLF:GetModule(G_RLF.SupportModule.TestMode) --[[@as RLF_TestMode]]
-				TestMode:ToggleTestMode()
-			end,
-			order = G_RLF.level1OptionsOrder.testMode,
-		},
-		clearRows = {
-			type = "execute",
-			name = G_RLF.L["Clear rows"],
-			func = function()
-				G_RLF.LootDisplay:HideLoot()
-			end,
-			order = G_RLF.level1OptionsOrder.clearRows,
-		},
-		lootHistory = {
-			type = "execute",
-			name = G_RLF.L["Toggle Loot History"],
-			func = function()
-				G_RLF.HistoryService:ToggleHistoryFrame()
-			end,
-			order = G_RLF.level1OptionsOrder.lootHistory,
-		},
-	},
+	childGroups = "select",
+	args = {},
+}
+
+G_RLF.options.args.global = {
+	type = "group",
+	name = CreateAtlasMarkup("UI-EventPoi-WorldSoulMemory", 24, 24) .. G_RLF.L["Global"],
+	desc = G_RLF.L["GlobalDesc"],
+	order = 1,
+	childGroups = "tab",
+	args = {}, -- populated by General.lua, BlizzardUI.lua, About.lua
 }
