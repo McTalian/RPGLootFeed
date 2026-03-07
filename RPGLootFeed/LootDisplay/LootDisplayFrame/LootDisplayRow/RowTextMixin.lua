@@ -348,40 +348,6 @@ function RLF_RowTextMixin:UpdateItemCount()
 		end)
 		return
 	end
-
-	-- ── Legacy type-switch for non-migrated modules ──────────────────────────
-
-	if self.itemCount == nil then
-		return
-	end
-
-	if self.type == "ItemLoot" and not self.unit then
-		---@type RLF_ConfigItemLoot
-		local itemDb = G_RLF.db.global.item
-		if not itemDb.itemCountTextEnabled then
-			return
-		end
-		if not self.link then
-			G_RLF:LogDebug("Item link is nil")
-			return
-		end
-		RunNextFrame(function()
-			local itemInfo = self.link
-			local success, name = pcall(function()
-				return C_Item.GetItemInfo(itemInfo)
-			end)
-			if not success or not name then
-				G_RLF:LogDebug("Failed to get item info for link: %s", itemInfo)
-				return
-			end
-			local itemCount = C_Item.GetItemCount(itemInfo, true, false, true, true)
-			self:ShowItemCountText(itemCount, {
-				color = G_RLF:RGBAToHexFormat(unpack(itemDb.itemCountTextColor)),
-				wrapChar = itemDb.itemCountTextWrapChar,
-			})
-		end)
-		return
-	end
 end
 
 --- Show or hide the AmountText (quantity suffix) FontString.

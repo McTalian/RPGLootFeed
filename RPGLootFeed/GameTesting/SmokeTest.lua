@@ -422,19 +422,20 @@ local function testElementConstructors()
 		end
 	end
 
-	-- ItemLoot — only if test data is already cached
+	-- ItemLoot — only if test data is already cached (migrated: BuildPayload → fromPayload)
 	local itemModule = G_RLF.RLF:GetModule(G_RLF.FeatureModule.ItemLoot, true)
 	if itemModule and itemModule:IsEnabled() and #TestMode.testItems > 0 then
 		local info = TestMode.testItems[1]
-		local e = itemModule.Element:new(info, 1)
-		runner:assertEqual(e ~= nil, true, "Element: ItemLoot created")
-		if e then
-			runner:assertEqual(e.type, "ItemLoot", "Element: ItemLoot.type")
-			runner:assertEqual(e.isLink, true, "Element: ItemLoot.isLink")
-			runner:assertEqual(e.quantity, 1, "Element: ItemLoot.quantity")
-			runner:assertEqual(type(e.textFn), "function", "Element: ItemLoot.textFn")
-			runner:assertEqual(type(e.IsEnabled), "function", "Element: ItemLoot.IsEnabled")
-			runner:assertEqual(type(e.Show), "function", "Element: ItemLoot.Show")
+		local payload = itemModule:BuildPayload(info, 1)
+		runner:assertEqual(payload ~= nil, true, "BuildPayload: ItemLoot created")
+		if payload then
+			runner:assertEqual(payload.type, "ItemLoot", "BuildPayload: ItemLoot.type")
+			runner:assertEqual(payload.isLink, true, "BuildPayload: ItemLoot.isLink")
+			runner:assertEqual(payload.quantity, 1, "BuildPayload: ItemLoot.quantity")
+			runner:assertEqual(type(payload.textFn), "function", "BuildPayload: ItemLoot.textFn")
+			runner:assertEqual(type(payload.IsEnabled), "function", "BuildPayload: ItemLoot.IsEnabled")
+			local e = G_RLF.LootElementBase:fromPayload(payload)
+			runner:assertEqual(type(e.Show), "function", "BuildPayload: ItemLoot.Show")
 		end
 	end
 

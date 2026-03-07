@@ -230,20 +230,22 @@ local function generateRandomLoot()
 		if rng >= 0.8 then
 			local experienceGained = math.random(100, 10000)
 			local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Experience) --[[@as RLF_Experience]]
-			local e = module.Element:new(experienceGained)
-			e:Show()
+			local payload = module:BuildPayload(experienceGained)
+			if payload then
+				G_RLF.LootElementBase:fromPayload(payload):Show()
+			end
 			G_RLF:LogDebug("Experience gained: " .. experienceGained, addonName)
 		end
 
 		if rng <= 0.2 then
 			local copper = math.random(1, 100000000)
 			local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Money) --[[@as RLF_Money]]
-			local e = module.Element:new(copper)
-			if not e then
-				G_RLF:LogError("Failed to create Money Element", addonName)
+			local payload = module:BuildPayload(copper)
+			if not payload then
+				G_RLF:LogError("Failed to create Money payload", addonName)
 			else
-				e:Show()
-				e:PlaySoundIfEnabled()
+				G_RLF.LootElementBase:fromPayload(payload):Show()
+				module:PlaySoundIfEnabled()
 				G_RLF:LogDebug("Copper gained: " .. copper, addonName)
 			end
 		end
@@ -253,19 +255,22 @@ local function generateRandomLoot()
 			local info = TestMode.testItems[math.random(#TestMode.testItems)]
 			local amountLooted = math.random(1, 5)
 			local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.ItemLoot) --[[@as RLF_ItemLoot]]
-			local e = module.Element:new(info, amountLooted)
-			e:Show(info.itemName, info.itemQuality)
-			e:PlaySoundIfEnabled()
-			e:SetHighlight()
-			G_RLF:LogDebug("Item looted: " .. info.itemName, addonName)
+			local payload = module:BuildPayload(info, amountLooted)
+			if payload then
+				G_RLF.LootElementBase:fromPayload(payload):Show(info.itemName, info.itemQuality)
+				module:PlaySoundIfEnabled(payload)
+				G_RLF:LogDebug("Item looted: " .. info.itemName, addonName)
+			end
 
 			-- 10% chance of item loot to show up as a party member
 			if rng < 0.3 then
 				local unit = "player"
 				local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.PartyLoot) --[[@as RLF_PartyLoot]]
-				local e = module.Element:new(info, amountLooted, unit)
-				e:Show(info.itemName, info.itemQuality)
-				G_RLF:LogDebug("Party Item looted: " .. info.itemName, addonName)
+				local payload = module:BuildPayload(info, amountLooted, unit)
+				if payload then
+					G_RLF.LootElementBase:fromPayload(payload):Show(info.itemName, info.itemQuality)
+					G_RLF:LogDebug("Party Item looted: " .. info.itemName, addonName)
+				end
 			end
 
 			-- 15% chance to show currency
@@ -274,11 +279,11 @@ local function generateRandomLoot()
 				local currency = TestMode.testCurrencies[math.random(#TestMode.testCurrencies)]
 				local amountLooted = math.random(1, 500)
 				local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.Currency) --[[@as RLF_Currency]]
-				local e = module.Element:new(currency.link, currency.info, currency.basicInfo)
-				if not e then
-					G_RLF:LogError("Failed to create Currency Element", addonName)
+				local payload = module:BuildPayload(currency.link, currency.info, currency.basicInfo)
+				if not payload then
+					G_RLF:LogError("Failed to create Currency payload", addonName)
 				else
-					e:Show()
+					G_RLF.LootElementBase:fromPayload(payload):Show()
 					G_RLF:LogDebug("Currency looted: " .. currency.info.name, addonName)
 				end
 			end

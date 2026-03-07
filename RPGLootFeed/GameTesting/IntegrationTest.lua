@@ -58,20 +58,28 @@ local function runTravelPointsIntegrationTest()
 	return 1
 end
 
+--- Exercises the ItemLoot BuildPayload → fromPayload → Show pipeline directly.
 local function runItemLootIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.ItemLoot) --[[@as RLF_ItemLoot]]
+	local LootElementBase = G_RLF.LootElementBase
 	local info = TestMode.testItems[2]
 	local amountLooted = 1
 	local rowsShown = 0
-	local e = module.Element:new(info, amountLooted)
-	if info.itemName == nil then
+	local payload = module:BuildPayload(info, amountLooted)
+	if not payload then
+		G_RLF:Print("Item not cached or filtered, skipping ItemLoot test")
+	elseif info.itemName == nil then
 		G_RLF:Print("Item not cached, skipping ItemLoot test")
 	else
-		e.highlight = true
+		payload.highlight = true
+		local e = LootElementBase:fromPayload(payload)
 		runner:runTestSafely(e.Show, "LootDisplay: Item", e, info.itemName, info.itemQuality)
-		e = module.Element:new(info, amountLooted)
-		e.highlight = true
-		runner:runTestSafely(e.Show, "LootDisplay: Item Quantity Update", e, info.itemName, info.itemQuality)
+		local payload2 = module:BuildPayload(info, amountLooted)
+		if payload2 then
+			payload2.highlight = true
+			local e2 = LootElementBase:fromPayload(payload2)
+			runner:runTestSafely(e2.Show, "LootDisplay: Item Quantity Update", e2, info.itemName, info.itemQuality)
+		end
 		rowsShown = rowsShown + 1
 	end
 	return rowsShown

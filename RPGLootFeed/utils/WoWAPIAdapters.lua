@@ -211,6 +211,66 @@ G_RLF.WoWAPI.Transmog = {
 	end,
 }
 
+-- ── ItemLoot API Adapter ──────────────────────────────────────────────────────
+-- Wraps WoW API calls used by the ItemLoot feature module: unit queries,
+-- C_Item stat/count/info lookups, GetCoinTextureString, CreateAtlasMarkup,
+-- PlaySoundFile, and the AuctionIntegrations price hook.
+---@class RLF_WoWAPI_ItemLoot
+G_RLF.WoWAPI.ItemLoot = {
+	GetExpansionLevel = function()
+		return GetExpansionLevel()
+	end,
+	UnitName = function(unit)
+		return UnitName(unit)
+	end,
+	UnitClass = function(unit)
+		return UnitClass(unit)
+	end,
+	UnitLevel = function(unit)
+		return UnitLevel(unit)
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	GetPlayerGuid = function()
+		return GetPlayerGuid()
+	end,
+	GetInventoryItemLink = function(unit, slot)
+		return GetInventoryItemLink(unit, slot)
+	end,
+	GetItemQualityColor = function(quality)
+		return C_Item.GetItemQualityColor(quality)
+	end,
+	GetCoinTextureString = function(price)
+		return C_CurrencyInfo.GetCoinTextureString(price)
+	end,
+	CreateAtlasMarkup = function(icon, w, h, x, y)
+		return CreateAtlasMarkup(icon, w, h, x, y)
+	end,
+	PlaySoundFile = function(sound)
+		return PlaySoundFile(sound)
+	end,
+	GetAHPrice = function(itemLink)
+		local ai = G_RLF.AuctionIntegrations
+		if ai and ai.activeIntegration then
+			return ai.activeIntegration:GetAHPrice(itemLink)
+		end
+		return nil
+	end,
+	GetItemInfo = function(link)
+		return C.Item.GetItemInfo(link)
+	end,
+	GetItemIDForItemInfo = function(link)
+		return C.Item.GetItemIDForItemInfo(link)
+	end,
+	GetItemCount = function(link, ...)
+		return C.Item.GetItemCount(link, ...)
+	end,
+	GetItemStatDelta = function(link1, link2)
+		return C.Item.GetItemStatDelta(link1, link2)
+	end,
+}
+
 -- ── PartyLoot API Adapter ─────────────────────────────────────────────────────
 -- Wraps UnitName, UnitClass, IsInRaid, IsInInstance, GetNumGroupMembers,
 -- GetExpansionLevel, GetPlayerGuid, C_ClassColor, RAID_CLASS_COLORS,
