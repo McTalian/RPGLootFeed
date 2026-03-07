@@ -322,9 +322,12 @@ function LootDisplayFrameMixin:GetRow(key)
 	return self.keyRowMap[key] --[[@as RLF_LootDisplayRow]]
 end
 
-function LootDisplayFrameMixin:LeaseRow(key)
+--- @param key string
+--- @param isSampleRow? boolean When true, bypass the maxRows cap
+--- @return RLF_LootDisplayRow|nil
+function LootDisplayFrameMixin:LeaseRow(key, isSampleRow)
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
-	if self:getNumberOfRows() >= sizingDb.maxRows then
+	if self:getNumberOfRows() >= sizingDb.maxRows and not isSampleRow then
 		-- Skip this, we've already allocated too much
 		return nil
 	end
@@ -375,6 +378,10 @@ function LootDisplayFrameMixin:ReleaseRow(row)
 	row:UpdateNeighborPositions(self)
 	self.rows:remove(row)
 	row:SetParent(nil)
+	if row.onReleased then
+		row.onReleased()
+		row.onReleased = nil
+	end
 	row.key = nil
 	row:Reset()
 	self.rowFramePool:Release(row)

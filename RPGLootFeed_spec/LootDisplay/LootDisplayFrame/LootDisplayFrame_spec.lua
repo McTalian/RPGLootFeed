@@ -203,6 +203,37 @@ describe("LootDisplayFrameMixin", function()
 		assert.is_nil(result)
 	end)
 
+	it("leases a sample row even when at max capacity", function()
+		local mockRow = {
+			Init = spy.new(function() end),
+			SetParent = spy.new(function() end),
+			UpdatePosition = spy.new(function() end),
+			Hide = spy.new(function() end),
+			ResetHighlightBorder = spy.new(function() end),
+		}
+		frame.rowFramePool = {
+			Acquire = spy.new(function()
+				return mockRow
+			end),
+		}
+		frame.frameType = ns.Frames.MAIN
+		frame.rows = {
+			push = spy.new(function()
+				return true
+			end),
+			length = 0,
+		}
+		frame.keyRowMap = { length = 0 }
+		stub(frame, "UpdateTabVisibility")
+		stub(frame, "getNumberOfRows").returns(5)
+		mockSizing.returns({ maxRows = 5 })
+
+		local result = frame:LeaseRow("sample_item_loot", true)
+
+		assert.is_not_nil(result)
+		assert.equal(mockRow, result)
+	end)
+
 	it("releases a row correctly with ReleaseRow", function()
 		-- Set up mocks
 		local mockRow = {

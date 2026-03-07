@@ -653,23 +653,34 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 		end)
 	end
 
-	-- OnEnter: Play fade-in animation
+	-- OnEnter: Play fade-in animation; show sample row tooltip if present
 	self:SetScript("OnEnter", function()
 		---@type RLF_ConfigAnimations
 		local animationsDb = G_RLF.db.global.animations
-		if self.hasMouseOver or not animationsDb.hover.enabled then
+		if self.hasMouseOver then
+			return
+		end
+		if not animationsDb.hover.enabled and not self.sampleTooltipText then
 			return
 		end
 		self.hasMouseOver = true
-		-- Stop fade-out if it's playing
-		if self.HighlightFadeOut:IsPlaying() then
-			self.HighlightFadeOut:Stop()
+		if animationsDb.hover.enabled then
+			-- Stop fade-out if it's playing
+			if self.HighlightFadeOut:IsPlaying() then
+				self.HighlightFadeOut:Stop()
+			end
+			-- Play fade-in
+			self.HighlightFadeIn:Play()
 		end
-		-- Play fade-in
-		self.HighlightFadeIn:Play()
+		-- Show sample row tooltip
+		if self.sampleTooltipText then
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(self.sampleTooltipText, 1, 1, 1, 1, true)
+			GameTooltip:Show()
+		end
 	end)
 
-	-- OnLeave: Play fade-out animation
+	-- OnLeave: Play fade-out animation; hide sample row tooltip if present
 	self:SetScript("OnLeave", function()
 		-- Prevent OnLeave from firing if the mouse is still over the row or any of its children
 		if isMouseOverSelfOrChildren(self) or not self.hasMouseOver then
@@ -682,6 +693,10 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 		end
 		-- Play fade-out
 		self.HighlightFadeOut:Play()
+		-- Hide sample row tooltip
+		if self.sampleTooltipText then
+			GameTooltip:Hide()
+		end
 	end)
 end
 

@@ -181,6 +181,7 @@ function G_RLF.LootElementBase:fromPayload(payload)
 		element.showForSeconds = payload.showForSeconds
 	end
 	element.isSampleRow = payload.isSampleRow or false
+	element.sampleTooltipText = payload.sampleTooltipText or nil
 	if payload.logFn then
 		element.logFn = payload.logFn
 	end
@@ -218,6 +219,7 @@ end
 ---@field highlight? boolean Border glow / entry animation
 ---@field sound? string Sound file path
 ---@field isCustomLink? boolean Custom tooltip behavior flag
+---@field sampleTooltipText? string Label shown on row hover in the options preview (sample rows only)
 ---@field customBehavior? fun() Click handler for custom links
 ---@field unit? string Unit token for portrait display
 ---@field showForSeconds? number Override fade timer

@@ -111,13 +111,13 @@ function LootDisplayRowMixin:Reset()
 	self.type = nil
 	self.highlight = nil
 	self.isHistoryMode = false
-	self.isSampleRow = false -- Reset sample row flag
-	self.pendingElement = nil
+	self.isSampleRow = false -- Reset sample row flag		self.sampleTooltipText = nil	self.pendingElement = nil
 	self.updatePending = false
 	self.waiting = false
 	self.isCustomLink = false
 	self.customBehavior = nil
 	self.amountTextFn = nil
+	self.onReleased = nil
 
 	-- Reset UI elements that were part of the template
 	self.TopBorder:SetAlpha(0)
@@ -209,6 +209,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	local unit = element.unit
 	local highlight = element.highlight
 	self.isSampleRow = element.isSampleRow or false
+	self.sampleTooltipText = element.sampleTooltipText or nil
 	self.itemCount = element.itemCount
 	self.itemCountFn = element.itemCountFn
 	self.elementSecondaryText = element.secondaryText or nil
