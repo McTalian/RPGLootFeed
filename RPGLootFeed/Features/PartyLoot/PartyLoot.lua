@@ -33,176 +33,96 @@ local IsRetail = function()
 	return G_RLF:IsRetail()
 end
 
--- ── WoW API / Global abstraction adapters ────────────────────────────────────
--- Wraps UnitName, UnitClass, IsInRaid, IsInInstance, GetNumGroupMembers,
--- GetExpansionLevel, GetPlayerGuid, C_ClassColor, RAID_CLASS_COLORS, and the
--- C_Everywhere item query so tests can inject mocks without patching _G.
-local C = LibStub("C_Everywhere")
-local PartyLootAdapter = {
-	UnitName = function(unit)
-		return UnitName(unit)
-	end,
-	UnitClass = function(unit)
-		return UnitClass(unit)
-	end,
-	IssecretValue = function(msg)
-		return issecretvalue and issecretvalue(msg)
-	end,
-	GetNumGroupMembers = function()
-		return GetNumGroupMembers()
-	end,
-	IsInRaid = function()
-		return IsInRaid()
-	end,
-	IsInInstance = function()
-		return IsInInstance()
-	end,
-	GetExpansionLevel = function()
-		return GetExpansionLevel()
-	end,
-	GetPlayerGuid = function()
-		return GetPlayerGuid()
-	end,
-	GetClassColor = function(className)
-		return C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(className)
-	end,
-	GetRaidClassColor = function(className)
-		return RAID_CLASS_COLORS and RAID_CLASS_COLORS[className]
-	end,
-	GetItemInfo = function(itemLink)
-		return C.Item.GetItemInfo(itemLink)
-	end,
-}
+-- ── WoW API / Global abstraction adapter ─────────────────────────────────────
+-- The shared adapter lives in WoWAPIAdapters.lua (G_RLF.WoWAPI.PartyLoot).
+-- Captured here at module-load time so tests can override _partyLootAdapter
+-- per-test without patching _G.
 
 ---@class RLF_PartyLoot: RLF_Module, AceEvent-3.0
 local PartyLoot = FeatureBase:new(FeatureModule.PartyLoot, "AceEvent-3.0")
 
-PartyLoot._partyLootAdapter = PartyLootAdapter
+PartyLoot._partyLootAdapter = G_RLF.WoWAPI.PartyLoot
 
 local onlyEpicPartyLoot = false
 
--- Create PartyLoot.Element namespace
-PartyLoot.Element = {}
-
-function PartyLoot.Element:new(...)
-	---@class PartyLoot.Element: RLF_BaseLootElement
-	local element = LootElementBase:new()
-
-	element.type = "PartyLoot"
-	element.IsEnabled = function()
-		return PartyLoot:IsEnabled()
+--- Builds a uniform payload table for a party loot event.
+--- Filtering (quality, ignore list) must be applied by the caller before
+--- invoking this method.  Returns nil when the module is disabled.
+---@param info RLF_ItemInfo
+---@param amount number
+---@param unit string
+---@return RLF_ElementPayload?
+function PartyLoot:BuildPayload(info, amount, unit)
+	if not PartyLoot:IsEnabled() then
+		return nil
 	end
 
-	element.isLink = true
-	element.eventChannel = "RLF_NEW_PARTY_LOOT"
+	local payload = {}
 
-	---@type RLF_ItemInfo
-	local info
-	info, element.quantity, element.unit = ...
-	local itemLink = info.itemLink
+	payload.key = info.itemLink
+	payload.type = "PartyLoot"
+	payload.eventChannel = "RLF_NEW_PARTY_LOOT"
+	payload.isLink = true
+	payload.unit = unit
 
-	element.itemId = info.itemId
-	element.key = info.itemLink
-	element.icon = info.itemTexture
+	payload.icon = info.itemTexture
 	if not G_RLF.db.global.partyLoot.enableIcon or G_RLF.db.global.misc.hideAllIcons then
-		element.icon = nil
+		payload.icon = nil
 	end
 
 	if info.keystoneInfo ~= nil then
-		element.quality = ItemQualEnum.Epic
+		payload.quality = ItemQualEnum.Epic
 	end
 
-	function element:isPassingFilter(itemName, itemQuality)
-		if not G_RLF.db.global.partyLoot.itemQualityFilter[itemQuality] then
-			LogDebug(itemName .. " ignored by quality in party loot", addonName, "PartyLoot", "", nil, self.quantity)
-			return false
-		end
-
-		local ignoredIds = G_RLF.db.global.partyLoot.ignoreItemIds
-
-		if #ignoredIds == 0 then
-			LogDebug(
-				itemName .. " passed because there are no configured ignored item ids",
-				addonName,
-				PartyLoot.moduleName,
-				self.itemId,
-				nil,
-				self.quantity
-			)
-			return true
-		end
-
-		for _, id in ipairs(G_RLF.db.global.partyLoot.ignoreItemIds) do
-			if tonumber(id) == tonumber(self.itemId) then
-				LogDebug(
-					itemName .. " ignored by item id in party loot",
-					addonName,
-					PartyLoot.moduleName,
-					self.itemId,
-					nil,
-					self.quantity
-				)
-				return false
-			else
-				LogDebug(
-					itemName .. " passed because it does not match the configured ignored item id: " .. id,
-					addonName,
-					PartyLoot.moduleName,
-					self.itemId,
-					nil,
-					self.quantity
-				)
-			end
-		end
-
-		return true
-	end
-
-	element.textFn = function(existingQuantity, truncatedLink)
+	local itemLink = info.itemLink
+	payload.textFn = function(existingQuantity, truncatedLink)
 		if not truncatedLink then
 			return itemLink
 		end
 		return truncatedLink
 	end
 
-	element.amountTextFn = function(existingQuantity)
-		local effectiveQuantity = (existingQuantity or 0) + element.quantity
+	payload.quantity = amount
+	payload.amountTextFn = function(existingQuantity)
+		local effectiveQuantity = (existingQuantity or 0) + amount
 		if effectiveQuantity == 1 and not G_RLF.db.global.misc.showOneQuantity then
 			return ""
 		end
 		return "x" .. effectiveQuantity
 	end
 
-	element.secondaryText = "A former party member"
-	local name, server = PartyLoot._partyLootAdapter.UnitName(element.unit)
+	payload.secondaryText = "A former party member"
+	local name, server = PartyLoot._partyLootAdapter.UnitName(unit)
 	if name then
 		if server and G_RLF.db.global.partyLoot.hideServerNames == false then
-			element.secondaryText = "    " .. name .. "-" .. server
+			payload.secondaryText = "    " .. name .. "-" .. server
 		else
-			element.secondaryText = "    " .. name
+			payload.secondaryText = "    " .. name
 		end
 	end
 
 	local equipmentTypeText = info:GetEquipmentTypeText()
 	if equipmentTypeText then
-		element.secondaryText = element.secondaryText .. equipmentTypeText
+		payload.secondaryText = payload.secondaryText .. equipmentTypeText
 	end
 
-	element.unitClass = select(2, PartyLoot._partyLootAdapter.UnitClass(element.unit))
+	payload.secondaryTextFn = function()
+		return payload.secondaryText
+	end
+
 	if PartyLoot._partyLootAdapter.GetExpansionLevel() >= Expansion.BFA then
-		element.secondaryTextColor =
-			PartyLoot._partyLootAdapter.GetClassColor(select(2, PartyLoot._partyLootAdapter.UnitClass(element.unit)))
+		payload.secondaryTextColor =
+			PartyLoot._partyLootAdapter.GetClassColor(select(2, PartyLoot._partyLootAdapter.UnitClass(unit)))
 	else
-		element.secondaryTextColor = PartyLoot._partyLootAdapter.GetRaidClassColor(
-			select(2, PartyLoot._partyLootAdapter.UnitClass(element.unit))
-		)
+		payload.secondaryTextColor =
+			PartyLoot._partyLootAdapter.GetRaidClassColor(select(2, PartyLoot._partyLootAdapter.UnitClass(unit)))
 	end
 
-	element.secondaryTextFn = function()
-		return element.secondaryText
+	payload.IsEnabled = function()
+		return PartyLoot:IsEnabled()
 	end
 
-	return element
+	return payload
 end
 
 function PartyLoot:OnInitialize()
@@ -278,13 +198,34 @@ function PartyLoot:OnPartyReadyToShow(info, amount, unit)
 	if onlyEpicPartyLoot and info.itemQuality < ItemQualEnum.Epic then
 		return
 	end
-	if G_RLF.db.global.partyLoot.itemQualityFilter[info.itemQuality] == false then
+	-- nil quality filter entry = quality not enabled (treat same as false)
+	if not G_RLF.db.global.partyLoot.itemQualityFilter[info.itemQuality] then
 		return
+	end
+	-- Filter by ignored item IDs
+	local ignoredIds = G_RLF.db.global.partyLoot.ignoreItemIds
+	if #ignoredIds > 0 then
+		for _, id in ipairs(ignoredIds) do
+			if tonumber(id) == tonumber(info.itemId) then
+				LogDebug(
+					info.itemName .. " ignored by item id in party loot",
+					addonName,
+					PartyLoot.moduleName,
+					info.itemId,
+					nil,
+					amount
+				)
+				return
+			end
+		end
 	end
 	self.pendingPartyRequests[info.itemId] = nil
 
-	-- Create element using PartyLoot's own Element class
-	local e = PartyLoot.Element:new(info, amount, unit)
+	local payload = PartyLoot:BuildPayload(info, amount, unit)
+	if not payload then
+		return
+	end
+	local e = LootElementBase:fromPayload(payload)
 	e:Show(info.itemName, info.itemQuality)
 end
 

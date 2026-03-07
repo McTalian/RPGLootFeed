@@ -106,17 +106,17 @@ Modules are migrated one at a time. Each migration includes:
 5. Update SmokeTest element constructor assertions
 6. Verify busted tests + in-game smoke/integration tests pass
 
-| Module         | Status         | Notes                                                                                      |
-| -------------- | -------------- | ------------------------------------------------------------------------------------------ |
-| **Reputation** | ✅ Complete    | Proof-of-concept; dual event path (Retail/Classic)                                         |
-| Experience     | ✅ Complete    | Simple scalar; adapter moved to WoWAPI.Experience                                          |
-| Money          | ✅ Complete    | Simple scalar; adapter to WoWAPI.Money; `PlaySoundIfEnabled` promoted to module method     |
-| ItemLoot       | ⏳ Not Started | Complex; ItemInfo object, stat deltas, async                                               |
-| Currency       | ✅ Complete    | 3-tuple API data; hidden currency filtering; `itemCountFn` replaces type-switch            |
-| PartyLoot      | ⏳ Not Started | Routes to separate frame; unit-aware                                                       |
-| Professions    | ✅ Complete    | Chat-parsed; `itemCountFn` replaces Professions type-switch; adapter to WoWAPI.Professions |
-| Transmog       | ⏳ Not Started | Async item loading; custom link behavior                                                   |
-| TravelPoints   | ✅ Complete    | Simple; two inline adapters consolidated to WoWAPI.TravelPoints                            |
+| Module         | Status         | Notes                                                                                                           |
+| -------------- | -------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Reputation** | ✅ Complete    | Proof-of-concept; dual event path (Retail/Classic)                                                              |
+| Experience     | ✅ Complete    | Simple scalar; adapter moved to WoWAPI.Experience                                                               |
+| Money          | ✅ Complete    | Simple scalar; adapter to WoWAPI.Money; `PlaySoundIfEnabled` promoted to module method                          |
+| ItemLoot       | ⏳ Not Started | Complex; ItemInfo object, stat deltas, async                                                                    |
+| Currency       | ✅ Complete    | 3-tuple API data; hidden currency filtering; `itemCountFn` replaces type-switch                                 |
+| PartyLoot      | ✅ Complete    | Unit-aware; routes to separate frame; filter logic consolidated into service layer; adapter to WoWAPI.PartyLoot |
+| Professions    | ✅ Complete    | Chat-parsed; `itemCountFn` replaces Professions type-switch; adapter to WoWAPI.Professions                      |
+| Transmog       | ⏳ Not Started | Async item loading; custom link behavior                                                                        |
+| TravelPoints   | ✅ Complete    | Simple; two inline adapters consolidated to WoWAPI.TravelPoints                                                 |
 
 ## Key Decisions
 
@@ -189,6 +189,14 @@ Modules are migrated one at a time. Each migration includes:
 - [Professions_spec.lua](../../RPGLootFeed_spec/Features/Professions_spec.lua) — Added `WoWAPI = { Professions = {} }` ns mock; `showSkillChange`/`skillTextWrapChar` added to test db; `Element` describe → `BuildPayload`; all `Element:new` calls → `BuildPayload`; two new `itemCountFn` tests added (enabled/disabled)
 - [SmokeTest.lua](../../RPGLootFeed/GameTesting/SmokeTest.lua) — Professions smoke test uses `BuildPayload` → `fromPayload`; added `itemCountFn` assertion
 - [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — Professions integration test uses `BuildPayload` → `fromPayload`
+
+### Modified (PartyLoot Migration)
+
+- [PartyLoot.lua](../../RPGLootFeed/Features/PartyLoot/PartyLoot.lua) — Removed `PartyLoot.Element:new()`, added `PartyLoot:BuildPayload(info, amount, unit)`; inline `PartyLootAdapter` + `LibStub("C_Everywhere")` removed; replaced with `G_RLF.WoWAPI.PartyLoot`; `OnPartyReadyToShow` now consolidates all filter logic (quality filter nil = blocked, same as false; ignoreItemIds check) before calling `BuildPayload` → `fromPayload` → `Show`; `unitClass` (vestigial) and `itemId` (moved to service-layer filter) dropped from element
+- [WoWAPIAdapters.lua](../../RPGLootFeed/utils/WoWAPIAdapters.lua) — Added `G_RLF.WoWAPI.PartyLoot` (UnitName, UnitClass, IssecretValue, GetNumGroupMembers, IsInRaid, IsInInstance, GetExpansionLevel, GetPlayerGuid, GetClassColor, GetRaidClassColor, GetItemInfo via C_Everywhere)
+- [LootElementBase.lua](../../RPGLootFeed/Features/_Internals/LootElementBase.lua) — Removed `PartyLoot.Element` from `RLF_LootElement` type alias
+- [PartyLoot_spec.lua](../../RPGLootFeed_spec/Features/PartyLoot_spec.lua) — Added `WoWAPI = { PartyLoot = {} }` ns mock; removed `LibStub` require (no longer needed); filter tests use `spy.on(PartyLoot, "BuildPayload")`; CHAT_MSG_LOOT/GET_ITEM_INFO_RECEIVED tests check `sendMessageSpy` instead of stub on `Element.new`; `Element` describe → `BuildPayload`; `unitClass` test removed; all `Element:new` calls → `BuildPayload`
+- [IntegrationTest.lua](../../RPGLootFeed/GameTesting/IntegrationTest.lua) — PartyLoot integration test uses `BuildPayload` → `fromPayload` → `Show`
 
 ## Future Considerations
 

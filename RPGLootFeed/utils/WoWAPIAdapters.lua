@@ -195,4 +195,45 @@ G_RLF.WoWAPI.Professions = {
 	end,
 }
 
+-- ── PartyLoot API Adapter ─────────────────────────────────────────────────────
+-- Wraps UnitName, UnitClass, IsInRaid, IsInInstance, GetNumGroupMembers,
+-- GetExpansionLevel, GetPlayerGuid, C_ClassColor, RAID_CLASS_COLORS,
+-- issecretvalue, and the C_Everywhere item query for the PartyLoot feature module.
+---@class RLF_WoWAPI_PartyLoot
+G_RLF.WoWAPI.PartyLoot = {
+	UnitName = function(unit)
+		return UnitName(unit)
+	end,
+	UnitClass = function(unit)
+		return UnitClass(unit)
+	end,
+	IssecretValue = function(msg)
+		return issecretvalue and issecretvalue(msg)
+	end,
+	GetNumGroupMembers = function()
+		return GetNumGroupMembers()
+	end,
+	IsInRaid = function()
+		return IsInRaid()
+	end,
+	IsInInstance = function()
+		return IsInInstance()
+	end,
+	GetExpansionLevel = function()
+		return GetExpansionLevel()
+	end,
+	GetPlayerGuid = function()
+		return GetPlayerGuid()
+	end,
+	GetClassColor = function(className)
+		return C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(className)
+	end,
+	GetRaidClassColor = function(className)
+		return RAID_CLASS_COLORS and RAID_CLASS_COLORS[className]
+	end,
+	GetItemInfo = function(itemLink)
+		return C.Item.GetItemInfo(itemLink)
+	end,
+}
+
 return G_RLF.WoWAPI

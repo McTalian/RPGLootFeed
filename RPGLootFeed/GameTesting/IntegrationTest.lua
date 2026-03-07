@@ -77,11 +77,18 @@ local function runItemLootIntegrationTest()
 	return rowsShown
 end
 
+--- Exercises the PartyLoot BuildPayload → fromPayload → Show pipeline directly.
 local function runPartyLootIntegrationTest()
 	local module = G_RLF.RLF:GetModule(G_RLF.FeatureModule.PartyLoot) --[[@as RLF_PartyLoot]]
+	local LootElementBase = G_RLF.LootElementBase
 	local info = TestMode.testItems[2]
 	local amountLooted = 1
-	local e = module.Element:new(info, amountLooted, "player")
+	local payload = module:BuildPayload(info, amountLooted, "player")
+	if not payload then
+		G_RLF:Print("PartyLoot payload not created, something went wrong")
+		return 1
+	end
+	local e = LootElementBase:fromPayload(payload)
 	runner:runTestSafely(e.Show, "LootDisplay: Party Item", e, info.itemName, info.itemQuality)
 	return 1
 end
