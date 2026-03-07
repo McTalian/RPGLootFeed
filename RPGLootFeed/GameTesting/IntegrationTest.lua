@@ -122,10 +122,10 @@ local function runReputationPayloadIntegrationTest()
 		factionId = 99999,
 		name = TestMode.testFactions[1] or "Test Faction",
 		delta = 668,
-		icon = 132882,
+		icon = G_RLF.DefaultIcons.REPUTATION,
 		standing = 21000,
 		rank = "Honored",
-		quality = nil,
+		quality = G_RLF.ItemQualEnum.Rare,
 		contextInfo = "Integration test context",
 	}
 
