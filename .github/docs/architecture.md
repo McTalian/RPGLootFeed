@@ -56,7 +56,7 @@ RPGLootFeed/
 │   └── _Internals/          # Internal feature utilities
 │       ├── FeatureBase.lua       # AceModule factory (wraps G_RLF.RLF:NewModule)
 │       ├── LootElementBase.lua   # Mixin factory for loot row data
-│       ├── LootDisplayProperties.lua  # ⚠️ DEPRECATED — use LootElementBase:new() instead
+│       ├── LootDisplayProperties.lua  # ⚠️ DEPRECATED — use LootElementBase:fromPayload() instead
 │       ├── TextTemplateEngine.lua
 │       ├── RLF_Notifications.lua
 │       └── RLF_Communications.lua
@@ -163,13 +163,13 @@ RPGLootFeed/
 
 1. Captures all `G_RLF` dependencies as locals at the top ("External dependency locals" block)
 2. Calls `FeatureBase:new(name, mixins...)` instead of `G_RLF.RLF:NewModule()` directly
-3. Defines WoW API / `_G` string access in local adapter tables (`_perksActivitiesAdapter`, `_globalStringsAdapter`, etc.) exposed on the module for test injection
-4. Uses `LootElementBase:new()` inside `Module.Element:new()` to create row data
+3. Defines WoW API adapter in `utils/WoWAPIAdapters.lua` under `G_RLF.WoWAPI.*`, exposed on the module as `_someAdapter` for test injection
+4. Implements `Module:BuildPayload(...)` which returns an `RLF_ElementPayload`; call sites do `LootElementBase:fromPayload(self:BuildPayload(...)):Show()`
 5. Calls external API/logging functions through the captured locals, NOT through `G_RLF.*` directly
 
-**Layered architecture** (in progress — Reputation is the first migrated module; see `.github/docs/module-rearchitecture.md` for the full plan):
+**Layered architecture** (migration complete — all feature modules follow this pattern):
 
-Migrated modules follow a four-layer pipeline:
+All modules follow a four-layer pipeline:
 
 ```
 G_RLF.WoWAPI.* (shared adapter) → Module service layer → RLF_ElementPayload → LootElementBase:fromPayload() → element:Show()
@@ -177,9 +177,8 @@ G_RLF.WoWAPI.* (shared adapter) → Module service layer → RLF_ElementPayload 
 
 - **Shared adapters** live in `utils/WoWAPIAdapters.lua` under `G_RLF.WoWAPI.*`. They are pure wrappers around WoW C\_ APIs with no logic — the central mock boundary for tests.
 - **Service layer** (e.g., `Rep:BuildPayload(unifiedFactionData)`) transforms domain data into an `RLF_ElementPayload` table — the uniform payload contract.
-- **`LootElementBase:fromPayload(payload)`** is a generic element constructor that maps payload fields to element fields. No per-module `Element:new()` needed.
-- **`itemCountFn`** on the payload replaces the legacy type-switch in `UpdateItemCount()`. Each module provides its own closure that returns `(value, options)` for count display.
-- Non-migrated modules still use the `Module.Element:new()` pattern and the legacy type-switch in `UpdateItemCount()`. Both paths coexist.
+- **`LootElementBase:fromPayload(payload)`** is the generic element constructor. No per-module `Element:new()` needed.
+- **`itemCountFn`** on the payload drives `ItemCountText` display. Each module provides its own closure that returns `(value, options)` for count display.
 
 **Migration status**: All feature modules have been migrated to this pattern, including `ItemLoot/ItemLoot.lua` (migrated Feb 2026). The Migration is complete — `G_RLF.RLF:NewModule()` is no longer used in any feature module.
 
@@ -221,7 +220,7 @@ G_RLF.WoWAPI.* (shared adapter) → Module service layer → RLF_ElementPayload 
 
 `PrimaryText` and `ItemCountText` are re-parented from the XML template; `AmountText` is created programmatically inside the layout frame (same pattern as `PrimaryLineLayout` itself). `AmountText` is driven by the optional `element.amountTextFn(existingQuantity)` field — features that produce a quantity suffix (`ItemLoot`, `PartyLoot`, `Currency`) set this; all others leave it `nil` and `AmountText` stays hidden.
 
-`ItemCountText` display is driven by `element.itemCountFn` (migrated modules) or the legacy `UpdateItemCount()` type-switch (non-migrated modules). `itemCountFn` is a closure on the element/payload that returns `(value, options)` where `options = { color, wrapChar, showSign }`. The row calls it inside `RunNextFrame` and passes the result to `ShowItemCountText()`.
+`ItemCountText` display is driven by `element.itemCountFn` — a closure on the payload that returns `(value, options)` where `options = { color, wrapChar, showSign }`. The row calls it inside `RunNextFrame` and passes the result to `ShowItemCountText()`.
 
 The unified layout entry point `LayoutPrimaryLine()` is called from `ShowText()`, `ShowAmountText()`, and `ShowItemCountText()`:
 
@@ -357,14 +356,13 @@ local GlobalStringsAdapter = {
 
 -- 3. Module creation through FeatureBase (not G_RLF.RLF:NewModule directly)
 local MyFeature = FeatureBase:new(FeatureModule.MyFeature, "AceEvent-3.0")
-MyFeature._someApiAdapter     = SomeApiAdapter
-MyFeature._globalStringsAdapter = GlobalStringsAdapter
+MyFeature._someApiAdapter = G_RLF.WoWAPI.MyFeature
 
--- 4. Element construction through LootElementBase
-function MyFeature.Element:new(...)
-    local element = LootElementBase:new()
-    -- override fields as needed
-    return element
+-- 4. Build a payload and show it
+function MyFeature:BuildPayload(...)
+    ---@type RLF_ElementPayload
+    local payload = { key = ..., type = FeatureModule.MyFeature, ... }
+    return payload
 end
 ```
 
@@ -375,7 +373,7 @@ Tests inject mocks by:
 
 ### WoW API Abstraction Adapter Pattern
 
-All direct WoW API calls (`C_*`, `_G["STRING_KEY"]`) are wrapped in local adapter tables at the top of each feature file. These are the per-feature precursors to a planned top-level `Abstractions/` folder. When that consolidation happens, the local table will simply be replaced with a reference to the shared module from that folder.
+All direct WoW API calls (`C_*`, `_G["STRING_KEY"]`) are consolidated in `utils/WoWAPIAdapters.lua` under the `G_RLF.WoWAPI.*` namespace. Each feature module captures its adapter at module-load time (e.g. `ItemLoot._itemLootAdapter = G_RLF.WoWAPI.ItemLoot`) — this is the per-test injection seam. Tests override the adapter field after `loadfile` to mock API calls without patching `_G`.
 
 ## Data Flow
 

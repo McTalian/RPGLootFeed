@@ -37,7 +37,7 @@ describe("TravelPoints module", function()
 				return "|cFFFFFFFF"
 			end,
 			SendMessage = sendMessageSpy,
-			-- Runtime lookup by LootElementBase:new() and TravelPoints lifecycle methods.
+			-- Runtime lookup by LootElementBase:fromPayload() and TravelPoints lifecycle methods.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },

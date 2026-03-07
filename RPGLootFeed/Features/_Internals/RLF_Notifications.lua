@@ -7,32 +7,32 @@ local G_RLF = ns
 ---@class RLF_Notifications: RLF_Module, AceEvent-3.0
 local Notifications = G_RLF.RLF:NewModule(G_RLF.SupportModule.Notifications, "AceEvent-3.0")
 
-Notifications.Element = {}
-
-function Notifications.Element:new(...)
-	---@class Notifications.Element: RLF_BaseLootElement
-	local element = G_RLF.LootElementBase:new()
-
-	element.type = "Notifications"
-	element.IsEnabled = function()
-		return Notifications:IsEnabled()
-	end
-
-	local key, text, secondaryText, index = ...
-
-	element.key = key
-	element.quantity = 0
-	element.textFn = function()
-		return text
-	end
-	element.secondaryTextFn = function()
-		return secondaryText
-	end
-	element.icon = "Interface/Addons/RPGLootFeed/Icons/logo.blp"
-	element.quality = G_RLF.ItemQualEnum.Legendary
-	element.highlight = true
-
-	return element
+--- Build a uniform payload for a notification row.
+---@param key string Unique row identity
+---@param text string Primary line text
+---@param secondaryText string Secondary line text
+---@param index number Notification index (for ack)
+---@return RLF_ElementPayload
+function Notifications:BuildPayload(key, text, secondaryText, index)
+	---@type RLF_ElementPayload
+	local payload = {
+		type = "Notifications",
+		key = key,
+		quantity = 0,
+		textFn = function()
+			return text
+		end,
+		secondaryTextFn = function()
+			return secondaryText
+		end,
+		icon = "Interface/Addons/RPGLootFeed/Icons/logo.blp",
+		quality = G_RLF.ItemQualEnum.Legendary,
+		highlight = true,
+		IsEnabled = function()
+			return Notifications:IsEnabled()
+		end,
+	}
+	return payload
 end
 
 function Notifications:OnInitialize()
@@ -51,13 +51,8 @@ end
 function Notifications:ViewNotification(index)
 	G_RLF:LogDebug("ViewNotification " .. index)
 	if G_RLF.db.global.notifications and G_RLF.db.global.notifications[index] then
-		local e = self.Element:new(
-			G_RLF.db.global.notifications[index].key,
-			G_RLF.db.global.notifications[index].text,
-			G_RLF.db.global.notifications[index].secondaryText,
-			index
-		)
-		e:Show()
+		local n = G_RLF.db.global.notifications[index]
+		G_RLF.LootElementBase:fromPayload(self:BuildPayload(n.key, n.text, n.secondaryText, index)):Show()
 		G_RLF.Notifications:AckNotification(index)
 	end
 end

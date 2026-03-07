@@ -44,7 +44,7 @@ describe("Professions Module", function()
 				return nil, nil
 			end,
 			SendMessage = sendMessageSpy,
-			-- Runtime lookups by LootElementBase:new() and lifecycle methods.
+			-- Runtime lookups by LootElementBase:fromPayload() and lifecycle methods.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },

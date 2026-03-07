@@ -176,7 +176,7 @@ describe("MyFeature", function()
             LogWarn       = logWarnSpy,
             IsRetail      = function() return true end,
             SendMessage   = sendMessageSpy,
-            -- Runtime lookup by LootElementBase:new() and lifecycle methods.
+            -- Runtime lookup by LootElementBase:fromPayload() and lifecycle methods.
             db = {
                 global = {
                     animations = { exit = { fadeOutDelay = 3 } },
@@ -224,7 +224,7 @@ end)
 - Inline `ns.FeatureBase` stub so AceAddon is never invoked
 - Inject fresh adapter tables _after_ `loadfile` (they're module-level fields, not captured locals)
 - For modules migrated to `fromPayload()` architecture: include `WoWAPI = { ModuleName = {} }` in `ns` so the shared adapter reference resolves at load time. Tests still override `Module._someAdapter` (or equivalent) directly in `before_each`.
-- Spy on `Module:BuildPayload` instead of `Module.Element:new` for migrated modules (Reputation, Experience, Money, TravelPoints, Currency, Professions)
+- Spy on `Module:BuildPayload` instead of `Module.Element:new` — all feature modules use the `BuildPayload` → `fromPayload` pipeline
 - `G_RLF.db` is intentionally excluded from dependency locals in feature files — always runtime
 - **Always capture the module from the `loadfile` return value** — see [Module Return Convention](#module-return-convention) below
 

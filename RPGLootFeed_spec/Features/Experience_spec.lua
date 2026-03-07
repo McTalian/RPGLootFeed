@@ -39,7 +39,7 @@ describe("Experience module", function()
 			-- L used by createExperienceContextProvider for the {xpLabel} template key.
 			L = { XP = "XP" },
 			SendMessage = sendMessageSpy,
-			-- Runtime lookups by LootElementBase:new() and lifecycle methods.
+			-- Runtime lookups by LootElementBase:fromPayload() and lifecycle methods.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },

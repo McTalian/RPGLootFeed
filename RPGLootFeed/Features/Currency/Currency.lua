@@ -54,7 +54,6 @@ end
 local ETHEREAL_STRANDS_CURRENCY_ID = 3278
 
 --- Builds a uniform payload for LootElementBase:fromPayload().
---- Replaces Currency.Element:new; event handlers call this then fromPayload → Show().
 --- @param currencyLink string
 --- @param currencyInfo CurrencyInfo
 --- @param basicInfo CurrencyDisplayInfo

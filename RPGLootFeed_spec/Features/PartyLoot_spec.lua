@@ -18,7 +18,7 @@ describe("PartyLoot Module", function()
 
 		-- Build minimal ns from scratch – no nsMocks framework needed.
 		-- Only fields actually referenced by PartyLoot.lua and LootElementBase.lua
-		-- are included.  G_RLF.db is present because LootElementBase:new() reads
+		-- are included.  G_RLF.db is present because LootElementBase:fromPayload() reads
 		-- db.global.animations at construction time and feature code reads partyLoot
 		-- config at runtime.
 		ns = {
@@ -42,7 +42,7 @@ describe("PartyLoot Module", function()
 					return nil
 				end,
 			},
-			-- Runtime lookup by LootElementBase:new() and lifecycle code.
+			-- Runtime lookup by LootElementBase:fromPayload() and lifecycle code.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },

@@ -36,7 +36,7 @@ describe("Transmog module", function()
 				return true
 			end,
 			SendMessage = sendMessageSpy,
-			-- Runtime lookup by LootElementBase:new() and Transmog lifecycle methods.
+			-- Runtime lookup by LootElementBase:fromPayload() and Transmog lifecycle methods.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 3 } },

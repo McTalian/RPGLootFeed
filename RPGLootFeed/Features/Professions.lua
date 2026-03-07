@@ -45,7 +45,6 @@ local Professions = FeatureBase:new(FeatureModule.Profession, "AceEvent-3.0")
 Professions._professionsAdapter = G_RLF.WoWAPI.Professions
 
 --- Builds a uniform payload for LootElementBase:fromPayload().
---- Replaces Professions.Element:new; event handlers call this then fromPayload → Show().
 ---@param key string Unique key for this profession (typically skillName)
 ---@param name string Profession name to display
 ---@param icon number|string Profession icon texture ID

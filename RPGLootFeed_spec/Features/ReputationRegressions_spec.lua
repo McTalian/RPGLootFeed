@@ -47,7 +47,7 @@ describe("Reputation Regressions", function()
 			SendMessage = sendMessageSpy,
 			-- Shared adapter namespace; tests override Rep._repAdapter directly.
 			WoWAPI = { Reputation = {} },
-			-- Runtime lookups by LootElementBase:new() and feature code.
+			-- Runtime lookups by LootElementBase:fromPayload() and feature code.
 			db = {
 				global = {
 					animations = { exit = { fadeOutDelay = 5 } },
