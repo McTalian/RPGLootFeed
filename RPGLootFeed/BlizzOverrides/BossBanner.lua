@@ -23,6 +23,8 @@ function BossBannerOverride:BossBannerHook()
 		self:RawHookScript(BossBanner, "OnEvent", "InterceptBossBannerAlert")
 		self:UnregisterEvent("PLAYER_ENTERING_WORLD")
 	else
+		-- "Use" the locale key so it doesn't get flagged as unused. We use it dynamically in the retryHook
+		local _ = G_RLF.L["BossBannerAlertUnavailable"]
 		bossBannerAttempts = G_RLF.retryHook(self, bossBannerAttempts, "BossBannerHook", "BossBannerAlertUnavailable")
 	end
 end

@@ -21,6 +21,8 @@ function LootToastOverride:LootToastHook()
 		self:RawHook(LootAlertSystem, "AddAlert", "InterceptAddAlert", true)
 		self:UnregisterEvent("PLAYER_ENTERING_WORLD")
 	else
+		-- "Use" the locale key so it doesn't get flagged as unused. We use it dynamically in the retryHook
+		local _ = G_RLF.L["AddLootAlertUnavailable"]
 		lootAlertAttempts = G_RLF.retryHook(self, lootAlertAttempts, "LootToastHook", "AddLootAlertUnavailable")
 	end
 end

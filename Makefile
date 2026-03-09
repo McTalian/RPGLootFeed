@@ -27,6 +27,8 @@ help:
 
 # Variables
 ROCKSBIN := $(HOME)/.luarocks/bin
+WBT_REF ?= v1-beta
+WBT_DIR := ../wow-build-tools
 
 # Target for running the hardcoded string checker
 hardcode_string_check:
@@ -36,11 +38,25 @@ hardcode_string_check:
 missing_translation_check:
 	@uv run .scripts/missing_translation_check.py
 
-organize_translations:
-	@uv run .scripts/organize_translations.py
+wbt_setup:
+	@if [ ! -d "$(WBT_DIR)/scripts/i18n" ]; then \
+		echo "Cloning wow-build-tools at ref $(WBT_REF)..."; \
+		git clone --depth 1 -b "$(WBT_REF)" \
+			https://github.com/McTalian-WoW-Addons/wow-build-tools "$(WBT_DIR)"; \
+	else \
+		echo "$(WBT_DIR) already set up."; \
+	fi
 
-missing_locale_key_check:
-	@uv run .scripts/check_for_missing_locale_keys.py
+i18n_check: wbt_setup
+	@uv run --project $(WBT_DIR)/scripts/i18n \
+		$(WBT_DIR)/scripts/i18n/check_for_missing_locale_keys.py \
+		--addon-dir RPGLootFeed \
+		--locale-dir RPGLootFeed/locale
+
+i18n_fmt: wbt_setup
+	@uv run --project $(WBT_DIR)/scripts/i18n \
+		$(WBT_DIR)/scripts/i18n/organize_translations.py \
+		--locale-dir RPGLootFeed/locale
 
 generate_hidden_currencies:
 	@uv run .scripts/get_wowhead_hidden_currencies.py RPGLootFeed/Features/Currency/HiddenCurrencies.lua

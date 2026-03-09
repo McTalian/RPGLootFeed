@@ -21,6 +21,8 @@ function MoneyAlertOverride:MoneyAlertHook()
 		self:RawHook(MoneyWonAlertSystem, "AddAlert", "InterceptMoneyAddAlert", true)
 		self:UnregisterEvent("PLAYER_ENTERING_WORLD")
 	else
+		-- "Use" the locale key so it doesn't get flagged as unused. We use it dynamically in the retryHook
+		local _ = G_RLF.L["AddMoneyAlertUnavailable"]
 		moneyAlertAttempts = G_RLF.retryHook(self, moneyAlertAttempts, "MoneyAlertHook", "AddMoneyAlertUnavailable")
 	end
 end
