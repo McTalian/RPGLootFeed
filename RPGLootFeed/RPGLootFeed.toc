@@ -28,7 +28,7 @@ embeds.xml
 #@end-no-lib-strip@
 
 Core.lua
-locale/locales.xml
+locale/index.xml
 utils/utils.xml
 config/config.xml
 BlizzOverrides/overrides.xml
