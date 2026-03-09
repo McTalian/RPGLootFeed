@@ -1,6 +1,6 @@
-.PHONY: all_checks hardcode_string_check toc_check toc_update missing_translation_check organize_translations missing_locale_key_check test test-ci test-file test-pattern test-only local check_untracked_files help
+.PHONY: all_checks hardcode_string_check toc_check toc_update missing_translation_check wbt_setup i18n_check i18n_fmt test test-ci test-file test-pattern test-only local check_untracked_files help
 
-all_checks: hardcode_string_check missing_translation_check missing_locale_key_check
+all_checks: hardcode_string_check missing_translation_check i18n_check
 
 # Show available make targets
 help:
@@ -16,8 +16,8 @@ help:
 	@echo "  all_checks          - Run all code quality checks"
 	@echo "  hardcode_string_check - Check for hardcoded strings"
 	@echo "  missing_translation_check - Check for missing translations"
-	@echo "  organize_translations - Organize translations"
-	@echo "  missing_locale_key_check - Check for missing locale keys"
+	@echo "  i18n_fmt             - Organize/format translations"
+	@echo "  i18n_check           - Check for missing locale keys"
 	@echo "  generate_hidden_currencies - Generate hidden currencies list"
 	@echo "  lua_deps            - Install Lua dependencies"
 	@echo "  check_untracked_files - Check for untracked git files"
@@ -31,12 +31,15 @@ WBT_REF ?= v1-beta
 WBT_DIR := ../wow-build-tools
 
 # Target for running the hardcoded string checker
-hardcode_string_check:
-	@uv run .scripts/hardcode_string_check.py
+hardcode_string_check: wbt_setup
+	@uv run --no-project $(WBT_DIR)/scripts/i18n/hardcode_string_check.py \
+	    --ignore-files IntegrationTest.lua SmokeTest.lua \
+		--addon-dir RPGLootFeed
 
 # Target for running the missing translation checker
-missing_translation_check:
-	@uv run .scripts/missing_translation_check.py
+missing_translation_check: wbt_setup
+	@uv run --with defusedxml --no-project $(WBT_DIR)/scripts/i18n/missing_translation_check.py \
+		--locale-dir RPGLootFeed/locale
 
 wbt_setup:
 	@if [ ! -d "$(WBT_DIR)/scripts/i18n" ]; then \
