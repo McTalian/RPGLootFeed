@@ -15,6 +15,15 @@ runtimes:
     - go@1.21.0
     - node@24.10.0
     - python@3.10.8
+tools:
+  enabled:
+    - uv@0.10.9
+  definitions:
+    - name: uv
+      runtime: python
+      package: uv
+      shims: [uv]
+      known_good_version: 0.10.9
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   ignore:
@@ -53,11 +62,11 @@ lint:
   definitions:
     - name: no-invalid-prints
       files: [lua]
-      runtime: python
+      tools: [uv]
       commands:
         - name: lint
           output: sarif
-          run: python3 ${workspace}/.scripts/check_for_invalid_prints.py ${target}
+          run: uv run --no-project .scripts/check_for_invalid_prints.py ${target}
           success_codes: [0, 1]
 actions:
   enabled:
@@ -71,4 +80,4 @@ actions:
       triggers:
         - git_hooks: [pre-commit]
 
-      run: uv run .scripts/organize_translations.py
+      run: uv run --project ../wow-build-tools/scripts/i18n ../wow-build-tools/scripts/i18n/organize_translations.py --locale-dir RPGLootFeed/locale
