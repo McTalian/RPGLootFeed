@@ -40,6 +40,8 @@ lint:
     - linters: [no-invalid-prints]
       paths:
         - "*_spec/**"
+        - .scripts/**
+        - RPGLootFeed/GameTesting/GameTestRunner.lua
   enabled:
     - oxipng@9.1.4
     - taplo@0.9.3

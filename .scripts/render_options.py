@@ -338,7 +338,7 @@ class Renderer:
         for ckey, cnode in visible:
             self._render_node(ckey, cnode)
         if hidden:
-            self._w(f'<details class="hidden-opts-section">')
+            self._w('<details class="hidden-opts-section">')
             self._w(
                 f'  <summary class="hidden-opts-summary">Hidden by default ({len(hidden)})</summary>'
             )
@@ -393,7 +393,7 @@ class Renderer:
         for ckey, cnode in visible:
             self._render_node(ckey, cnode, depth + 1)
         if hidden:
-            self._w(f'  <details class="hidden-opts-section">')
+            self._w('  <details class="hidden-opts-section">')
             self._w(
                 f'    <summary class="hidden-opts-summary">Hidden by default ({len(hidden)})</summary>'
             )
@@ -468,9 +468,9 @@ class Renderer:
 
         self._w(f'<div class="{" ".join(classes)}{w_cls}" data-tip="{tip}">')
         self._w(f'  <span class="opt-name">{name}</span>')
-        self._w(f'  <div class="multiselect-checks">')
+        self._w('  <div class="multiselect-checks">')
         if values:
-            for k, label in sorted(values.items()):
+            for _k, label in sorted(values.items()):
                 self._w(
                     f'    <label><input type="checkbox" disabled> {html.escape(label)}</label>'
                 )
