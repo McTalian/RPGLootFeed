@@ -13,19 +13,22 @@ RPGLootFeed/
 │   ├── MoneyAlerts.lua      # Money alert overrides
 │   └── retryHook.lua        # Hook retry utility
 ├── config/                   # Configuration & options UI
-│   ├── ConfigOptions.lua    # Base options structure + level1OptionsOrder
-│   ├── General.lua          # General tab (quick actions, misc, minimap, tooltips, loot history)
-│   ├── About.lua            # About panel
-│   ├── Animations.lua       # Animation settings
-│   ├── BlizzardUI.lua       # Blizzard UI override settings
-│   ├── Positioning.lua      # Frame positioning options
-│   ├── Sizing.lua           # Frame sizing options
-│   ├── Styling.lua          # Visual styling options
-│   ├── Features/            # Feature-specific configs
-│   │   ├── Features.lua     # Loot Feeds tab skeleton (options.args.lootFeeds); sub-configs inject themselves
+│   ├── ConfigOptions.lua    # Base options structure, root options group, AceDB defaults (frames["**"] wildcard)
+│   ├── FramesConfig.lua     # Per-frame config groups, frame management (new/rename/delete)
+│   ├── DbAccessors.lua      # DbAccessor module — per-frame DB read helpers
+│   ├── DbMigrations.lua     # Migration runner (dispatches to versioned scripts)
+│   ├── General.lua          # Global tab: quick actions, misc, minimap, tooltips, loot history
+│   ├── About.lua            # About panel (under Global tab)
+│   ├── Animations.lua       # Per-frame animation settings builder
+│   ├── BlizzardUI.lua       # Blizzard UI override settings (under Global tab)
+│   ├── Positioning.lua      # Per-frame positioning options builder
+│   ├── Sizing.lua           # Per-frame sizing options builder
+│   ├── Styling.lua          # Per-frame visual styling options builder
+│   ├── Features/            # Feature-specific configs (per-frame builders)
+│   │   ├── Features.lua     # Feature defaults and ordering constants
 │   │   ├── CurrencyConfig.lua
 │   │   ├── ExperienceConfig.lua
-│   │   ├── ItemLootConfig.lua
+│   │   ├── ItemConfig.lua
 │   │   ├── MoneyConfig.lua
 │   │   ├── PartyLootConfig.lua
 │   │   ├── ProfessionConfig.lua
@@ -86,11 +89,20 @@ RPGLootFeed/
 │           ├── RowUnitPortrait.lua     # RLF_RowUnitPortraitMixin — party unit portrait
 │           └── RowUnitPortrait.xml     # RLF_RowUnitPortraitTemplate (virtual; owns UnitPortrait, RLFUser)
 ├── utils/                    # Utility modules
+│   ├── AddonMethods.lua     # Addon-wide utility methods on G_RLF
+│   ├── AlphaHelpers.lua     # Alpha-build helpers (debug/testing guards)
+│   ├── DoubleLinkedList.lua # Double-linked list data structure
 │   ├── Enums.lua            # Enumerations and constants
+│   ├── GameVersionHelpers.lua # Retail/Classic version detection
+│   ├── HistoryService.lua   # Loot history storage and retrieval
+│   ├── ItemInfo.lua         # Item info caching and lookup
 │   ├── Logger.lua           # Logging utilities
+│   ├── Maps.lua             # Map/zone utility helpers
 │   ├── Notifications.lua    # User notifications
 │   ├── Queue.lua            # Queue data structure
-│   └── Utils.lua            # General utilities
+│   ├── ReputationHelpers.lua # Reputation data helpers
+│   ├── WoWAPIAdapters.lua   # Shared WoW API adapter namespace (G_RLF.WoWAPI.*)
+│   └── utils.xml            # XML include chain for utilities
 ├── GameTesting/             # In-game testing support
 │   ├── GameTestRunner.lua   # Pure-Lua test runner (busted-tested)
 │   ├── TestMode.lua         # Test data initialization & readiness
@@ -129,20 +141,42 @@ RPGLootFeed/
 **Contains**:
 
 - AceConfig option tables
-- Database schema definitions (defaults)
-- User-facing configuration UI panels
+- Database schema definitions (AceDB defaults with `"**"` wildcard for frames)
+- Per-frame configuration builders for appearance and feature settings
+- Frame management UI (create, rename, delete)
+- Database accessor module (`DbAccessor`) for per-frame DB reads
 - Database migrations
 
 **Structure**:
 
-- Top-level files handle general settings (positioning, sizing, styling, animations)
-- `Features/` subdirectory contains feature-specific configuration
+- `ConfigOptions.lua` — root options group (`childGroups = "select"`), AceDB
+  defaults including the `frames["**"]` wildcard schema
+- `FramesConfig.lua` — dynamic per-frame config groups, "+ New Frame" and
+  "Manage Frames" root-level groups
+- `DbAccessors.lua` — `DbAccessor` module with per-frame helpers
+  (`Positioning(id)`, `Sizing(id)`, `Feature(id, key)`, etc.)
+- Top-level files (`Positioning.lua`, `Sizing.lua`, `Styling.lua`,
+  `Animations.lua`) export `Build*Args(frameId, order)` functions
+- `Features/` contains per-feature builders (`Build*Args(frameId, order)`)
 - `common/` contains shared configuration utilities
 - `Migrations/` contains versioned database migrations
 
-**Key Pattern**: Each config module defines its portion of `G_RLF.defaults` and `G_RLF.options`
+**Config UI hierarchy** (post multi-frame migration):
 
-**Example**: `CurrencyConfig.lua` defines `G_RLF.defaults.global.currency` and `G_RLF.options.args.lootFeeds.args.currencyConfig`
+```
+Root (group, childGroups = "select")
+├── ⚙ Global (tab: General, Blizzard UI, About)
+├── Main (tree: Appearance + Loot Feeds)
+├── [User Frame 2] (same structure as Main)
+├── + New Frame
+└── Manage Frames
+```
+
+**Key Pattern**: Each per-frame config builder receives a `frameId` parameter
+and reads/writes `db.global.frames[frameId].*` via closures.
+
+**Example**: `CurrencyConfig.lua` exports `G_RLF.BuildCurrencyArgs(frameId, order)`
+which builds the currency feature options for a specific frame
 
 ### `/Features`
 
@@ -195,7 +229,7 @@ G_RLF.WoWAPI.* (shared adapter) → Module service layer → RLF_ElementPayload 
 
 **Contains**:
 
-- Frame creation and management
+- Dynamic frame creation and lifecycle management (multiple user-defined frames)
 - Row pooling and recycling
 - Queue processing
 - Animation coordination
@@ -203,11 +237,21 @@ G_RLF.WoWAPI.* (shared adapter) → Module service layer → RLF_ElementPayload 
 
 **Responsibilities**:
 
-- Process the loot queue
-- Display items in available rows
-- Handle frame positioning and sizing
+- Create/destroy `LootDisplayFrame` instances for each user-defined frame
+- Process per-frame loot queues
+- Handle frame positioning and sizing (per-frame configuration)
 - Manage row animations (fade in/out, slide)
 - Track loot history for the history panel
+
+**Multi-frame architecture**: `LootDisplay` is the lifecycle manager — it
+creates/destroys `LootDisplayFrame` widgets for each frame ID in
+`db.global.frames`. Each `LootDisplayFrame` is a self-contained subscriber
+with its own broker that listens for `RLF_NEW_LOOT`, checks whether the
+feature is enabled in **its** frame's config, applies per-frame filters,
+and displays or discards the element. Frame ID 1 (Main) is always present
+and cannot be deleted. Up to 5 frames are supported. See
+[multi-frame-design.md](./multi-frame-design.md) for more details on the
+multi-frame architecture.
 
 **Key Component**: `LootDisplayFrame` and `LootDisplayRow` mixins provide the frame behavior. `LootDisplayRow` has been fully decomposed into 7 focused sub-mixins (`RLF_RowAnimationMixin`, `RLF_RowTooltipMixin`, `RLF_RowTextMixin`, `RLF_RowBackdropMixin`, `RLF_RowScriptedEffectsMixin`, `RLF_RowIconMixin`, `RLF_RowUnitPortraitMixin`) following the WoW XML mixin composition pattern. `LootDisplayRow.lua` itself is now a pure coordinator/lifecycle file (~430 lines).
 
@@ -308,7 +352,12 @@ Loot messages are enqueued and processed asynchronously by LootDisplay. This pre
 
 ### Modular Configuration
 
-Each feature and setting is isolated in its own module, making it easy to enable/disable features and maintain configuration separately.
+Each feature and setting is isolated in its own module, making it easy to
+enable/disable features and maintain configuration separately. Feature settings
+are per-frame — each `LootDisplayFrame` has its own appearance and feature
+configuration under `db.global.frames[id]`. A feature module stays active
+(registered for WoW events) as long as at least one frame has that feature
+enabled; otherwise the module disables itself.
 
 ### Namespace Pattern
 
@@ -380,11 +429,14 @@ All direct WoW API calls (`C_*`, `_G["STRING_KEY"]`) are consolidated in `utils/
 
 1. **WoW Event Triggered** (e.g., player loots an item)
 2. **Feature Module** listens for the event and processes it
-3. **Message Builder** formats the loot message with styling
-4. **Queue** stores the message for display
-5. **LootDisplay** dequeues messages and assigns them to available rows
-6. **Row Animation** fades in, displays, then fades out
-7. **Loot History** (optional) records the loot for later viewing
+3. **Feature Module** fires unified `RLF_NEW_LOOT` message with an element payload
+4. **Per-frame Brokers** — each `LootDisplayFrame` receives the message,
+   checks its own `frames[id].features[key].enabled` config, and applies
+   per-frame filters (quality thresholds, etc.)
+5. **Queue** stores the message for display (per-frame)
+6. **LootDisplayFrame** dequeues messages and assigns them to available rows
+7. **Row Animation** fades in, displays, then fades out
+8. **Loot History** (optional) records the loot for later viewing
 
 ## Ace3 Framework Integration
 
