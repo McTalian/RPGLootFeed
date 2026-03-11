@@ -42,7 +42,7 @@ The following pieces already exist and should be reused rather than rebuilt:
 
 ### Files
 
-```
+```plain
 .scripts/
   dump_options.lua          ← Stage 1 entry point (busted spec)
   aceconfig_serializer.lua  ← recursive walk + JSON serialization logic
