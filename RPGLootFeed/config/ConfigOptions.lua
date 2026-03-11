@@ -267,9 +267,17 @@ G_RLF.options = {
 	args = {},
 }
 
+local globalAtlas = ""
+
+if G_RLF:IsRetail() then
+	globalAtlas = CreateAtlasMarkup("UI-EventPoi-WorldSoulMemory", 24, 24)
+else
+	globalAtlas = CreateAtlasMarkup("AncientMana", 24, 24)
+end
+
 G_RLF.options.args.global = {
 	type = "group",
-	name = CreateAtlasMarkup("UI-EventPoi-WorldSoulMemory", 24, 24) .. G_RLF.L["Global"],
+	name = globalAtlas .. G_RLF.L["Global"],
 	desc = G_RLF.L["GlobalDesc"],
 	order = 1,
 	childGroups = "tab",

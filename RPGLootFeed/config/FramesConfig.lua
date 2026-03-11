@@ -14,6 +14,14 @@ local function notifyChange()
 	LibStub("AceConfigRegistry-3.0"):NotifyChange(addonName)
 end
 
+local frameAtlas = ""
+
+if G_RLF:IsRetail() then
+	frameAtlas = CreateAtlasMarkup("Crosshair_lootall_32", 24, 24)
+else
+	frameAtlas = CreateAtlasMarkup("Banker", 24, 24)
+end
+
 --- Build the full per-frame group (appearance sub-group,
 --- loot feeds sub-group) for the given frame ID.
 --- @param id integer
@@ -26,7 +34,7 @@ local function buildFrameGroup(id)
 
 	local group = {
 		type = "group",
-		name = CreateAtlasMarkup("Crosshair_lootall_32", 24, 24) .. frameName,
+		name = frameAtlas .. frameName,
 		order = 10 + id,
 		childGroups = "tree",
 		args = {
