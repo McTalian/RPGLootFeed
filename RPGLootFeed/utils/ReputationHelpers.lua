@@ -243,10 +243,15 @@ function RepUtils.GetFactionData(factionId, repType)
 		if RepUtils.IsFriendship(repType) then
 			local friendInfo = C_GossipInfo.GetFriendshipReputation(factionId)
 			local ranks = C_GossipInfo.GetFriendshipReputationRanks(factionId)
-			if ranks and ranks.currentLevel then
-				factionData.rank = fd.reaction
-			end
 			if friendInfo then
+				if friendInfo.reaction then
+					factionData.rank = friendInfo.reaction
+				end
+				if friendInfo.texture and friendInfo.texture > 0 then
+					factionData.icon = friendInfo.texture
+				end
+				-- Friendship factions report Neutral via fd.reaction; default to Friendly (green)
+				factionData.color = FACTION_BAR_COLORS[5]
 				local standing = friendInfo.standing - friendInfo.reactionThreshold
 				factionData.rankStandingMin = friendInfo.reactionThreshold
 				factionData.rankStandingMax = friendInfo.nextThreshold
@@ -353,22 +358,11 @@ local function updateCharCacheCount(count)
 	G_RLF.db.char.repFactions.count = count
 end
 
-local function getDeltaAndUpdateCache(factionId, newStanding, cacheFns)
+local function getDeltaAndUpdateCache(factionId, newStanding, fd, repType, cacheFns)
 	local getFn = cacheFns.getFn
 	local updateFn = cacheFns.updateFn
 	local getCountFn = cacheFns.getCountFn
 	local updateCountFn = cacheFns.updateCountFn
-
-	local repType = RepUtils.DetermineRepType(factionId)
-	local fd = RepUtils.GetFactionData(factionId, repType)
-	if not fd then
-		G_RLF:LogWarn(
-			"Failed to get faction data for factionId " .. tostring(factionId),
-			addonName,
-			"Reputation.RepUtils"
-		)
-		return nil
-	end
 
 	---@type CachedFactionDetails|nil
 	local cachedDetails = getFn(factionId)
@@ -382,19 +376,48 @@ local function getDeltaAndUpdateCache(factionId, newStanding, cacheFns)
 		}
 		updateFn(factionId, cachedDetails)
 		updateCountFn(getCountFn() + 1)
+		G_RLF:LogDebug(
+			"New cache entry for factionId "
+				.. tostring(factionId)
+				.. " standing="
+				.. tostring(newStanding)
+				.. " rank="
+				.. tostring(fd.rank),
+			addonName,
+			"Reputation.RepUtils"
+		)
 		return newStanding
 	end
 
 	local delta
-	if newStanding < cachedDetails.standing and RepUtils.IsMajorFaction(cachedDetails.repType) then
-		--- If the standing decreased for a major faction, we almost certainly leveled up
-		--- So we calculate how much we needed to level up and add that to where we are now
-		--- The timing of when the MAJOR_FACTION_RENOWN_LEVEL_CHANGED event fires used to be later
-		--- than CHAT_MSG_REPUTATION event, but perhaps now it's before.
-		--- In any case, this logic should cover both scenarios, but there's a chance our
-		--- the level we display is the old level.
-		local rankStandingMax = cachedDetails.rankStandingMax or 2500 -- At least for most major factions
-		delta = rankStandingMax - cachedDetails.standing + newStanding
+	local rankChanged = fd.rank ~= cachedDetails.rank
+	if newStanding < cachedDetails.standing and rankChanged then
+		-- Standing decreased while rank changed — level-up where standing resets
+		-- relative to the new rank. Compute overflow delta:
+		-- (rank capacity - old progress) + new standing in new rank
+		local rankStandingMax = cachedDetails.rankStandingMax or 2500
+		local rankStandingMin = cachedDetails.rankStandingMin or 0
+		delta = (rankStandingMax - rankStandingMin) - cachedDetails.standing + newStanding
+		G_RLF:LogDebug(
+			"Level-up detected for factionId "
+				.. tostring(factionId)
+				.. " oldRank="
+				.. tostring(cachedDetails.rank)
+				.. " newRank="
+				.. tostring(fd.rank)
+				.. " oldStanding="
+				.. tostring(cachedDetails.standing)
+				.. " newStanding="
+				.. tostring(newStanding)
+				.. " rankRange="
+				.. tostring(rankStandingMin)
+				.. "-"
+				.. tostring(rankStandingMax)
+				.. " delta="
+				.. tostring(delta),
+			addonName,
+			"Reputation.RepUtils"
+		)
 	else
 		delta = newStanding - cachedDetails.standing
 	end
@@ -409,8 +432,10 @@ end
 --- Get the delta to display and update the warband cache for the faction
 --- @param factionId number
 --- @param newStanding number
+--- @param fd table faction data with rank, rankStandingMin, rankStandingMax
+--- @param repType RepType
 --- @return number|nil
-local function getDeltaAndUpdateWarbandCache(factionId, newStanding)
+local function getDeltaAndUpdateWarbandCache(factionId, newStanding, fd, repType)
 	local cacheFns = {
 		getFn = getWarbandCacheDetails,
 		updateFn = updateWarbandCacheDetails,
@@ -418,14 +443,16 @@ local function getDeltaAndUpdateWarbandCache(factionId, newStanding)
 		updateCountFn = updateWarbandCacheCount,
 	}
 
-	return getDeltaAndUpdateCache(factionId, newStanding, cacheFns)
+	return getDeltaAndUpdateCache(factionId, newStanding, fd, repType, cacheFns)
 end
 
 --- Get the delta to display and update the character-specific cache for the faction
 --- @param factionId number
 --- @param newStanding number
+--- @param fd table faction data with rank, rankStandingMin, rankStandingMax
+--- @param repType RepType
 --- @return number|nil
-local function getDeltaAndUpdateCharCache(factionId, newStanding)
+local function getDeltaAndUpdateCharCache(factionId, newStanding, fd, repType)
 	local cacheFns = {
 		getFn = getCharCacheDetails,
 		updateFn = updateCharCacheDetails,
@@ -433,7 +460,7 @@ local function getDeltaAndUpdateCharCache(factionId, newStanding)
 		updateCountFn = updateCharCacheCount,
 	}
 
-	return getDeltaAndUpdateCache(factionId, newStanding, cacheFns)
+	return getDeltaAndUpdateCache(factionId, newStanding, fd, repType, cacheFns)
 end
 
 local function isWarbandFactionPresent(factionId)
@@ -471,12 +498,14 @@ end
 --- Get the delta to display and update the appropriate cache for the faction
 --- @param factionId number
 --- @param newStanding number
+--- @param fd table faction data with rank, rankStandingMin, rankStandingMax
+--- @param repType RepType
 --- @return number|nil
-function RepUtils.GetDeltaAndUpdateCache(factionId, newStanding)
+function RepUtils.GetDeltaAndUpdateCache(factionId, newStanding, fd, repType)
 	if C_Reputation.IsAccountWideReputation and C_Reputation.IsAccountWideReputation(factionId) then
-		return getDeltaAndUpdateWarbandCache(factionId, newStanding)
+		return getDeltaAndUpdateWarbandCache(factionId, newStanding, fd, repType)
 	else
-		return getDeltaAndUpdateCharCache(factionId, newStanding)
+		return getDeltaAndUpdateCharCache(factionId, newStanding, fd, repType)
 	end
 end
 

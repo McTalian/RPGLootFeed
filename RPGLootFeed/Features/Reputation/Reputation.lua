@@ -248,7 +248,7 @@ function Rep:UpdateReputationForFaction(factionID)
 		return
 	end
 
-	local repChange = RepUtils.GetDeltaAndUpdateCache(factionID, factionData.standing)
+	local repChange = RepUtils.GetDeltaAndUpdateCache(factionID, factionData.standing, factionData, repType)
 
 	factionData.delta = repChange
 
@@ -409,7 +409,12 @@ function Rep:CheckForHiddenRenownFactions(events)
 
 	local newFactionDetails = MajorFactionRenownInfoToCachedDetails(updated)
 	--- @type number
-	local repChange = RepUtils.GetDeltaAndUpdateCache(CURRENT_SEASON_DELVE_JOURNEY, newFactionDetails.standing)
+	local repChange = RepUtils.GetDeltaAndUpdateCache(
+		CURRENT_SEASON_DELVE_JOURNEY,
+		newFactionDetails.standing,
+		newFactionDetails,
+		newFactionDetails.repType
+	)
 
 	factionData.rank = newFactionDetails.rank
 	if newFactionDetails.standing then
