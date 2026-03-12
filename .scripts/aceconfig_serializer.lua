@@ -5,9 +5,14 @@
 --- already resolved at config-load time and appear as plain strings here).
 ---
 --- For evaluable functions:
----   get/hidden/disabled  – called via pcall with {} as the info arg;
+---   get/hidden/disabled  – called via pcall with INFO_STUB as the info arg.
+---                          INFO_STUB is a metatabled table that returns ""
+---                          for any key, so closures using info[#info] degrade
+---                          safely (db[""] returns nil) rather than erroring.
 ---                          result stored in _value, _dynamic=true added.
----                          String method-refs are dispatched on node.handler.
+---                          If evaluation fails, _error=true is set instead.
+---                          String method-refs are dispatched on node.handler,
+---                          which is propagated down from parent groups.
 ---   values               – called via pcall with no args; result stored in
 ---                          _resolved, _dynamic=true always added.
 ---   set/func             – NOT called; recorded as {_type="function"}.
@@ -182,6 +187,17 @@ end
 -- Mark a field as a non-evaluable function placeholder (set/func)
 local FUNC_PLACEHOLDER = { _type = "function" }
 
+--- A safer info-argument stub for AceConfig get/hidden/disabled closures.
+--- Some closures follow the pattern `return db[info[#info]]` to look up the
+--- last path component; with a plain `{}` that returns nil, `db[nil]` would
+--- throw.  This stub returns `""` for any missing key so such closures degrade
+--- to a nil DB lookup (returns nil) rather than erroring.
+local INFO_STUB = setmetatable({}, {
+	__index = function(_, _)
+		return ""
+	end,
+})
+
 -- ---------------------------------------------------------------------------
 -- Function evaluation helpers
 -- ---------------------------------------------------------------------------
@@ -250,7 +266,6 @@ function M.serializeNode(node, handler)
 	local effectiveHandler = (type(node.handler) == "table" and node.handler) or handler
 
 	local out = {}
-	local INFO_STUB = {}
 
 	for _, key in ipairs(KNOWN_KEYS) do
 		local val = node[key]
