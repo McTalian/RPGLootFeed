@@ -33,6 +33,7 @@ function G_RLF.BuildMoneyArgs(frameId, order)
 				set = function(_, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("money")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
@@ -51,13 +52,14 @@ function G_RLF.BuildMoneyArgs(frameId, order)
 						desc = G_RLF.L["ShowMoneyIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function()
 							return fc().enableIcon
 						end,
 						set = function(_, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 0.5,
 					},
@@ -118,7 +120,7 @@ function G_RLF.BuildMoneyArgs(frameId, order)
 								name = G_RLF.L["Abbreviate Total"],
 								desc = G_RLF.L["AbbreviateTotalDesc"],
 								disabled = function()
-									return not fc().showMoneyTotal
+									return not fc().enabled or not fc().showMoneyTotal
 								end,
 								width = "double",
 								get = function()
@@ -149,7 +151,7 @@ function G_RLF.BuildMoneyArgs(frameId, order)
 						desc = G_RLF.L["AccountantModeDesc"],
 						width = "double",
 						disabled = function()
-							return fc().onlyIncome
+							return not fc().enabled or fc().onlyIncome
 						end,
 						get = function()
 							return fc().accountantMode
@@ -192,7 +194,7 @@ function G_RLF.BuildMoneyArgs(frameId, order)
 							MoneyConfig:OverrideSound(frameId)
 						end,
 						disabled = function()
-							return not fc().overrideMoneyLootSound
+							return not fc().enabled or not fc().overrideMoneyLootSound
 						end,
 						width = "full",
 						order = 6,

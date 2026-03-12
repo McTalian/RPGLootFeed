@@ -34,6 +34,7 @@ function G_RLF.BuildCurrencyArgs(frameId, order)
 				set = function(_, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("currency")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				disabled = function()
 					return GetExpansionLevel() < G_RLF.Expansion.WOTLK
@@ -55,13 +56,14 @@ function G_RLF.BuildCurrencyArgs(frameId, order)
 						desc = G_RLF.L["ShowCurrencyIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function()
 							return fc().enableIcon
 						end,
 						set = function(_, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 0.5,
 					},
@@ -90,7 +92,7 @@ function G_RLF.BuildCurrencyArgs(frameId, order)
 								desc = G_RLF.L["CurrencyTotalTextColorDesc"],
 								hasAlpha = true,
 								disabled = function()
-									return not fc().currencyTotalTextEnabled
+									return not fc().enabled or not fc().currencyTotalTextEnabled
 								end,
 								width = "double",
 								get = function()
@@ -106,7 +108,7 @@ function G_RLF.BuildCurrencyArgs(frameId, order)
 								name = G_RLF.L["Currency Total Text Wrap Character"],
 								desc = G_RLF.L["CurrencyTotalTextWrapCharDesc"],
 								disabled = function()
-									return not fc().currencyTotalTextEnabled
+									return not fc().enabled or not fc().currencyTotalTextEnabled
 								end,
 								values = G_RLF.WrapCharOptions,
 								get = function()

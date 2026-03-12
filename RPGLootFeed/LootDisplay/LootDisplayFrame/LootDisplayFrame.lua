@@ -109,8 +109,8 @@ function LootDisplayFrameMixin:ConfigureTestArea()
 	-- addon name alone for the main frame or when the DB entry is absent.
 	local firstLine = addonName
 	local frameConfig = G_RLF.db and G_RLF.db.global.frames and G_RLF.db.global.frames[self.frameType]
-	if frameConfig and frameConfig.name and self.frameType ~= G_RLF.Frames.MAIN then
-		firstLine = firstLine .. " " .. frameConfig.name
+	if frameConfig and frameConfig.name and frameConfig.name ~= "" then
+		firstLine = firstLine .. " - " .. frameConfig.name
 	end
 	self.InstructionText:SetText(firstLine .. "\n" .. G_RLF.L["Drag to Move"]) -- Set localized text
 	self.InstructionText:Hide() -- Hide initially

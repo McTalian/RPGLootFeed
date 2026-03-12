@@ -280,6 +280,6 @@ G_RLF.options.args.global = {
 	name = globalAtlas .. G_RLF.L["Global"],
 	desc = G_RLF.L["GlobalDesc"],
 	order = 1,
-	childGroups = "tab",
+	childGroups = "tree",
 	args = {}, -- populated by General.lua, BlizzardUI.lua, About.lua
 }

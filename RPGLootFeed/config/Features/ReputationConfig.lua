@@ -31,6 +31,7 @@ function G_RLF.BuildReputationArgs(frameId, order)
 				set = function(_, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("reputation")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
@@ -49,13 +50,14 @@ function G_RLF.BuildReputationArgs(frameId, order)
 						desc = G_RLF.L["ShowRepIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function()
 							return fc().enableIcon
 						end,
 						set = function(_, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 0.5,
 					},
@@ -111,7 +113,7 @@ function G_RLF.BuildReputationArgs(frameId, order)
 								name = G_RLF.L["Reputation Level Color"],
 								desc = G_RLF.L["RepLevelColorDesc"],
 								disabled = function()
-									return not fc().enableRepLevel
+									return not fc().enabled or not fc().enableRepLevel
 								end,
 								width = "double",
 								hasAlpha = true,
@@ -128,7 +130,7 @@ function G_RLF.BuildReputationArgs(frameId, order)
 								name = G_RLF.L["Reputation Level Wrap Character"],
 								desc = G_RLF.L["RepLevelWrapCharDesc"],
 								disabled = function()
-									return not fc().enableRepLevel
+									return not fc().enabled or not fc().enableRepLevel
 								end,
 								values = G_RLF.WrapCharOptions,
 								get = function()

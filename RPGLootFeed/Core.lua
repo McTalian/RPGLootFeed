@@ -64,6 +64,7 @@ function RLF:OnInitialize()
 	DbMigrations()
 	G_RLF.FramesConfig:OnInitialize()
 	LibStub("AceConfig-3.0"):RegisterOptionsTable(addonName, G_RLF.options)
+	G_RLF.acd:SetDefaultSize(addonName, 900, 600)
 	local rlfLDB = LibStub("LibDataBroker-1.1"):NewDataObject(addonName, {
 		type = "launcher",
 		icon = "Interface\\AddOns\\RPGLootFeed\\Icons\\logo.blp",
