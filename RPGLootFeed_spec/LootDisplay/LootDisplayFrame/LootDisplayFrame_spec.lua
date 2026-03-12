@@ -358,7 +358,9 @@ describe("LootDisplayFrameMixin", function()
 		assert.spy(frame.BoundingBox.Hide).was.called(1)
 		assert.stub(stubMakeUnmovable).was.called(1)
 		assert.spy(frame.InstructionText.SetText).was.called(1)
-		assert.spy(frame.InstructionText.SetText).was.called_with(frame.InstructionText, "TestAddon\nDrag to Move")
+		assert
+			.spy(frame.InstructionText.SetText).was
+			.called_with(frame.InstructionText, "TestAddon - Main\nDrag to Move")
 		assert.spy(frame.InstructionText.Hide).was.called(1)
 		assert.stub(stubCreateArrowsTestArea).was.called(1)
 	end)

@@ -33,6 +33,7 @@ function G_RLF.BuildTransmogArgs(frameId, order)
 				set = function(info, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("transmog")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
@@ -51,13 +52,14 @@ function G_RLF.BuildTransmogArgs(frameId, order)
 						desc = G_RLF.L["ShowTransmogIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function(info, value)
 							return fc().enableIcon
 						end,
 						set = function(info, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 0.5,
 					},
@@ -74,7 +76,7 @@ function G_RLF.BuildTransmogArgs(frameId, order)
 						end,
 						order = 1,
 						disabled = function()
-							return not G_RLF:IsRetail()
+							return not fc().enabled or not G_RLF:IsRetail()
 						end,
 					},
 					enableBlizzardTransmogSound = {
@@ -90,7 +92,7 @@ function G_RLF.BuildTransmogArgs(frameId, order)
 						end,
 						order = 2,
 						disabled = function()
-							return not G_RLF:IsRetail()
+							return not fc().enabled or not G_RLF:IsRetail()
 						end,
 					},
 					testTransmogSound = {
@@ -99,7 +101,7 @@ function G_RLF.BuildTransmogArgs(frameId, order)
 						desc = G_RLF.L["TestTransmogSoundDesc"],
 						width = "double",
 						disabled = function()
-							return not G_RLF:IsRetail() or not fc().enableBlizzardTransmogSound
+							return not fc().enabled or not G_RLF:IsRetail() or not fc().enableBlizzardTransmogSound
 						end,
 						func = function()
 							PlaySound(SOUNDKIT.UI_COSMETIC_ITEM_TOAST_SHOW)

@@ -37,6 +37,7 @@ function G_RLF.BuildTravelPointsArgs(frameId, order)
 				set = function(_, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("travelPoints")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
@@ -55,13 +56,14 @@ function G_RLF.BuildTravelPointsArgs(frameId, order)
 						desc = G_RLF.L["ShowTravelPointIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function()
 							return fc().enableIcon
 						end,
 						set = function(_, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 0.5,
 					},

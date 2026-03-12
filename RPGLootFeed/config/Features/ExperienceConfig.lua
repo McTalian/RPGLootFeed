@@ -31,6 +31,7 @@ function G_RLF.BuildExperienceArgs(frameId, order)
 				set = function(_, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("experience")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
@@ -49,13 +50,14 @@ function G_RLF.BuildExperienceArgs(frameId, order)
 						desc = G_RLF.L["ShowExperienceIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function()
 							return fc().enableIcon
 						end,
 						set = function(_, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 0.5,
 					},
@@ -98,7 +100,7 @@ function G_RLF.BuildExperienceArgs(frameId, order)
 								name = G_RLF.L["Current Level Color"],
 								desc = G_RLF.L["CurrentLevelColorDesc"],
 								disabled = function()
-									return not fc().showCurrentLevel
+									return not fc().enabled or not fc().showCurrentLevel
 								end,
 								width = "double",
 								get = function()
@@ -114,7 +116,7 @@ function G_RLF.BuildExperienceArgs(frameId, order)
 								name = G_RLF.L["Current Level Text Wrap Character"],
 								desc = G_RLF.L["CurrentLevelTextWrapCharDesc"],
 								disabled = function()
-									return not fc().showCurrentLevel
+									return not fc().enabled or not fc().showCurrentLevel
 								end,
 								get = function()
 									return fc().currentLevelTextWrapChar

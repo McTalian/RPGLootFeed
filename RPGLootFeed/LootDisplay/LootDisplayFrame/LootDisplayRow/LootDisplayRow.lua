@@ -300,6 +300,7 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 		return
 	end
 	self.pendingElement = nil
+	self.logFn = element.logFn
 	-- Update existing entry
 	local oldAmount = self.amount
 	local text = element.textFn(oldAmount, self.link)

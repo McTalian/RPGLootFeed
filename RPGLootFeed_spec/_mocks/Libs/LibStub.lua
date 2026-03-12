@@ -24,6 +24,7 @@ local function mockLibStub(lib, silence)
 		stub(libStubReturn[lib], "AddToBlizOptions")
 		stub(libStubReturn[lib], "Close")
 		stub(libStubReturn[lib], "Open")
+		stub(libStubReturn[lib], "SetDefaultSize")
 	elseif lib == "AceConfigRegistry-3.0" then
 		stub(libStubReturn[lib], "NotifyChange")
 	elseif lib == "AceDB-3.0" then

@@ -56,6 +56,7 @@ G_RLF.options.args.global.args.general = {
 			end,
 			set = function(info, value)
 				G_RLF.db.global.misc.showOneQuantity = value
+				G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 			end,
 			order = 2,
 		},
@@ -69,6 +70,7 @@ G_RLF.options.args.global.args.general = {
 			end,
 			set = function(info, value)
 				G_RLF.db.global.misc.hideAllIcons = value
+				G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 			end,
 			order = 3,
 		},

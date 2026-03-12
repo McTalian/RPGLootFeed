@@ -261,8 +261,10 @@ function RLF_RowTextMixin:StyleText()
 		self.SecondaryLineLayout.spacing = spacing
 		if iconOnLeft then
 			self.PrimaryLineLayout.childLayoutDirection = nil
+			self.SecondaryLineLayout.childLayoutDirection = nil
 		else
 			self.PrimaryLineLayout.childLayoutDirection = "rightToLeft"
+			self.SecondaryLineLayout.childLayoutDirection = "rightToLeft"
 		end
 		self.PrimaryLineLayout:ClearAllPoints()
 		self.PrimaryText:SetJustifyH(anchor)

@@ -22,6 +22,26 @@ else
 	frameAtlas = CreateAtlasMarkup("Banker", 24, 24)
 end
 
+--- Recursively wrap every `set` callback in an options table so that changing
+--- any option also refreshes the sample rows preview (when visible).
+--- @param args table AceConfig args table
+local function wrapSettersWithRefresh(args)
+	for _, opt in pairs(args) do
+		if type(opt) == "table" then
+			if type(opt.set) == "function" then
+				local origSet = opt.set
+				opt.set = function(...)
+					origSet(...)
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
+				end
+			end
+			if opt.args then
+				wrapSettersWithRefresh(opt.args)
+			end
+		end
+	end
+end
+
 --- Build the full per-frame group (appearance sub-group,
 --- loot feeds sub-group) for the given frame ID.
 --- @param id integer
@@ -71,6 +91,7 @@ local function buildFrameGroup(id)
 			},
 		},
 	}
+	wrapSettersWithRefresh(group.args)
 	return group
 end
 

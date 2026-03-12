@@ -35,6 +35,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 				set = function(_, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("itemLoot")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
@@ -53,13 +54,14 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 						desc = G_RLF.L["ShowItemIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function()
 							return fc().enableIcon
 						end,
 						set = function(_, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 0.5,
 					},
@@ -88,7 +90,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 								desc = G_RLF.L["ItemCountTextColorDesc"],
 								width = "double",
 								disabled = function()
-									return not fc().itemCountTextEnabled
+									return not fc().enabled or not fc().itemCountTextEnabled
 								end,
 								hasAlpha = true,
 								get = function()
@@ -104,7 +106,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 								name = G_RLF.L["Item Count Text Wrap Character"],
 								desc = G_RLF.L["ItemCountTextWrapCharDesc"],
 								disabled = function()
-									return not fc().itemCountTextEnabled
+									return not fc().enabled or not fc().itemCountTextEnabled
 								end,
 								values = G_RLF.WrapCharOptions,
 								get = function()
@@ -206,7 +208,8 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									return values
 								end,
 								disabled = function()
-									return fc().pricesForSellableItems == PricesEnum.Vendor
+									return not fc().enabled
+										or fc().pricesForSellableItems == PricesEnum.Vendor
 										or fc().pricesForSellableItems == PricesEnum.None
 								end,
 								hidden = function()
@@ -731,7 +734,9 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									PlaySoundFile(fc().sounds.mounts.sound)
 								end,
 								disabled = function()
-									return not fc().sounds.mounts.enabled or fc().sounds.mounts.sound == ""
+									return not fc().enabled
+										or not fc().sounds.mounts.enabled
+										or fc().sounds.mounts.sound == ""
 								end,
 								width = 0.35,
 								order = 1.5,
@@ -748,7 +753,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									fc().sounds.mounts.sound = value
 								end,
 								disabled = function()
-									return not fc().sounds.mounts.enabled
+									return not fc().enabled or not fc().sounds.mounts.enabled
 								end,
 								order = 2,
 								width = "full",
@@ -774,7 +779,9 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									PlaySoundFile(fc().sounds.legendary.sound)
 								end,
 								disabled = function()
-									return not fc().sounds.legendary.enabled or fc().sounds.legendary.sound == ""
+									return not fc().enabled
+										or not fc().sounds.legendary.enabled
+										or fc().sounds.legendary.sound == ""
 								end,
 								width = 0.35,
 								order = 3.5,
@@ -791,7 +798,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									fc().sounds.legendary.sound = value
 								end,
 								disabled = function()
-									return not fc().sounds.legendary.enabled
+									return not fc().enabled or not fc().sounds.legendary.enabled
 								end,
 								order = 4,
 								width = "full",
@@ -817,7 +824,8 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									PlaySoundFile(fc().sounds.betterThanEquipped.sound)
 								end,
 								disabled = function()
-									return not fc().sounds.betterThanEquipped.enabled
+									return not fc().enabled
+										or not fc().sounds.betterThanEquipped.enabled
 										or fc().sounds.betterThanEquipped.sound == ""
 								end,
 								width = 0.35,
@@ -835,7 +843,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									fc().sounds.betterThanEquipped.sound = value
 								end,
 								disabled = function()
-									return not fc().sounds.betterThanEquipped.enabled
+									return not fc().enabled or not fc().sounds.betterThanEquipped.enabled
 								end,
 								width = "full",
 								order = 6,
@@ -861,7 +869,9 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									PlaySoundFile(fc().sounds.transmog.sound)
 								end,
 								disabled = function()
-									return not fc().sounds.transmog.enabled or fc().sounds.transmog.sound == ""
+									return not fc().enabled
+										or not fc().sounds.transmog.enabled
+										or fc().sounds.transmog.sound == ""
 								end,
 								width = 0.35,
 								order = 7.5,
@@ -878,7 +888,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 									fc().sounds.transmog.sound = value
 								end,
 								disabled = function()
-									return not fc().sounds.transmog.enabled
+									return not fc().enabled or not fc().sounds.transmog.enabled
 								end,
 								width = "full",
 								order = 8,
@@ -911,7 +921,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 								width = "double",
 								hasAlpha = true,
 								disabled = function()
-									return not fc().textStyleOverrides.quest.enabled
+									return not fc().enabled or not fc().textStyleOverrides.quest.enabled
 								end,
 								get = function()
 									return unpack(fc().textStyleOverrides.quest.color)

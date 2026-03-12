@@ -31,6 +31,7 @@ function G_RLF.BuildProfessionArgs(frameId, order)
 				set = function(_, value)
 					fc().enabled = value
 					G_RLF.DbAccessor:UpdateFeatureModuleState("profession")
+					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
@@ -49,13 +50,14 @@ function G_RLF.BuildProfessionArgs(frameId, order)
 						desc = G_RLF.L["ShowProfessionIconDesc"],
 						width = "double",
 						disabled = function()
-							return G_RLF.db.global.misc.hideAllIcons
+							return not fc().enabled or G_RLF.db.global.misc.hideAllIcons
 						end,
 						get = function()
 							return fc().enableIcon
 						end,
 						set = function(_, value)
 							fc().enableIcon = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
 						order = 1,
 					},
@@ -83,7 +85,7 @@ function G_RLF.BuildProfessionArgs(frameId, order)
 								name = G_RLF.L["Skill Text Color"],
 								desc = G_RLF.L["SkillColorDesc"],
 								disabled = function()
-									return not fc().showSkillChange
+									return not fc().enabled or not fc().showSkillChange
 								end,
 								hasAlpha = true,
 								width = "double",
@@ -100,7 +102,7 @@ function G_RLF.BuildProfessionArgs(frameId, order)
 								name = G_RLF.L["Skill Text Wrap Character"],
 								desc = G_RLF.L["SkillTextWrapCharDesc"],
 								disabled = function()
-									return not fc().showSkillChange
+									return not fc().enabled or not fc().showSkillChange
 								end,
 								get = function()
 									return fc().skillTextWrapChar
