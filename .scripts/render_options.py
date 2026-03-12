@@ -3,14 +3,21 @@
 
 Reads .scripts/.output/options_dump.json (produced by make options-dump) and
 writes a self-contained .scripts/.output/options.html that mirrors the layout
-of the in-game RPGLootFeed settings panel:
+of the in-game RPGLootFeed settings panel.
 
-  - Execute buttons across the top (testMode, clearRows, lootHistory)
+Multi-frame layout (root childGroups="select"):
+  - Tab bar at top: Global, Main (frame 1), + New Frame, Manage Frames
+  - Per tab: left nav tree | right content panel
+  - 3-level nav: tab → tree parent → tree children
+
+Legacy flat layout (no select at root):
+  - Execute buttons across the top
   - Two-column layout: left nav tree | right content panel
-  - Left nav: gold top-level section headers, indented white sub-items
-  - Right panel: widgets for the currently selected nav item
-  - Sub-groups rendered as labeled bordered fieldsets (nested as needed)
-  - Metadata (internal key, full desc, dynamic flags) in hover tooltips only
+
+Common features:
+  - Gold top-level section headers, indented white sub-items
+  - Sub-groups rendered as labeled bordered fieldsets
+  - Metadata (internal key, full desc, dynamic flags) in hover tooltips
 
 Usage:
     make options-html
@@ -20,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
 import html
 import json
 import re
@@ -30,6 +38,47 @@ from typing import Any
 _ATLAS_RE = re.compile(r"<AtlasMarkup:([^>]+)>")
 
 SCRIPT_DIR = Path(__file__).parent
+ASSETS_DIR = SCRIPT_DIR / "assets"
+
+# Map WoW atlas names to local PNG files.  At import time we read each file
+# and encode it as a base64 data URI so the output HTML stays self-contained.
+_ATLAS_PNG_MAP: dict[str, str] = {}
+for _atlas_name, _filename in {
+    "UI-EventPoi-WorldSoulMemory": "worldsoul.png",
+    "Crosshair_lootall_32": "lootall.png",
+}.items():
+    _path = ASSETS_DIR / _filename
+    if _path.exists():
+        _b64 = base64.b64encode(_path.read_bytes()).decode()
+        _ATLAS_PNG_MAP[_atlas_name] = f"data:image/png;base64,{_b64}"
+
+
+def _atlas_replace(text: str, height: int = 16) -> str:
+    """Replace <AtlasMarkup:NAME> in *text* with an <img> tag (if we have
+    a local PNG) or a styled text badge (fallback).
+
+    *text* should already be HTML-escaped — we match the escaped form.
+    """
+
+    def _sub(m: re.Match) -> str:
+        name = m.group(1)
+        data_uri = _ATLAS_PNG_MAP.get(name)
+        if data_uri:
+            return (
+                f'<img src="{data_uri}" alt="{html.escape(name)}" '
+                f'class="atlas-icon" style="height:{height}px;vertical-align:middle">'
+            )
+        return (
+            f'<span class="atlas-badge" title="{html.escape(name)}">'
+            f"{html.escape(name)}</span>"
+        )
+
+    # Match both raw and HTML-escaped forms
+    text = re.sub(r"&lt;AtlasMarkup:([^&]+)&gt;", _sub, text)
+    text = _ATLAS_RE.sub(_sub, text)
+    return text
+
+
 DEFAULT_INPUT = SCRIPT_DIR / ".output" / "options_dump.json"
 DEFAULT_OUTPUT = SCRIPT_DIR / ".output" / "options.html"
 
@@ -41,6 +90,8 @@ DEFAULT_OUTPUT = SCRIPT_DIR / ".output" / "options.html"
 def _raw_str(val: Any, fallback: str = "") -> str:
     """Plain unescaped string for tooltip text."""
     if isinstance(val, dict):
+        if val.get("_error"):
+            return "[unavailable]"
         return str(val["_value"]) if "_value" in val else "[dynamic]"
     return str(val) if val is not None else fallback
 
@@ -52,6 +103,8 @@ def _resolve_str(val: Any, fallback: str = "") -> str:
 
 def _resolve_bool(val: Any, default: bool = False) -> bool:
     if isinstance(val, dict):
+        if val.get("_error"):
+            return default  # evaluation failed — treat as "not set"
         return bool(val.get("_value", default))
     return bool(val) if val is not None else default
 
@@ -142,7 +195,7 @@ def _classify_root_group(node: dict) -> tuple[str, list[tuple[str, dict]]]:
     return "leaf", []
 
 
-def _build_nav(root_args: dict) -> tuple[list, list]:
+def _build_nav(root_args: dict, prefix: str = "") -> tuple[list, list]:
     """Parse root args into (top_executes, nav_items).
 
     top_executes  list of (key, node) for root-level execute buttons shown in the top bar.
@@ -150,6 +203,8 @@ def _build_nav(root_args: dict) -> tuple[list, list]:
                     key, name, node, panel_id, mode ('container'|'leaf'), children
                   children is a (possibly empty) list of sub-nav dicts with the same
                   shape minus 'mode' and 'children'.
+
+    *prefix* is prepended to panel IDs to namespace them within a tab.
     """
     top_executes: list[tuple[str, dict]] = []
     nav_items: list[dict] = []
@@ -159,18 +214,18 @@ def _build_nav(root_args: dict) -> tuple[list, list]:
         if t == "execute":
             top_executes.append((key, node))
         elif t == "group":
-            name = _resolve_str(node.get("name", key))
+            name = _atlas_replace(_resolve_str(node.get("name", key)))
             mode, sub_groups = _classify_root_group(node)
             children: list[dict] = []
             if mode == "container":
                 for ckey, cnode in sub_groups:
-                    cname = _resolve_str(cnode.get("name", ckey))
+                    cname = _atlas_replace(_resolve_str(cnode.get("name", ckey)))
                     children.append(
                         {
                             "key": ckey,
                             "name": cname,
                             "node": cnode,
-                            "panel_id": f"p-{key}-{ckey}",
+                            "panel_id": f"p-{prefix}{key}-{ckey}",
                         }
                     )
             nav_items.append(
@@ -178,13 +233,44 @@ def _build_nav(root_args: dict) -> tuple[list, list]:
                     "key": key,
                     "name": name,
                     "node": node,
-                    "panel_id": f"p-{key}",
+                    "panel_id": f"p-{prefix}{key}",
                     "mode": mode,
                     "children": children,
                 }
             )
 
     return top_executes, nav_items
+
+
+def _build_tabs(root: dict) -> list[dict]:
+    """Build tab list from a root node with ``childGroups='select'``.
+
+    Each tab dict has: key, name, node, has_tree, top_executes, nav_items,
+    hidden.
+    """
+    tabs: list[dict] = []
+    for key, node in _sorted_children(root.get("args", {})):
+        if node.get("type") != "group":
+            continue
+        has_tree = node.get("childGroups") == "tree"
+        if has_tree:
+            prefix = f"{key}-"
+            top_executes, nav_items = _build_nav(node.get("args", {}), prefix=prefix)
+        else:
+            top_executes, nav_items = [], []
+        name = _atlas_replace(_resolve_str(node.get("name", key)))
+        tabs.append(
+            {
+                "key": key,
+                "name": name,
+                "node": node,
+                "has_tree": has_tree,
+                "top_executes": top_executes,
+                "nav_items": nav_items,
+                "hidden": _is_hidden(node),
+            }
+        )
+    return tabs
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +287,7 @@ def _tip(key: str, node: dict) -> str:
     """
     parts = [f"key: {key}"]
     desc = _raw_str(node.get("desc"))
-    if desc and desc != "[dynamic]":
+    if desc and desc not in ("[dynamic]", "[unavailable]"):
         parts.append(desc)
     dyn_fields = [
         f
@@ -210,6 +296,13 @@ def _tip(key: str, node: dict) -> str:
     ]
     if dyn_fields:
         parts.append(f"[dynamic: {', '.join(dyn_fields)}]")
+    err_fields = [
+        f
+        for f in ("get", "hidden", "disabled", "values")
+        if isinstance(node.get(f), dict) and node.get(f, {}).get("_error")
+    ]
+    if err_fields:
+        parts.append(f"[eval error: {', '.join(err_fields)}]")
     if _is_hidden(node):
         parts.append("[hidden by default]")
     return html.escape("\n".join(parts), quote=True)
@@ -227,11 +320,22 @@ class Renderer:
     def _w(self, s: str) -> None:
         self._buf.append(s)
 
+    # ------------------------------------------------------------------
+    # Public entry point
+    # ------------------------------------------------------------------
+
     def render(self, root: dict) -> str:
+        if root.get("childGroups") == "select":
+            return self._render_tabbed(root)
+        return self._render_flat(root)
+
+    # ------------------------------------------------------------------
+    # Flat layout (legacy / non-select root)
+    # ------------------------------------------------------------------
+
+    def _render_flat(self, root: dict) -> str:
         top_executes, nav_items = _build_nav(root.get("args", {}))
 
-        # The first sub-item of the first container, or first leaf, is the
-        # default selected panel on page load.
         default_panel = ""
         for item in nav_items:
             if item["children"]:
@@ -277,22 +381,101 @@ class Renderer:
         return "\n".join(self._buf)
 
     # ------------------------------------------------------------------
+    # Tabbed layout (root childGroups="select")
+    # ------------------------------------------------------------------
+
+    def _render_tabbed(self, root: dict) -> str:
+        tabs = _build_tabs(root)
+        if not tabs:
+            return self._render_flat(root)
+
+        first_tab = tabs[0]
+
+        self._w(HTML_HEAD)
+        self._w('<div class="app">')
+
+        # ── Top bar ────────────────────────────────────────────────────────
+        self._w('<header class="top-bar">')
+        self._w('<span class="addon-title">RPGLootFeed</span>')
+        self._w("</header>")
+
+        # ── Tab bar ────────────────────────────────────────────────────────
+        self._w('<div class="tab-bar">')
+        for i, tab in enumerate(tabs):
+            active = " active" if i == 0 else ""
+            hcls = " tab-hidden" if tab["hidden"] else ""
+            self._w(
+                f'<button class="tab{active}{hcls}" data-tab="{tab["key"]}" '
+                f'onclick="selectTab(this)">{tab["name"]}</button>'
+            )
+        self._w("</div>")
+
+        # ── Workspace ─────────────────────────────────────────────────────
+        self._w('<div class="workspace">')
+
+        # ── Sidebar (one section per tab) ─────────────────────────────────
+        self._w('<nav class="sidebar">')
+        for i, tab in enumerate(tabs):
+            active = " tab-sidebar-active" if i == 0 else ""
+            self._w(f'<div class="tab-sidebar{active}" data-tab="{tab["key"]}">')
+            if tab["nav_items"]:
+                self._render_nav(tab["nav_items"])
+            self._w("</div>")
+        self._w("</nav>")
+
+        # ── Content panels (all tabs) ─────────────────────────────────────
+        self._w('<main class="content" id="content">')
+        for tab in tabs:
+            if tab["nav_items"]:
+                self._render_all_panels(tab["nav_items"])
+            else:
+                # Simple tab — render all children as a single panel
+                panel_id = f'p-{tab["key"]}'
+                self._render_panel(panel_id, tab["key"], tab["node"])
+        self._w("</main>")
+
+        self._w("</div>")  # workspace
+        self._w("</div>")  # app
+        self._w('<div id="tooltip"></div>')
+
+        # Default panel: first child of first tab's first nav item,
+        # or the tab's direct panel for simple tabs.
+        default_panel = ""
+        if first_tab["nav_items"]:
+            for item in first_tab["nav_items"]:
+                if item["children"]:
+                    default_panel = item["children"][0]["panel_id"]
+                else:
+                    default_panel = item["panel_id"]
+                break
+        else:
+            default_panel = f'p-{first_tab["key"]}'
+
+        self._w(
+            HTML_FOOT.replace("__DEFAULT_PANEL__", default_panel).replace(
+                "__DEFAULT_TAB__", first_tab["key"]
+            )
+        )
+        return "\n".join(self._buf)
+
+    # ------------------------------------------------------------------
     # Nav
     # ------------------------------------------------------------------
 
     def _render_nav(self, nav_items: list[dict]) -> None:
         for item in nav_items:
             hcls = " nav-hidden" if _is_hidden(item["node"]) else ""
+            pid = item["panel_id"]
             if item["children"]:
                 self._w(
                     f'<div class="nav-parent{hcls}" '
-                    f'data-panel="{item["panel_id"]}" data-key="{item["key"]}" '
+                    f'data-panel="{pid}" data-key="{pid}" '
                     f'onclick="toggleParent(this)">'
                     f'<span class="nav-arrow">&#x25BC;</span>'
                     f'<span class="nav-parent-name">{item["name"]}</span>'
                     f"</div>"
                 )
-                self._w(f'<div class="nav-children" id="children-{item["key"]}">')
+                self._w(f'<div class="nav-children" id="children-{pid}">')
                 for child in item["children"]:
                     chcls = " nav-hidden" if _is_hidden(child["node"]) else ""
                     self._w(
@@ -304,7 +487,7 @@ class Renderer:
             else:
                 self._w(
                     f'<div class="nav-item{hcls}" '
-                    f'data-panel="{item["panel_id"]}" '
+                    f'data-panel="{pid}" '
                     f'onclick="selectNav(this)">{item["name"]}</div>'
                 )
 
@@ -517,11 +700,7 @@ class Renderer:
         self, key: str, node: dict, depth: int, extra: list[str]
     ) -> None:
         raw_name = _raw_str(node.get("name", key))
-        m = _ATLAS_RE.search(raw_name)
-        if m:
-            name = f'<span class="atlas-badge" title="{html.escape(raw_name)}">{html.escape(m.group(1))}</span>'
-        else:
-            name = html.escape(raw_name)
+        name = _atlas_replace(html.escape(raw_name), height=16)
         tip = _tip(key, node)
         width = node.get("width", "")
         extra_style = ""
@@ -650,6 +829,26 @@ HTML_HEAD = """\
     }
     .top-btn-hidden { opacity: 0.5; font-style: italic; }
 
+    /* ── Tab bar ── */
+    .tab-bar {
+      display: flex; gap: 0; background: #151515;
+      border-bottom: 2px solid #3a3a3a; flex-shrink: 0;
+      padding: 0 10px;
+    }
+    .tab {
+      background: transparent; color: #999; border: none;
+      padding: 7px 16px 6px; cursor: pointer; font-size: 0.88rem;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px; transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .tab:hover { color: #d0c080; }
+    .tab.active {
+      color: #e0c060; font-weight: bold;
+      border-bottom-color: #e0c060;
+    }
+    .tab-hidden { opacity: 0.5; font-style: italic; }
+
     /* ── Workspace ── */
     .workspace { display: flex; flex: 1; overflow: hidden; }
 
@@ -659,6 +858,8 @@ HTML_HEAD = """\
       background: #181818; border-right: 1px solid #2e2e2e;
       overflow-y: auto; padding: 6px 0; flex-shrink: 0;
     }
+    .tab-sidebar { display: none; }
+    .tab-sidebar.tab-sidebar-active { display: block; }
     .nav-parent {
       display: flex; align-items: center; gap: 5px;
       padding: 6px 10px; cursor: pointer;
@@ -798,6 +999,7 @@ HTML_HEAD = """\
       border: 1px solid #2a5a7a; border-radius: 3px;
       padding: 1px 5px; font-family: monospace; cursor: default;
     }
+    .atlas-icon { margin-right: 4px; }
 
     /* Validate badge on input widgets */
     .validate-badge {
@@ -876,19 +1078,71 @@ HTML_FOOT = """\
     var children = document.getElementById('children-' + key);
     var arrow    = el.querySelector('.nav-arrow');
     if (children) {
+      var wasCollapsed = children.classList.contains('collapsed');
       children.classList.toggle('collapsed');
-      arrow.textContent = children.classList.contains('collapsed') ? '\u25ba' : '\u25bc';
+      arrow.textContent = children.classList.contains('collapsed') ? '\\u25ba' : '\\u25bc';
+      if (wasCollapsed) {
+        /* Just expanded — auto-select the first child */
+        var firstChild = children.querySelector('.nav-item');
+        if (firstChild) {
+          clearActive();
+          el.classList.add('active');
+          firstChild.classList.add('active');
+          showPanel(firstChild.dataset.panel);
+          return;
+        }
+      }
     }
     clearActive();
     el.classList.add('active');
     if (el.dataset.panel) showPanel(el.dataset.panel);
   };
 
+  /* ── Tab switching ── */
+  window.selectTab = function (el) {
+    var tabKey = el.dataset.tab;
+
+    /* Update tab buttons */
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+    el.classList.add('active');
+
+    /* Show correct sidebar section */
+    document.querySelectorAll('.tab-sidebar').forEach(function (s) {
+      s.classList.remove('tab-sidebar-active');
+    });
+    var sidebar = document.querySelector('.tab-sidebar[data-tab="' + tabKey + '"]');
+    if (sidebar) sidebar.classList.add('tab-sidebar-active');
+
+    /* Hide all panels and clear nav selection */
+    document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+    clearActive();
+
+    /* Auto-select within the new tab's sidebar */
+    if (sidebar) {
+      var firstChild = sidebar.querySelector('.nav-children .nav-item');
+      if (firstChild) { selectNav(firstChild); return; }
+      var firstLeaf  = sidebar.querySelector('.nav-item');
+      if (firstLeaf)  { selectNav(firstLeaf);  return; }
+      var firstParent = sidebar.querySelector('.nav-parent');
+      if (firstParent) { toggleParent(firstParent); return; }
+    }
+
+    /* Simple tab with no nav items — show its panel directly */
+    var directPanel = document.getElementById('p-' + tabKey);
+    if (directPanel) directPanel.classList.add('active');
+  };
+
   /* ── Default selection ── */
-  var first = document.querySelector('[data-panel="__DEFAULT_PANEL__"]');
-  if (first) {
-    first.classList.add('active');
-    showPanel("__DEFAULT_PANEL__");
+  var defaultTab = document.querySelector('.tab[data-tab="__DEFAULT_TAB__"]');
+  if (defaultTab) {
+    selectTab(defaultTab);
+  } else {
+    /* Non-tabbed fallback */
+    var first = document.querySelector('[data-panel="__DEFAULT_PANEL__"]');
+    if (first) {
+      first.classList.add('active');
+      showPanel("__DEFAULT_PANEL__");
+    }
   }
 })();
 </script>

@@ -3,6 +3,10 @@
 --- Implemented as a busted spec so it reuses the existing package-path setup,
 --- the .busted helper (WoW global stubs), and the mock infrastructure.
 ---
+--- Loads all real config files (including FramesConfig.lua and DbAccessors.lua)
+--- with enriched mocks for LootDisplay, HistoryService, Notifications, and
+--- Styling so that per-frame closures and RebuildArgs() resolve without error.
+---
 --- Usage:
 ---   make options-dump
 ---
@@ -95,6 +99,46 @@ describe("options dump", function()
 		}
 
 		-- ---------------------------------------------------------------
+		-- Step 3b: Additional mocks required for per-frame config closures
+		-- ---------------------------------------------------------------
+
+		-- LootDisplay stub: no-op methods called by config setters and
+		-- wrapSettersWithRefresh() in FramesConfig.lua.
+		local noop = function() end
+		ns.LootDisplay = {
+			RefreshSampleRowsIfShown = noop,
+			UpdatePosition = noop,
+			UpdateSize = noop,
+			UpdateRowStyles = noop,
+			UpdateRowPositions = noop,
+			UpdateStrata = noop,
+			UpdateEnterAnimation = noop,
+			UpdateFadeDelay = noop,
+			ReInitQueueLabel = noop,
+			HideLoot = noop,
+			InitFrame = noop,
+			DestroyFrame = noop,
+			ShowSampleRows = noop,
+			HideSampleRows = noop,
+			UpdateSampleRows = noop,
+		}
+
+		-- HistoryService stub: General.lua references ToggleHistoryFrame()
+		ns.HistoryService = {
+			ToggleHistoryFrame = noop,
+		}
+
+		-- Notifications stub: FramesConfig.lua calls AddNotification on max-frame error
+		ns.Notifications = ns.Notifications or {}
+		ns.Notifications.AddNotification = ns.Notifications.AddNotification or noop
+
+		-- RLF:GetModule stub: General.lua calls GetModule(SupportModule.TestMode)
+		-- which returns an object with ToggleTestMode().
+		ns.RLF.GetModule = function()
+			return { ToggleTestMode = noop }
+		end
+
+		-- ---------------------------------------------------------------
 		-- Load config files in the same order as config.xml / features.xml
 		-- ---------------------------------------------------------------
 
@@ -128,8 +172,10 @@ describe("options dump", function()
 		assert(loadfile("RPGLootFeed/config/Sizing.lua"))("TestAddon", ns)
 		assert(loadfile("RPGLootFeed/config/Styling.lua"))("TestAddon", ns)
 		assert(loadfile("RPGLootFeed/config/Animations.lua"))("TestAddon", ns)
+		assert(loadfile("RPGLootFeed/config/FramesConfig.lua"))("TestAddon", ns)
 		assert(loadfile("RPGLootFeed/config/BlizzardUI.lua"))("TestAddon", ns)
-		-- DbMigrations / DbAccessors / Migrations are not needed for the options dump
+		-- DbAccessors provides real accessor methods used by per-frame closures
+		assert(loadfile("RPGLootFeed/config/DbAccessors.lua"))("TestAddon", ns)
 		assert(loadfile("RPGLootFeed/config/About.lua"))("TestAddon", ns)
 
 		-- ---------------------------------------------------------------
@@ -150,6 +196,26 @@ describe("options dump", function()
 			return copy
 		end
 		ns.db = deepCopy(ns.defaults)
+
+		-- Populate an explicit frame 1 entry from the "**" wildcard defaults.
+		-- Per-frame closures read db.global.frames[1], not frames["**"].
+		local frame1 = deepCopy(ns.defaults.global.frames["**"])
+		frame1.name = "Main"
+		-- Enable all features so nothing is hidden/disabled by "feature not enabled"
+		for _, featureCfg in pairs(frame1.features) do
+			featureCfg.enabled = true
+		end
+		ns.db.global.frames[1] = frame1
+		ns.db.global.nextFrameId = 2
+		-- Remove the "**" wildcard key — it's an AceDB convention for inherited
+		-- defaults, not a real frame entry.  FramesConfig iterates frames and
+		-- would choke on the mixed string/number keys when sorting.
+		ns.db.global.frames["**"] = nil
+
+		-- ---------------------------------------------------------------
+		-- Rebuild per-frame args now that the DB and all config files are loaded
+		-- ---------------------------------------------------------------
+		ns.FramesConfig:RebuildArgs()
 
 		-- ---------------------------------------------------------------
 		-- Serialize
@@ -179,6 +245,48 @@ describe("options dump", function()
 		assert.truthy(
 			json:find('"_value"', 1, true),
 			"Expected _value fields from evaluated get()/hidden()/disabled() functions"
+		)
+
+		-- Per-frame groups should be present after RebuildArgs()
+		assert.truthy(
+			json:find('"frame_1"', 1, true),
+			"Expected 'frame_1' key in JSON — FramesConfig:RebuildArgs() may not have been called"
+		)
+		assert.truthy(
+			json:find('"newFrame"', 1, true),
+			"Expected 'newFrame' key in JSON — FramesConfig:RebuildArgs() may not have been called"
+		)
+		assert.truthy(
+			json:find('"manageFrames"', 1, true),
+			"Expected 'manageFrames' key in JSON — FramesConfig:RebuildArgs() may not have been called"
+		)
+
+		-- Phase 3: Verify serializer robustness for per-frame closures.
+		--
+		-- 1. No _error markers: all get/hidden/disabled closures (including
+		--    per-frame Styling string method-refs like "GetTextAlignment") must
+		--    evaluate without error via the enriched INFO_STUB and correct handler
+		--    propagation.
+		assert.falsy(
+			json:find('"_error"', 1, true),
+			"Expected zero _error markers in JSON dump — some closures failed to evaluate"
+		)
+
+		-- 2. Handler propagation: Styling uses string method-refs dispatched on a
+		--    per-frame handler (e.g. get = "GetTextAlignment").  Confirm that these
+		--    resolve to actual _value entries rather than staying as bare string refs.
+		--    The presence of a resolved _value anywhere inside the styling subtree is
+		--    sufficient evidence that handler propagation is working.
+		local stylingIdx = json:find('"styling"', 1, true)
+		assert.truthy(
+			stylingIdx,
+			"Expected 'styling' group in frame_1 args — FramesConfig may not have built per-frame groups"
+		)
+		-- A window of ~20 KB from the styling key should contain at least one _value
+		local stylingWindow = json:sub(stylingIdx, stylingIdx + 20000)
+		assert.truthy(
+			stylingWindow:find('"_value"', 1, true),
+			"Expected resolved _value fields inside the styling group — handler propagation may be broken"
 		)
 
 		-- ---------------------------------------------------------------

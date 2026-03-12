@@ -1,7 +1,12 @@
 # AceConfig → HTML Renderer Utility
 
-> **Status (2026-03-08):** Steps 1–5 and 7 are complete and working.
-> Steps 6 and 8 remain; see [Remaining Work](#remaining-work) below.
+> **Status (2026-03-12):** Steps 1–5 and 7 are complete and working.
+> Multi-frame config (FramesConfig, DbAccessors, per-frame mocks, per-frame DB
+> setup, tab bar renderer, 3-level nav) fully supported — `make options-dump`
+> produces ~150 KB JSON with `global`, `frame_1`, `newFrame`, and
+> `manageFrames` subtrees; `make options-html` renders them with a tab bar and
+> 3-level sidebar. Serializer robustness hardened (enriched INFO_STUB, `_error`
+> handling). Steps 6 and 8 remain; see [Remaining Work](#remaining-work) below.
 > Run `make options-html` to regenerate the output at any time.
 
 ## Purpose
@@ -47,6 +52,9 @@ The following pieces already exist and should be reused rather than rebuilt:
   dump_options.lua          ← Stage 1 entry point (busted spec)
   aceconfig_serializer.lua  ← recursive walk + JSON serialization logic
   render_options.py         ← Stage 2 HTML renderer
+  assets/
+    worldsoul.png           ← Atlas icon for Global tab (UI-EventPoi-WorldSoulMemory)
+    lootall.png             ← Atlas icon for frame tabs (Crosshair_lootall_32)
 .scripts/.output/
   options_dump.json         ← Stage 1 output (gitignored)
   options.html              ← Stage 2 output (gitignored)
@@ -81,12 +89,40 @@ closures resolve real default values.
 - `GetFonts()` returns a representative list of WoW font object names
 - `ns.AuctionIntegrations` stub so ItemConfig closures don't error
 - `CreateAtlasMarkup` mock returns `<AtlasMarkup:atlas-name>` so the atlas name survives into JSON
+- `ns.LootDisplay` stub with no-op methods (`RefreshSampleRowsIfShown`, `UpdatePosition`, `UpdateSize`, etc.) — called by `wrapSettersWithRefresh()` and per-frame config setters
+- `ns.HistoryService` stub (`ToggleHistoryFrame` no-op) — referenced by General.lua
+- `ns.Notifications` stub (`AddNotification` no-op) — referenced by FramesConfig.lua
+- `ns.RLF.GetModule()` stub returning `{ ToggleTestMode = noop }` — referenced by General.lua
+
+**Per-frame DB setup:**
+
+- After `deepCopy(ns.defaults)`, an explicit `frames[1]` entry is created from the `"**"` wildcard defaults with `name = "Main"` and all features enabled
+- `ns.db.global.nextFrameId = 2`
+- The `"**"` wildcard key is removed to avoid mixed string/number key sort errors
+- `ns.FramesConfig:RebuildArgs()` is called after all config files are loaded
+
+**Config file load order** (matches `config.xml` / `features.xml`):
+
+- `common/common.lua`, `common/db.utils.lua`, `common/styling.base.lua`
+- `ConfigOptions.lua`, `General.lua`
+- `Features/Features.lua`, all feature configs
+- `Positioning.lua`, `Sizing.lua`, `Styling.lua`, `Animations.lua`
+- `FramesConfig.lua`, `BlizzardUI.lua`, `DbAccessors.lua`, `About.lua`
 
 ### Stage 2 — HTML renderer (`render_options.py`)
 
 Self-contained HTML output (all CSS/JS inlined, no external deps).
 
-**Layout:**
+**Layout — multi-frame (root `childGroups="select"`):**
+
+- Fixed top bar with addon title
+- Tab bar below the top bar: one tab per root-level `select` group (`⚙ Global`, `Main`, `+ New Frame`, `Manage Frames`); gold highlight on active tab
+- Per-tab two-column workspace: left sidebar nav tree | right scrollable content panels
+- Sidebar groups are scoped to the active tab — switching tabs swaps the sidebar and content
+- 3-level nav: tab → tree parent (e.g. Appearance, Loot Feeds) → tree children (collapsible); clicking navigates to the panel
+- Content: each nav leaf has a dedicated panel; sub-groups render as `<fieldset>` with `<legend>`
+
+**Layout — flat (no root `select`):**
 
 - Fixed top bar with addon title + root-level `execute` buttons
 - Two-column workspace: left sidebar nav tree | right scrollable content panels
@@ -114,9 +150,10 @@ Self-contained HTML output (all CSS/JS inlined, no external deps).
 - **Disabled state**: `opt-disabled` class (opacity) when `disabled()` returned `true`
 - **Hidden options**: separated from visible siblings into a collapsed `<details class="hidden-opts-section">` at both panel and group level; not silently excluded
 - **Numeric `width`**: fractional AceConfig widths (e.g. `0.35`) applied as inline `width: N%`
-- **Dynamic placeholders**: `[dynamic list]` / `[dynamic]` where values depend on live game state
-- **Tooltips**: hovering any option shows internal key, full description, and dynamic/hidden flags
-- **Nav**: JS-driven panel switching; parent nodes collapse/expand their children
+- **Dynamic placeholders**: `[dynamic list]` / `[dynamic]` / `[unavailable]` where values depend on live game state or evaluation failed
+- **Tooltips**: hovering any option shows internal key, full description, dynamic flags, and `[eval error: ...]` annotation when a closure errored at dump time
+- **Nav**: JS-driven panel switching; parent nodes collapse/expand their children; tab switching shows/hides scoped sidebar sections
+- **Atlas icons**: `<AtlasMarkup:NAME>` in nav labels and execute buttons replaced with inline `<img>` tags using base64-embedded PNGs from `.scripts/assets/` (falls back to styled text badge when no PNG is available)
 
 **Makefile targets:**
 
@@ -132,9 +169,15 @@ The utility is two decoupled stages:
 ```
 Stage 1: Lua dump script
   Loads config files via mock infrastructure → serializes G_RLF.options to JSON
+  Output includes: global, frame_1 (appearance + loot feeds), newFrame, manageFrames
+  Assertions verify: no _error markers, handler propagation resolves styling
+  method-refs, per-frame keys present
 
 Stage 2: HTML renderer
   Reads JSON → renders static HTML page
+  Root childGroups="select" → tab bar + 3-level nav (tab → parent → leaf)
+  No root select → legacy flat 2-level nav with top-bar execute buttons
+  Atlas icon PNGs in .scripts/assets/ are base64-embedded into the self-contained HTML
 ```
 
 Keeping them separate means the renderer can be iterated in isolation (just
@@ -152,11 +195,15 @@ The following notes are kept for context; the implementation lives in
 
 `dump_options.lua` bootstraps the namespace through `addonNamespaceMocks.LoadSections.Utils`
 then manually loads each config file (same order as `config.xml`/`features.xml`)
-with `loadfile()`. It enriches the LSM, `GetFonts`, and `AuctionIntegrations` stubs
-before loading so that function-valued `values` fields can resolve.
+with `loadfile()`. It enriches the LSM, `GetFonts`, `AuctionIntegrations`,
+`LootDisplay`, `HistoryService`, `Notifications`, and `RLF.GetModule` stubs
+before loading so that per-frame config closures resolve without error.
 
-A deep-copy of `G_RLF.defaults` is assigned to `ns.db` so that `get()`/`hidden()`/`disabled()`
-closures that read `G_RLF.db.global.*` see real default values rather than nil.
+A deep-copy of `G_RLF.defaults` is assigned to `ns.db`, with an explicit
+`frames[1]` entry (from the `"**"` wildcard defaults) so that `get()`/`hidden()`/
+`disabled()` closures that read `G_RLF.db.global.frames[frameId]` see real
+default values. After all config files load, `FramesConfig:RebuildArgs()` is
+called to generate per-frame subtrees.
 
 ### Not yet implemented in Stage 1 — CLI flags
 
@@ -179,10 +226,20 @@ Implementation lives in `.scripts/render_options.py`.
 `render_options.py --input PATH --output PATH` (both have defaults pointing at
 `.scripts/.output/`). Called automatically by `make options-html`.
 
-The `Renderer` class walks the JSON via `_build_nav()` (which classifies root
-groups as nav containers or leaves), then emits panels and dispatches each node
-to a per-type `_render_*` method. All CSS and JS are inlined in `HTML_HEAD` /
-`HTML_FOOT` constants.
+The `Renderer` class detects whether the root node uses `childGroups="select"`
+and branches into `_render_tabbed()` or the legacy flat path.
+
+- **`_build_tabs(root)`** — builds a list of tab dicts, each containing a
+  `has_tree` flag and its own `nav_items` produced by `_build_nav()`.
+- **`_build_nav(root_args, prefix)`** — classifies child groups as `container`
+  (have sub-groups → collapsible sidebar parent) or `leaf` (rendered directly).
+  The `prefix` namespaces panel IDs so sibling tabs don't collide.
+- **`_render_tabbed()`** — emits the tab bar HTML and per-tab sidebar/panel
+  sections; JS hides all but the active tab's sidebar and panels.
+- **`_render_*()` methods** — one per AceConfig widget type; dispatch from
+  `_render_node()`.
+
+All CSS and JS are inlined in `HTML_HEAD` / `HTML_FOOT` constants.
 
 ---
 
@@ -198,6 +255,9 @@ to a per-type `_render_*` method. All CSS and JS are inlined in `HTML_HEAD` /
 | 6    | ⬜ Todo            | Locale annotation mode — `--mode=locale` translator output                                              |
 | 7    | ✅ Done            | Makefile targets — `make options-dump` and `make options-html`                                          |
 | 8    | ⬜ Todo (optional) | CI artifact — attach `options.html` to releases or PR comments                                          |
+| 9    | ✅ Done            | Multi-frame support — FramesConfig/DbAccessors loaded, per-frame mocks, DB setup, `RebuildArgs()` call  |
+| 10   | ✅ Done            | Tab bar + 3-level nav renderer — `childGroups="select"` root → tabbed layout with scoped sidebar        |
+| 11   | ✅ Done            | Serializer robustness — enriched INFO_STUB, `_error` handling, handler propagation assertion            |
 
 ---
 
@@ -256,6 +316,22 @@ until the tool is stable.
   execute button names survive into the JSON and render as `atlas-badge` pills.
 - **Color multi-return** — `get()` on color nodes returns `r, g, b, a`; all
   four channels are now captured separately and used to render real color swatches.
+- **Multi-frame layout** — `FramesConfig.lua` and `DbAccessors.lua` now loaded;
+  per-frame mocks (`LootDisplay`, `HistoryService`, `Notifications`,
+  `RLF.GetModule`) added; fake DB populated with an explicit `frames[1]` entry;
+  `FramesConfig:RebuildArgs()` called before serialization. JSON output grew
+  from ~16 KB to ~150 KB.
+- **`childGroups="select"` at root** — renderer detects this and switches to
+  the tabbed layout path (`_render_tabbed`); legacy flat path preserved for
+  future alternative root shapes.
+- **3-level nav hierarchy** — `_build_tabs()` + `_build_nav(prefix)` generate
+  a tab → parent → leaf structure; JS scopes sidebar visibility to the active tab.
+- **INFO_STUB enrichment** — previously a plain `{}`, now a module-level
+  metatabled table that returns `""` for any key so `info[#info]`-style
+  closures degrade safely rather than erroring.
+- **`_error` resilience** — `_raw_str` returns `[unavailable]`, `_resolve_bool`
+  falls back to default, and tooltips annotate `[eval error: ...]` when a
+  `get`/`hidden`/`disabled` closure fails at dump time.
 
 ### Open
 
