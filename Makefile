@@ -40,7 +40,8 @@ hardcode_string_check: wbt_setup
 
 # Target for running the missing translation checker
 missing_translation_check: wbt_setup
-	@uv run --with defusedxml --no-project $(WBT_DIR)/scripts/i18n/missing_translation_check.py \
+	@uv run --project $(WBT_DIR)/scripts/i18n \
+		$(WBT_DIR)/scripts/i18n/missing_translation_check.py \
 		--locale-dir RPGLootFeed/locale
 
 wbt_setup:
