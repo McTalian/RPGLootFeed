@@ -182,15 +182,7 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 
 	self:SetBackdrop(backdrop)
 
-	print(backdropTexture, backdropColorR, backdropColorG, backdropColorB, backdropColorA)
 	if backdropTexture ~= "None" then
-		print(
-			"Setting backdrop color with alpha:",
-			backdropColorR or 0,
-			backdropColorG or 0,
-			backdropColorB or 0,
-			backdropColorA or 1
-		)
 		self:SetBackdropColor(backdropColorR or 0, backdropColorG or 0, backdropColorB or 0, backdropColorA or 1)
 		-- Re-show the Center piece in case it was hidden by a previous ClearBackdrop
 		-- cycle (we explicitly Hide() it in GRADIENT mode).

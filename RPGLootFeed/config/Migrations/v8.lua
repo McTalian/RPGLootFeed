@@ -730,7 +730,7 @@ function migration:run()
 	if f1 == nil or f1.name == "" then
 		---@type RLF_FrameConfig
 		global.frames[1] = {
-			name = "Main",
+			name = "Main", -- nocheck
 			positioning = copyPositioning(global.positioning),
 			sizing = copySizing(global.sizing),
 			styling = copyStyling(global.styling),
@@ -788,7 +788,7 @@ function migration:run()
 
 		---@type RLF_FrameConfig
 		global.frames[2] = {
-			name = "Party",
+			name = "Party", -- nocheck
 			positioning = {
 				relativePoint = plPos.relativePoint or dpPos.relativePoint,
 				anchorPoint = plPos.anchorPoint or dpPos.anchorPoint,
