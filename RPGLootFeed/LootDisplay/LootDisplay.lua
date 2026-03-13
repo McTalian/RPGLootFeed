@@ -16,6 +16,8 @@ local lootFrames = {}
 local lootQueues = {}
 --- Tracks whether sample rows are currently displayed (set by ShowSampleRows/HideSampleRows)
 local sampleRowsVisible = false
+--- Handle for the pending debounced UpdateSampleRows timer (cancelled on each new call)
+local updateSampleRowsTimer = nil
 
 -- Function to update queue labels for all active frames
 local function updateQueueLabels()
@@ -433,13 +435,21 @@ function LootDisplay:HideSampleRows()
 	self:HideLoot()
 end
 
---- Update sample rows when settings change
+--- Update sample rows when settings change.
+--- Debounced: rapid calls (e.g. from a color picker) are coalesced so only
+--- one hide+show cycle runs after a short delay.
 function LootDisplay:UpdateSampleRows()
-	-- Remove existing sample rows
+	if updateSampleRowsTimer then
+		updateSampleRowsTimer:Cancel()
+		updateSampleRowsTimer = nil
+	end
+
+	-- Remove existing sample rows immediately so the user sees the feed clear
 	self:HideSampleRows()
 
-	-- Add them back with new settings
-	RunNextFrame(function()
+	-- Re-show after a short delay; any new call within that window resets the timer
+	updateSampleRowsTimer = C_Timer.NewTimer(0.1, function()
+		updateSampleRowsTimer = nil
 		self:ShowSampleRows()
 	end)
 end

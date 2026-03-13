@@ -4,7 +4,7 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
----@class RLF_RowBackdropMixin
+---@class RLF_RowBackdropMixin: BackdropTemplateMixin
 RLF_RowBackdropMixin = {}
 
 local FALLBACK_BACKGROUND_TEXTURE = "Interface/Buttons/WHITE8X8"
@@ -14,9 +14,16 @@ function RLF_RowBackdropMixin:StyleBackground()
 
 	if stylingDb.rowBackgroundType ~= G_RLF.RowBackground.GRADIENT then
 		self.Background:Hide()
+		-- Invalidate gradient cache so a future switch back to GRADIENT
+		-- re-applies the gradient colors instead of hitting the cache.
+		self.cachedGradientStart = nil
+		self.cachedGradientEnd = nil
 		return
 	else
 		self.Background:Show()
+		if self.Center then
+			self.Center:Hide()
+		end
 	end
 
 	local changed = false
@@ -76,6 +83,10 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 		and (not enableTexturedBackground or stylingDb.rowBackgroundTexture == "None")
 	then
 		self:ClearBackdrop()
+		-- Invalidate backdrop cache so a future switch back to TEXTURED
+		-- re-applies the backdrop instead of hitting stale cache.
+		self.cachedBackdropTexture = nil
+		self.cachedBorderTexture = nil
 		return
 	end
 
@@ -171,10 +182,26 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 
 	self:SetBackdrop(backdrop)
 
+	print(backdropTexture, backdropColorR, backdropColorG, backdropColorB, backdropColorA)
 	if backdropTexture ~= "None" then
+		print(
+			"Setting backdrop color with alpha:",
+			backdropColorR or 0,
+			backdropColorG or 0,
+			backdropColorB or 0,
+			backdropColorA or 1
+		)
 		self:SetBackdropColor(backdropColorR or 0, backdropColorG or 0, backdropColorB or 0, backdropColorA or 1)
+		-- Re-show the Center piece in case it was hidden by a previous ClearBackdrop
+		-- cycle (we explicitly Hide() it in GRADIENT mode).
+		if self.Center then
+			self.Center:Show()
+		end
 	else
 		self:SetBackdropColor(0, 0, 0, 0) -- Transparent background
+		if self.Background then
+			self.Background:Hide()
+		end
 	end
 
 	-- Apply coloring to textured border

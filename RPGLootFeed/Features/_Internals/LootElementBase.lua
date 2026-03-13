@@ -109,7 +109,7 @@ function G_RLF.LootElementBase:new()
 		if element.quantity ~= nil and element.quantity < 0 then
 			sign = "-"
 		end
-		if not new then
+		if not new and amount ~= nil then
 			amountLogText = format("%s (diff: %s%s)", amount, sign, math.abs(element.quantity))
 		end
 		G_RLF:LogInfo(element.type .. "Shown", addonName, element.type, element.key, text, amountLogText, new)

@@ -46,34 +46,6 @@ G_RLF.options.args.global.args.general = {
 				},
 			},
 		},
-		showOneQuantity = {
-			type = "toggle",
-			name = G_RLF.L["Show '1' Quantity"],
-			desc = G_RLF.L["ShowOneQuantityDesc"],
-			width = "double",
-			get = function(info, value)
-				return G_RLF.db.global.misc.showOneQuantity
-			end,
-			set = function(info, value)
-				G_RLF.db.global.misc.showOneQuantity = value
-				G_RLF.LootDisplay:RefreshSampleRowsIfShown()
-			end,
-			order = 2,
-		},
-		hideAllIcons = {
-			type = "toggle",
-			name = G_RLF.L["Hide All Icons"],
-			desc = G_RLF.L["HideAllIconsDesc"],
-			width = "double",
-			get = function(info, value)
-				return G_RLF.db.global.misc.hideAllIcons
-			end,
-			set = function(info, value)
-				G_RLF.db.global.misc.hideAllIcons = value
-				G_RLF.LootDisplay:RefreshSampleRowsIfShown()
-			end,
-			order = 3,
-		},
 		showMinimapIcon = {
 			type = "toggle",
 			name = G_RLF.L["Show Minimap Icon"],
@@ -90,109 +62,140 @@ G_RLF.options.args.global.args.general = {
 					G_RLF.DBIcon:Show(addonName)
 				end
 			end,
+			order = 2,
+		},
+		feedDisplay = {
+			type = "group",
+			inline = true,
+			name = G_RLF.L["Feed Display"],
+			order = 3,
+			args = {
+				showOneQuantity = {
+					type = "toggle",
+					name = G_RLF.L["Show '1' Quantity"],
+					desc = G_RLF.L["ShowOneQuantityDesc"],
+					width = "double",
+					get = function(info, value)
+						return G_RLF.db.global.misc.showOneQuantity
+					end,
+					set = function(info, value)
+						G_RLF.db.global.misc.showOneQuantity = value
+						G_RLF.LootDisplay:RefreshSampleRowsIfShown()
+					end,
+					order = 1,
+				},
+				hideAllIcons = {
+					type = "toggle",
+					name = G_RLF.L["Hide All Icons"],
+					desc = G_RLF.L["HideAllIconsDesc"],
+					width = "double",
+					get = function(info, value)
+						return G_RLF.db.global.misc.hideAllIcons
+					end,
+					set = function(info, value)
+						G_RLF.db.global.misc.hideAllIcons = value
+						G_RLF.LootDisplay:RefreshSampleRowsIfShown()
+					end,
+					order = 2,
+				},
+			},
+		},
+		lootHistoryOptions = {
+			type = "group",
+			inline = true,
+			name = G_RLF.L["Loot History"],
 			order = 4,
+			args = {
+				enableLootHistory = {
+					type = "toggle",
+					name = G_RLF.L["Enable Loot History"],
+					desc = G_RLF.L["EnableLootHistoryDesc"],
+					get = function()
+						return G_RLF.db.global.lootHistory.enabled
+					end,
+					set = function(info, value)
+						G_RLF.db.global.lootHistory.enabled = value
+						---@type RLF_LootDisplayFrame
+						local frame = G_RLF.RLF_MainLootFrame
+						frame:UpdateTabVisibility()
+					end,
+					order = 1,
+				},
+				lootHistorySize = {
+					type = "range",
+					name = G_RLF.L["Loot History Size"],
+					desc = G_RLF.L["LootHistorySizeDesc"],
+					disabled = function()
+						return not G_RLF.db.global.lootHistory.enabled
+					end,
+					min = 1,
+					max = 1000,
+					step = 1,
+					get = function()
+						return G_RLF.db.global.lootHistory.historyLimit
+					end,
+					set = function(info, value)
+						G_RLF.db.global.lootHistory.historyLimit = value
+					end,
+					order = 2,
+				},
+				hideLootHistoryTab = {
+					type = "toggle",
+					name = G_RLF.L["Hide Loot History Tab"],
+					desc = G_RLF.L["HideLootHistoryTabDesc"],
+					width = "double",
+					disabled = function()
+						return not G_RLF.db.global.lootHistory.enabled
+					end,
+					get = function()
+						return G_RLF.db.global.lootHistory.hideTab
+					end,
+					set = function(info, value)
+						G_RLF.db.global.lootHistory.hideTab = value
+						---@type RLF_LootDisplayFrame
+						local frame = G_RLF.RLF_MainLootFrame
+						frame:UpdateTabVisibility()
+					end,
+					order = 3,
+				},
+			},
 		},
-		enableLootHistory = {
-			type = "toggle",
-			name = G_RLF.L["Enable Loot History"],
-			desc = G_RLF.L["EnableLootHistoryDesc"],
-			get = function()
-				return G_RLF.db.global.lootHistory.enabled
-			end,
-			set = function(info, value)
-				G_RLF.db.global.lootHistory.enabled = value
-				---@type RLF_LootDisplayFrame
-				local frame = G_RLF.RLF_MainLootFrame
-				frame:UpdateTabVisibility()
-			end,
-			order = 5,
-		},
-		lootHistorySize = {
-			type = "range",
-			name = G_RLF.L["Loot History Size"],
-			desc = G_RLF.L["LootHistorySizeDesc"],
-			disabled = function()
-				return not G_RLF.db.global.lootHistory.enabled
-			end,
-			min = 1,
-			max = 1000,
-			step = 1,
-			get = function()
-				return G_RLF.db.global.lootHistory.historyLimit
-			end,
-			set = function(info, value)
-				G_RLF.db.global.lootHistory.historyLimit = value
-			end,
-			order = 6,
-		},
-		hideLootHistoryTab = {
-			type = "toggle",
-			name = G_RLF.L["Hide Loot History Tab"],
-			desc = G_RLF.L["HideLootHistoryTabDesc"],
-			width = "double",
-			get = function()
-				return G_RLF.db.global.lootHistory.hideTab
-			end,
-			set = function(info, value)
-				G_RLF.db.global.lootHistory.hideTab = value
-				---@type RLF_LootDisplayFrame
-				local frame = G_RLF.RLF_MainLootFrame
-				frame:UpdateTabVisibility()
-			end,
-			order = 7,
-		},
-		enableTooltip = {
-			type = "toggle",
-			name = G_RLF.L["Enable Item/Currency Tooltips"],
-			desc = G_RLF.L["EnableTooltipsDesc"],
-			width = "double",
-			get = function(info, value)
-				return G_RLF.db.global.tooltips.hover.enabled
-			end,
-			set = function(info, value)
-				G_RLF.db.global.tooltips.hover.enabled = value
-			end,
-			order = 8,
-		},
-		extraTooltipOptions = {
+		tooltipOptions = {
 			type = "group",
 			name = G_RLF.L["Tooltip Options"],
 			inline = true,
-			disabled = function()
-				return not G_RLF.db.global.tooltips.hover.enabled
-			end,
-			order = 9,
+			order = 5,
 			args = {
+				enableTooltip = {
+					type = "toggle",
+					name = G_RLF.L["Enable Item/Currency Tooltips"],
+					desc = G_RLF.L["EnableTooltipsDesc"],
+					width = "double",
+					get = function(info, value)
+						return G_RLF.db.global.tooltips.hover.enabled
+					end,
+					set = function(info, value)
+						G_RLF.db.global.tooltips.hover.enabled = value
+					end,
+					order = 1,
+				},
 				onlyShiftOnEnter = {
 					type = "toggle",
 					name = G_RLF.L["Show only when SHIFT is held"],
 					desc = G_RLF.L["OnlyShiftOnEnterDesc"],
 					width = "double",
+					disabled = function()
+						return not G_RLF.db.global.tooltips.hover.enabled
+					end,
 					get = function(info, value)
 						return G_RLF.db.global.tooltips.hover.onShift
 					end,
 					set = function(info, value)
 						G_RLF.db.global.tooltips.hover.onShift = value
 					end,
-					order = 1,
+					order = 2,
 				},
 			},
-		},
-		enableSecondaryRowText = {
-			type = "toggle",
-			name = G_RLF.L["Enable Secondary Row Text"],
-			desc = G_RLF.L["EnableSecondaryRowTextDesc"],
-			width = "double",
-			get = function(info, value)
-				return G_RLF.DbAccessor:Styling(G_RLF.Frames.MAIN).enabledSecondaryRowText
-			end,
-			set = function(info, value)
-				for id in pairs(G_RLF.db.global.frames) do
-					G_RLF.DbAccessor:Styling(id).enabledSecondaryRowText = value
-				end
-				G_RLF.LootDisplay:UpdateRowStyles()
-			end,
-			order = 10,
 		},
 	},
 }

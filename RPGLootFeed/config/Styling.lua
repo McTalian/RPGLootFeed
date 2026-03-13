@@ -191,6 +191,11 @@ function Styling:IsTopLeftIconTextDisabled()
 	return not G_RLF.DbAccessor:Styling(self.frameId).enableTopLeftIconText
 end
 
+function Styling:IsTopLeftIconTextColorDisabled()
+	return not G_RLF.DbAccessor:Styling(self.frameId).enableTopLeftIconText
+		or G_RLF.DbAccessor:Styling(self.frameId).topLeftIconTextUseQualityColor
+end
+
 function Styling:GetTopLeftIconFontSize()
 	return G_RLF.DbAccessor:Styling(self.frameId).topLeftIconFontSize
 end

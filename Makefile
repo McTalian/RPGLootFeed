@@ -38,6 +38,12 @@ hardcode_string_check: wbt_setup
 	    --ignore-files IntegrationTest.lua SmokeTest.lua \
 		--addon-dir RPGLootFeed
 
+# Target for running the hardcoded string checker
+missing_locale_key_check: wbt_setup
+	@uv run --no-project $(WBT_DIR)/scripts/i18n/check_for_missing_locale_keys.py \
+		--addon-dir RPGLootFeed \
+		--locale-dir RPGLootFeed/locale
+
 # Target for running the missing translation checker
 missing_translation_check: wbt_setup
 	@uv run --project $(WBT_DIR)/scripts/i18n \

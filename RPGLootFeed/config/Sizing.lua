@@ -20,6 +20,7 @@ function G_RLF.BuildSizingArgs(id, order)
 				type = "range",
 				name = G_RLF.L["Feed Width"],
 				desc = G_RLF.L["FeedWidthDesc"],
+				width = "double",
 				min = 10,
 				max = 1000,
 				get = function()
@@ -35,6 +36,7 @@ function G_RLF.BuildSizingArgs(id, order)
 				type = "range",
 				name = G_RLF.L["Maximum Rows to Display"],
 				desc = G_RLF.L["MaxRowsDesc"],
+				width = "double",
 				min = 1,
 				softMin = 3,
 				max = 20,
@@ -53,6 +55,7 @@ function G_RLF.BuildSizingArgs(id, order)
 				type = "range",
 				name = G_RLF.L["Loot Item Height"],
 				desc = G_RLF.L["RowHeightDesc"],
+				width = "double",
 				min = 5,
 				max = 100,
 				get = function()
@@ -68,6 +71,7 @@ function G_RLF.BuildSizingArgs(id, order)
 				type = "range",
 				name = G_RLF.L["Loot Item Icon Size"],
 				desc = G_RLF.L["IconSizeDesc"],
+				width = "double",
 				min = 5,
 				max = 100,
 				get = function()
@@ -83,6 +87,7 @@ function G_RLF.BuildSizingArgs(id, order)
 				type = "range",
 				name = G_RLF.L["Loot Item Padding"],
 				desc = G_RLF.L["RowPaddingDesc"],
+				width = "double",
 				min = 0,
 				max = 10,
 				get = function()
