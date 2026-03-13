@@ -350,6 +350,10 @@ function RLF_RowTextMixin:UpdateItemCount()
 	-- Migrated modules provide itemCountFn on the payload
 	if self.itemCountFn then
 		RunNextFrame(function()
+			-- Re-check: the row may have been reset/reused before this callback fires
+			if not self.itemCountFn then
+				return
+			end
 			local value, options = self.itemCountFn()
 			if value then
 				self:ShowItemCountText(value, options)

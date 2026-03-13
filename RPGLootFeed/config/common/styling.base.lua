@@ -112,6 +112,7 @@ end
 ---@field GetEnableTopLeftIconText fun(): boolean
 ---@field SetEnableTopLeftIconText fun(info: any, value: boolean)
 ---@field IsTopLeftIconTextDisabled fun(): boolean
+---@field IsTopLeftIconTextColorDisabled fun(): boolean
 ---@field GetTopLeftIconFontSize fun(): number
 ---@field SetTopLeftIconFontSize fun(info: any, value: number)
 ---@field GetTopLeftIconTextUseQualityColor fun(): boolean
@@ -151,7 +152,7 @@ function StylingBase.CreateTextAlignmentSelect(handler)
 		get = "GetTextAlignment",
 		set = "SetTextAlignment",
 		width = "double",
-		order = 1,
+		order = 2,
 		values = {
 			[G_RLF.TextAlignment.LEFT] = G_RLF.L["Left"],
 			-- [G_RLF.TextAlignment.CENTER] = G_RLF.L["Center"],
@@ -173,8 +174,21 @@ function StylingBase.CreateGrowUpToggle()
 		get = "GetGrowUp",
 		set = "SetGrowUp",
 		width = "double",
-		order = 2,
+		order = 1,
 	})
+end
+
+---@private
+function StylingBase.CreateFlowGroup(handler)
+	local group = G_RLF.ConfigCommon.CreateGroup({
+		name = G_RLF.L["Flow"],
+		inline = true,
+		order = 1,
+	})
+	group.args.textAlignment = StylingBase.CreateTextAlignmentSelect(handler)
+	group.args.growUp = StylingBase.CreateGrowUpToggle()
+
+	return group
 end
 
 ---@private
@@ -190,7 +204,7 @@ function StylingBase.CreateBackgroundTypeSelect()
 		},
 		get = "GetBackgroundType",
 		set = "SetBackgroundType",
-		width = "full",
+		width = "double",
 		order = 1,
 	})
 end
@@ -204,6 +218,7 @@ function StylingBase.CreateGradientStartColor()
 		get = "GetGradientStartColor",
 		set = "SetGradientStartColor",
 		hasAlpha = true,
+		width = "double",
 		order = 2.1,
 	})
 end
@@ -247,6 +262,7 @@ function StylingBase.CreateBackgroundTextureColor()
 		get = "GetBackgroundTextureColor",
 		set = "SetBackgroundTextureColor",
 		hasAlpha = true,
+		width = "double",
 		order = 2.2,
 	})
 end
@@ -269,7 +285,7 @@ function StylingBase.CreateInsetRange(name, desc, get, set, order)
 		min = 0,
 		max = 20,
 		bigStep = 1,
-		width = 1.5,
+		width = "double",
 		order = order,
 	})
 end
@@ -430,7 +446,7 @@ function StylingBase.CreateEnableSecondaryRowTextToggle()
 		get = "GetEnabledSecondaryRowText",
 		set = "SetEnabledSecondaryRowText",
 		width = "double",
-		order = 5,
+		order = 2.5,
 	})
 end
 
@@ -441,6 +457,7 @@ function StylingBase.CreateEnableTopLeftIconTextToggle()
 		desc = G_RLF.L["EnableTopLeftIconTextDesc"],
 		get = "GetEnableTopLeftIconText",
 		set = "SetEnableTopLeftIconText",
+		width = "double",
 		order = 0.1,
 	})
 end
@@ -458,6 +475,7 @@ function StylingBase.CreateTopLeftIconFontSizeRange()
 		softMax = 24,
 		max = 72,
 		bigStep = 1,
+		width = "double",
 		order = 1,
 	})
 end
@@ -470,6 +488,7 @@ function StylingBase.CreateTopLeftIconTextUseQualityColorToggle()
 		disabled = "IsTopLeftIconTextDisabled",
 		get = "GetTopLeftIconTextUseQualityColor",
 		set = "SetTopLeftIconTextUseQualityColor",
+		width = 1.75,
 		order = 2,
 	})
 end
@@ -479,10 +498,11 @@ function StylingBase.CreateTopLeftIconTextColor()
 	return G_RLF.ConfigCommon.CreateColor({
 		name = G_RLF.L["Top Left Icon Text Color"],
 		desc = G_RLF.L["TopLeftIconTextColorDesc"],
-		disabled = "IsTopLeftIconTextDisabled",
+		disabled = "IsTopLeftIconTextColorDisabled",
 		get = "GetTopLeftIconTextColor",
 		set = "SetTopLeftIconTextColor",
 		hasAlpha = true,
+		width = 1.75,
 		order = 3,
 	})
 end
@@ -569,6 +589,7 @@ function StylingBase.CreateFontSizeRange(name, desc, get, set, order)
 		softMax = 24,
 		max = 72,
 		bigStep = 1,
+		width = 1.5,
 		order = order,
 	})
 end
@@ -648,6 +669,7 @@ function StylingBase.CreateShadowOffset(name, desc, get, set, order)
 		min = -10,
 		max = 10,
 		bigStep = 1,
+		width = 1.75,
 		order = order,
 	})
 end
@@ -701,6 +723,7 @@ function StylingBase.CreateCustomFontsGroup()
 	})
 	group.args.font = StylingBase.CreateFontFaceSelect()
 	group.args.fontSize = StylingBase.CreatePrimaryFontSizeRange()
+	group.args.enableSecondaryRowText = StylingBase.CreateEnableSecondaryRowTextToggle()
 	group.args.secondaryFontSize = StylingBase.CreateSecondaryFontSizeRange()
 	group.args.fontFlags = StylingBase.CreateFontFlagsMultiSelect()
 	group.args.shadowColor = StylingBase.CreateFontShadowColor()
@@ -721,11 +744,9 @@ function StylingBase.CreateStylingGroup(handler, order)
 		handler = handler,
 		order = order,
 	})
-	group.args.textAlignment = StylingBase.CreateTextAlignmentSelect()
-	group.args.growUp = StylingBase.CreateGrowUpToggle()
+	group.args.flow = StylingBase.CreateFlowGroup(handler)
 	group.args.background = StylingBase.CreateBackgroundGroup()
 	group.args.rowBorders = StylingBase.CreateRowBordersGroup()
-	group.args.enableSecondaryRowText = StylingBase.CreateEnableSecondaryRowTextToggle()
 	group.args.topLeftIconTextOptions = StylingBase.CreateTopLeftIconTextOptionsGroup()
 	group.args.useFontObjects = StylingBase.CreateUseFontObjectsToggle()
 	group.args.font = StylingBase.CreateFontObjectSelect()

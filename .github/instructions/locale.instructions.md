@@ -1,7 +1,7 @@
 ---
 name: Locale File Conventions
 description: Lua coding standards and WoW addon patterns for RPGLootFeed
-applyTo: "**/locale/*"
+applyTo: "RPGLootFeed/locale/*.lua"
 ---
 
 # Locale File Conventions

@@ -39,23 +39,31 @@ describe("General module", function()
 
 	it("has global feed behavior toggles", function()
 		local args = ns.options.args.global.args.general.args
-		assert.is_not_nil(args.showOneQuantity)
-		assert.is_not_nil(args.hideAllIcons)
 		assert.is_not_nil(args.showMinimapIcon)
-		assert.is_not_nil(args.enableSecondaryRowText)
+		local feedDisplay = args.feedDisplay
+		assert.is_not_nil(feedDisplay)
+		assert.are.equal("group", feedDisplay.type)
+		assert.is_true(feedDisplay.inline)
+		assert.is_not_nil(feedDisplay.args.showOneQuantity)
+		assert.is_not_nil(feedDisplay.args.hideAllIcons)
 	end)
 
 	it("has loot history settings", function()
-		local args = ns.options.args.global.args.general.args
-		assert.is_not_nil(args.enableLootHistory)
-		assert.is_not_nil(args.lootHistorySize)
-		assert.is_not_nil(args.hideLootHistoryTab)
+		local lootHistoryOptions = ns.options.args.global.args.general.args.lootHistoryOptions
+		assert.is_not_nil(lootHistoryOptions)
+		assert.are.equal("group", lootHistoryOptions.type)
+		assert.is_true(lootHistoryOptions.inline)
+		assert.is_not_nil(lootHistoryOptions.args.enableLootHistory)
+		assert.is_not_nil(lootHistoryOptions.args.lootHistorySize)
+		assert.is_not_nil(lootHistoryOptions.args.hideLootHistoryTab)
 	end)
 
 	it("has tooltip settings", function()
-		local args = ns.options.args.global.args.general.args
-		assert.is_not_nil(args.enableTooltip)
-		assert.is_not_nil(args.extraTooltipOptions)
-		assert.is_not_nil(args.extraTooltipOptions.args.onlyShiftOnEnter)
+		local tooltipOptions = ns.options.args.global.args.general.args.tooltipOptions
+		assert.is_not_nil(tooltipOptions)
+		assert.are.equal("group", tooltipOptions.type)
+		assert.is_true(tooltipOptions.inline)
+		assert.is_not_nil(tooltipOptions.args.enableTooltip)
+		assert.is_not_nil(tooltipOptions.args.onlyShiftOnEnter)
 	end)
 end)

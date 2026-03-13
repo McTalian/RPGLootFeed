@@ -53,6 +53,7 @@ G_RLF.options.args.global.args.blizz = {
 					type = "toggle",
 					name = G_RLF.L["Disable Loot Toasts"],
 					desc = G_RLF.L["DisableLootToastDesc"],
+					width = "full",
 					get = function(info, value)
 						return G_RLF.db.global.blizzOverrides.disableBlizzLootToasts
 					end,
@@ -65,6 +66,7 @@ G_RLF.options.args.global.args.blizz = {
 					type = "toggle",
 					name = G_RLF.L["Disable Money Alerts"],
 					desc = G_RLF.L["DisableMoneyAlertsDesc"],
+					width = "full",
 					get = function(info, value)
 						return G_RLF.db.global.blizzOverrides.disableBlizzMoneyAlerts
 					end,

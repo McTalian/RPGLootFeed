@@ -35,10 +35,41 @@ function G_RLF.BuildPositioningArgs(id, order)
 		desc = G_RLF.L["PositioningDesc"],
 		order = order,
 		args = {
+			frameStrata = {
+				type = "select",
+				name = G_RLF.L["Frame Strata"],
+				desc = G_RLF.L["FrameStrataDesc"],
+				width = 1,
+				get = function()
+					return G_RLF.DbAccessor:Positioning(id).frameStrata
+				end,
+				set = function(_, value)
+					G_RLF.DbAccessor:Positioning(id).frameStrata = value
+					G_RLF.LootDisplay:UpdateStrata(id)
+				end,
+				values = {
+					["BACKGROUND"] = G_RLF.L["Background"],
+					["LOW"] = G_RLF.L["Low"],
+					["MEDIUM"] = G_RLF.L["Medium"],
+					["HIGH"] = G_RLF.L["High"],
+					["DIALOG"] = G_RLF.L["Dialog"],
+					["TOOLTIP"] = G_RLF.L["Tooltip"],
+				},
+				sorting = {
+					"BACKGROUND",
+					"LOW",
+					"MEDIUM",
+					"HIGH",
+					"DIALOG",
+					"TOOLTIP",
+				},
+				order = 1,
+			},
 			relativeTo = {
 				type = "select",
 				name = G_RLF.L["Anchor Relative To"],
 				desc = G_RLF.L["RelativeToDesc"],
+				width = 1,
 				get = function()
 					return G_RLF.DbAccessor:Positioning(id).relativePoint
 				end,
@@ -47,12 +78,13 @@ function G_RLF.BuildPositioningArgs(id, order)
 					G_RLF.LootDisplay:UpdatePosition(id)
 				end,
 				values = EnumerateFrames(),
-				order = 1,
+				order = 3,
 			},
 			anchorPoint = {
 				type = "select",
 				name = G_RLF.L["Anchor Point"],
 				desc = G_RLF.L["AnchorPointDesc"],
+				width = 1,
 				get = function()
 					return G_RLF.DbAccessor:Positioning(id).anchorPoint
 				end,
@@ -77,6 +109,7 @@ function G_RLF.BuildPositioningArgs(id, order)
 				type = "range",
 				name = G_RLF.L["X Offset"],
 				desc = G_RLF.L["XOffsetDesc"],
+				width = "double",
 				min = -1500,
 				max = 1500,
 				get = function()
@@ -86,12 +119,13 @@ function G_RLF.BuildPositioningArgs(id, order)
 					G_RLF.DbAccessor:Positioning(id).xOffset = value
 					G_RLF.LootDisplay:UpdatePosition(id)
 				end,
-				order = 3,
+				order = 4,
 			},
 			yOffset = {
 				type = "range",
 				name = G_RLF.L["Y Offset"],
 				desc = G_RLF.L["YOffsetDesc"],
+				width = "double",
 				min = -1500,
 				max = 1500,
 				get = function()
@@ -101,35 +135,6 @@ function G_RLF.BuildPositioningArgs(id, order)
 					G_RLF.DbAccessor:Positioning(id).yOffset = value
 					G_RLF.LootDisplay:UpdatePosition(id)
 				end,
-				order = 4,
-			},
-			frameStrata = {
-				type = "select",
-				name = G_RLF.L["Frame Strata"],
-				desc = G_RLF.L["FrameStrataDesc"],
-				get = function()
-					return G_RLF.DbAccessor:Positioning(id).frameStrata
-				end,
-				set = function(_, value)
-					G_RLF.DbAccessor:Positioning(id).frameStrata = value
-					G_RLF.LootDisplay:UpdateStrata(id)
-				end,
-				values = {
-					["BACKGROUND"] = G_RLF.L["Background"],
-					["LOW"] = G_RLF.L["Low"],
-					["MEDIUM"] = G_RLF.L["Medium"],
-					["HIGH"] = G_RLF.L["High"],
-					["DIALOG"] = G_RLF.L["Dialog"],
-					["TOOLTIP"] = G_RLF.L["Tooltip"],
-				},
-				sorting = {
-					"BACKGROUND",
-					"LOW",
-					"MEDIUM",
-					"HIGH",
-					"DIALOG",
-					"TOOLTIP",
-				},
 				order = 5,
 			},
 		},

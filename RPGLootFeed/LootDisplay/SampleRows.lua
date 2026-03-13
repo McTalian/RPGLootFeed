@@ -67,7 +67,7 @@ function LootDisplay:CreateSampleRows(frame)
 					return "    Adventurer"
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.PartyLoot,
+				sampleTooltipText = G_RLF.L["Party Loot"],
 				IsEnabled = function()
 					return true
 				end,
@@ -108,7 +108,7 @@ function LootDisplay:CreateSampleRows(frame)
 						}
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.ItemLoot,
+				sampleTooltipText = G_RLF.L["Item Loot"],
 				IsEnabled = function()
 					return true
 				end,
@@ -145,7 +145,7 @@ function LootDisplay:CreateSampleRows(frame)
 					return TextTemplateEngine:ProcessRowElements(2, moneyElementData, existingCopper)
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.Money,
+				sampleTooltipText = G_RLF.L["Money"],
 				IsEnabled = function()
 					return true
 				end,
@@ -191,7 +191,7 @@ function LootDisplay:CreateSampleRows(frame)
 					return "    " .. color .. "1500 / 3000|r"
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.Currency,
+				sampleTooltipText = G_RLF.L["Currency"],
 				IsEnabled = function()
 					return true
 				end,
@@ -235,7 +235,7 @@ function LootDisplay:CreateSampleRows(frame)
 					return "    " .. color .. "21000 / 42000|r"
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.Reputation,
+				sampleTooltipText = G_RLF.L["Reputation"],
 				IsEnabled = function()
 					return true
 				end,
@@ -281,7 +281,7 @@ function LootDisplay:CreateSampleRows(frame)
 						}
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.Experience,
+				sampleTooltipText = G_RLF.L["Experience"],
 				IsEnabled = function()
 					return true
 				end,
@@ -319,7 +319,7 @@ function LootDisplay:CreateSampleRows(frame)
 						}
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.Profession,
+				sampleTooltipText = G_RLF.L["Profession Skills"],
 				IsEnabled = function()
 					return true
 				end,
@@ -351,7 +351,7 @@ function LootDisplay:CreateSampleRows(frame)
 					return "    " .. color .. "1250/2000|r"
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.TravelPoints,
+				sampleTooltipText = G_RLF.L["Travel Points"],
 				IsEnabled = function()
 					return true
 				end,
@@ -380,7 +380,7 @@ function LootDisplay:CreateSampleRows(frame)
 					return "Appearance Collected"
 				end,
 				isSampleRow = true,
-				sampleTooltipText = FeatureModule.Transmog,
+				sampleTooltipText = G_RLF.L["Transmog"],
 				IsEnabled = function()
 					return true
 				end,

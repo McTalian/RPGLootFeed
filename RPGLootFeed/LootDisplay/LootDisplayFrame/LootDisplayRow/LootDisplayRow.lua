@@ -117,6 +117,8 @@ function LootDisplayRowMixin:Reset()
 	self.isCustomLink = false
 	self.customBehavior = nil
 	self.amountTextFn = nil
+	self.itemCountFn = nil
+	self.logFn = nil
 	self.onReleased = nil
 
 	-- Reset UI elements that were part of the template

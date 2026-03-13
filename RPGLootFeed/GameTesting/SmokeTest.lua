@@ -503,7 +503,7 @@ local function testLocale()
 
 	-- Spot-check critical locale keys used across config and features
 	local criticalKeys = {
-		"Party Loot",
+		"Party Loot Config",
 		"Loot History",
 		"Blizzard UI",
 		"Item Count Text",
