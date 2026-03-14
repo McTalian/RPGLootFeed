@@ -34,7 +34,9 @@ local featureKeyForType = {
 function LootDisplayFrameMixin:IsFeatureEnabled(element)
 	local featureKey = featureKeyForType[element.type]
 	if not featureKey then
-		return false
+		-- Non-feature elements (e.g. Notifications) fall back to their own
+		-- module-level IsEnabled gate and only show on the main frame.
+		return self.frameType == G_RLF.Frames.MAIN and element.IsEnabled()
 	end
 	local frameConfig = G_RLF.db.global.frames[self.frameType]
 	if not frameConfig then
