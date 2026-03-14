@@ -173,7 +173,7 @@ describe("LootDisplay module", function()
 			type = "UNKNOWN_FEATURE",
 			key = "sample_unknown",
 			IsEnabled = function()
-				return true
+				return false
 			end,
 		}
 

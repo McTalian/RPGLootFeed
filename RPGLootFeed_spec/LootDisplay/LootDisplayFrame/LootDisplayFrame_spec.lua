@@ -487,13 +487,40 @@ describe("LootDisplayFrameMixin", function()
 			assert.is_false(frame:IsFeatureEnabled(element))
 		end)
 
-		it("returns false for an unknown element type", function()
+		it("returns false for an unknown element type when IsEnabled returns false", function()
 			ns.db.global.frames[ns.Frames.MAIN] = {
 				features = {
 					itemLoot = { enabled = true },
 				},
 			}
-			local element = { type = "UNKNOWN_FEATURE" }
+			local element = {
+				type = "UNKNOWN_FEATURE",
+				IsEnabled = function()
+					return false
+				end,
+			}
+			assert.is_false(frame:IsFeatureEnabled(element))
+		end)
+
+		it("returns true for a non-feature element on the main frame when IsEnabled returns true", function()
+			frame.frameType = ns.Frames.MAIN
+			local element = {
+				type = "Notifications",
+				IsEnabled = function()
+					return true
+				end,
+			}
+			assert.is_true(frame:IsFeatureEnabled(element))
+		end)
+
+		it("returns false for a non-feature element on a secondary frame", function()
+			frame.frameType = 2
+			local element = {
+				type = "Notifications",
+				IsEnabled = function()
+					return true
+				end,
+			}
 			assert.is_false(frame:IsFeatureEnabled(element))
 		end)
 
