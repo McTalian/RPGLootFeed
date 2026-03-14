@@ -331,6 +331,22 @@ local function runTransmogIntegrationTest()
 	return 1
 end
 
+--- Fires two synthetic profession skill-gain events (initial + stack/update)
+--- so the skill-delta badge can be verified without actually levelling a profession.
+function TestMode:ProfessionTest()
+	if not self.integrationTestReady then
+		G_RLF:Print("Integration test not ready")
+		return
+	end
+
+	runner:reset()
+	local expected = runProfessionIntegrationTest()
+	RunNextFrame(function()
+		runner:assertEqual(type(expected), "number", "Profession test fired")
+		runner:displayResults()
+	end)
+end
+
 function TestMode:IntegrationTest()
 	if not self.integrationTestReady then
 		G_RLF:Print("Integration test not ready")
