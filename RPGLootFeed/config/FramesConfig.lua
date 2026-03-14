@@ -134,6 +134,7 @@ local function buildManageFrameArgs()
 			name = G_RLF.L["Frame Name"],
 			desc = G_RLF.L["FrameNameDesc"],
 			order = baseOrder,
+			width = "double",
 			get = function()
 				local cfg = G_RLF.db.global.frames[id]
 				return cfg and cfg.name or ""
@@ -152,6 +153,7 @@ local function buildManageFrameArgs()
 				type = "execute",
 				name = G_RLF.L["Delete Frame"],
 				order = baseOrder + 1,
+				width = "double",
 				confirm = true,
 				confirmText = G_RLF.L["DeleteFrameConfirm"],
 				func = function()
@@ -159,6 +161,15 @@ local function buildManageFrameArgs()
 					G_RLF.FramesConfig:RebuildArgs()
 					notifyChange()
 				end,
+			}
+		else
+			args["delete_" .. id] = {
+				type = "execute",
+				name = G_RLF.L["Delete Frame"],
+				order = baseOrder + 1,
+				width = "double",
+				disabled = true,
+				func = function() end,
 			}
 		end
 	end
