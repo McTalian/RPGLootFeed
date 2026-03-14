@@ -59,7 +59,7 @@ function Professions:BuildPayload(key, name, icon, level, quantity)
 	local payload = {
 		-- Routing
 		key = "PROF_" .. key,
-		type = "Professions",
+		type = FeatureModule.Profession,
 
 		-- Icon
 		icon = (profConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and icon or nil,

@@ -86,7 +86,7 @@ function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 	local payload = {
 		-- Routing
 		key = key,
-		type = "Currency",
+		type = FeatureModule.Currency,
 
 		-- Icon
 		icon = (G_RLF.DbAccessor:AnyFeatureConfig("currency") or {}).enableIcon

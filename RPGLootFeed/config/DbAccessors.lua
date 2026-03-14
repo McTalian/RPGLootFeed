@@ -59,7 +59,15 @@ function DbAccessor:AnyFeatureConfig(featureKey)
 	if not frames then
 		return nil
 	end
-	for _, frameConfig in ipairs(frames) do
+	local sortedKeys = {}
+	for k in pairs(frames) do
+		if type(k) == "number" then
+			sortedKeys[#sortedKeys + 1] = k
+		end
+	end
+	table.sort(sortedKeys)
+	for _, id in ipairs(sortedKeys) do
+		local frameConfig = frames[id]
 		if frameConfig.features and frameConfig.features[featureKey] and frameConfig.features[featureKey].enabled then
 			return frameConfig.features[featureKey]
 		end

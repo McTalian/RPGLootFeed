@@ -108,7 +108,7 @@ function Rep:BuildPayload(unifiedFactionData)
 	local payload = {
 		-- Routing
 		key = "REP_" .. factionId,
-		type = "Reputation",
+		type = FeatureModule.Reputation,
 
 		-- Icon
 		icon = (G_RLF.DbAccessor:AnyFeatureConfig("reputation") or {}).enableIcon

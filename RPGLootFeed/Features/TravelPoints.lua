@@ -56,7 +56,7 @@ function TravelPoints:BuildPayload(quantity)
 
 	---@type RLF_ElementPayload
 	local payload = {
-		type = "TravelPoints",
+		type = FeatureModule.TravelPoints,
 		key = "TRAVELPOINTS",
 		quantity = quantity,
 		r = r,

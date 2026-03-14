@@ -23,7 +23,7 @@ describe("Professions Module", function()
 			-- Captured as locals by Professions.lua at load time.
 			DefaultIcons = { PROFESSION = 134400 },
 			ItemQualEnum = { Rare = 3 },
-			FeatureModule = { Profession = "Profession" },
+			FeatureModule = { Profession = "Professions" },
 			-- WoWAPI stub so Professions._professionsAdapter = G_RLF.WoWAPI.Professions
 			-- resolves at load time (overridden per-test in before_each).
 			WoWAPI = { Professions = {} },

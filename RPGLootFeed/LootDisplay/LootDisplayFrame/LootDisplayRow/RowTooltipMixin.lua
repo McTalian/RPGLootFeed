@@ -30,9 +30,12 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 		if inCombat then
 			return
 		end
-		if LinkUtil and not LinkUtil.IsLinkType(self.link, "item") then
-			-- It doesn't look like we can get hover behavior for transmog links but
-			-- they don't provide much information anyway
+		if
+			LinkUtil
+			and not LinkUtil.IsLinkType(self.link, "item")
+			and not LinkUtil.IsLinkType(self.link, "currency")
+		then
+			-- Transmog links don't provide useful hover tooltips
 			return
 		end
 		GameTooltip:SetOwner(self.ClickableButton, "ANCHOR_RIGHT")
