@@ -68,6 +68,12 @@ function LootDisplay:InitFrame(id)
 
 	lootFrames[id] = frame
 	frame:Load(id)
+
+	-- If the options panel is already open when this frame is created, show the test area immediately.
+	local mainFrame = lootFrames[G_RLF.Frames.MAIN]
+	if id ~= G_RLF.Frames.MAIN and mainFrame and mainFrame.BoundingBox and mainFrame.BoundingBox:IsVisible() then
+		frame:ShowTestArea()
+	end
 end
 
 function LootDisplay:OnInitialize()
