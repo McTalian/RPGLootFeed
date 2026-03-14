@@ -70,9 +70,16 @@ function AuctionIntegrations:Init()
 	end
 
 	if self.activeIntegration and ahSource ~= self.activeIntegration:ToString() then
-		local itemFeature = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot")
-		if itemFeature then
-			itemFeature.auctionHouseSource = self.activeIntegration:ToString()
+		-- TODO: AuctionIntegrations is a singleton with one activeIntegration.
+		-- When multi-frame per-frame AH source selection is needed, this module
+		-- should become frame-aware (pass frameId into GetAHPrice, etc.).
+		local frames = G_RLF.db.global.frames
+		if frames then
+			for _, frameConfig in ipairs(frames) do
+				if frameConfig.features and frameConfig.features.itemLoot then
+					frameConfig.features.itemLoot.auctionHouseSource = self.activeIntegration:ToString()
+				end
+			end
 		end
 	end
 end
