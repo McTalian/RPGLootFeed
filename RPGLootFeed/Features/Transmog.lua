@@ -52,7 +52,7 @@ function Transmog:BuildPayload(transmogLink, icon)
 	local payload = {}
 
 	payload.key = "TMOG_" .. transmogLink
-	payload.type = "Transmog"
+	payload.type = FeatureModule.Transmog
 	payload.isLink = true
 
 	payload.icon = icon or DefaultIcons.TRANSMOG

@@ -86,7 +86,7 @@ function Xp:BuildPayload(quantity)
 	local payload = {
 		-- Routing
 		key = "EXPERIENCE",
-		type = "Experience",
+		type = FeatureModule.Experience,
 
 		-- Icon
 		icon = elementData.icon,

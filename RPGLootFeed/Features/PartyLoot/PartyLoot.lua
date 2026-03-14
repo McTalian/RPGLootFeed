@@ -60,7 +60,7 @@ function PartyLoot:BuildPayload(info, amount, unit)
 	local payload = {}
 
 	payload.key = info.itemLink
-	payload.type = "PartyLoot"
+	payload.type = FeatureModule.PartyLoot
 	payload.isLink = true
 	payload.unit = unit
 
