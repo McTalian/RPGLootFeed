@@ -311,10 +311,20 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	local oldAmount = self.amount
 	local text = element.textFn(oldAmount, self.link)
 	self.itemCount = element.itemCount
-	self.itemCountFn = element.itemCountFn or self.itemCountFn
+	local netAmount = oldAmount + element.quantity
+	-- Wrap the incoming itemCountFn so it receives the *accumulated* netAmount
+	-- rather than just the per-element delta captured in its closure.
+	if element.itemCountFn then
+		local baseFn = element.itemCountFn
+		local net = netAmount
+		self.itemCountFn = function()
+			return baseFn(net)
+		end
+	else
+		self.itemCountFn = self.itemCountFn
+	end
 	local r, g, b, a = element.r, element.g, element.b, element.a
 	-- Allow the element to recompute color based on the net accumulated quantity
-	local netAmount = oldAmount + element.quantity
 	if element.colorFn then
 		r, g, b, a = element.colorFn(netAmount)
 	end

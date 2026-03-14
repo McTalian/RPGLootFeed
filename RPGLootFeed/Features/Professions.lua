@@ -77,12 +77,14 @@ function Professions:BuildPayload(key, name, icon, level, quantity)
 		end,
 
 		-- Item count display (skill delta)
-		itemCountFn = function()
+		-- netAmount is passed by UpdateQuantity when stacking rows so the badge
+		-- reflects the accumulated total rather than just this element's delta.
+		itemCountFn = function(netAmount)
 			local profCfg = G_RLF.DbAccessor:AnyFeatureConfig("profession") or {}
 			if not profCfg.showSkillChange then
 				return nil
 			end
-			return quantity,
+			return netAmount or quantity,
 				{
 					color = RGBAToHexFormat(unpack(profCfg.skillColor or { 0.333, 0.333, 1.0, 1.0 })),
 					wrapChar = profCfg.skillTextWrapChar,
@@ -159,6 +161,8 @@ function Professions:CHAT_MSG_SKILL(event, message)
 		if not self.professions[skillName] then
 			self.professions[skillName] = {
 				name = skillName,
+				-- Initialize to current level so the first-seen gain shows no delta;
+				-- we don't know how many points were gained before this session.
 				lastSkillLevel = skillLevel,
 			}
 		end
