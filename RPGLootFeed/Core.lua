@@ -154,6 +154,8 @@ function RLF:SlashCommand(msg, editBox)
 			)
 		elseif msg == "i" then
 			TestMode:IntegrationTest()
+		elseif msg == "prof" then
+			TestMode:ProfessionTest()
 		elseif msg == "notif" then
 			G_RLF.Notifications:AddNotification("TEST_NOTIF", "Test Notification")
 		--@end-alpha@
