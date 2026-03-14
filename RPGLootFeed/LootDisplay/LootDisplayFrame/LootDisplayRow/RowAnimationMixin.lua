@@ -592,6 +592,9 @@ function RLF_RowAnimationMixin:UpdateEnterAnimation()
 end
 
 function RLF_RowAnimationMixin:UpdateFadeoutDelay()
+	if not self.isSampleRow and not self.hasElementFadeOverride then
+		self.showForSeconds = G_RLF.DbAccessor:Animations(self.frameType).exit.fadeOutDelay
+	end
 	self:StyleExitAnimation()
 end
 

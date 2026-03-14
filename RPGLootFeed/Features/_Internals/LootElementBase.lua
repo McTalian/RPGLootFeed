@@ -58,9 +58,9 @@ function G_RLF.LootElementBase:new()
 	element.colorFn = nil
 
 	-- ── Display timing ─────────────────────────────────────────────────────────
-	-- Use the Main frame's exit fade delay as the default; individual rows
-	-- override this from their own per-frame animations config at render time.
-	element.showForSeconds = G_RLF.DbAccessor:Animations(G_RLF.Frames.MAIN).exit.fadeOutDelay
+	-- Left nil so each row reads its own frame's configured delay in Init().
+	-- Feature modules may set payload.showForSeconds for a per-element override.
+	element.showForSeconds = nil
 
 	-- ── Capability stubs (feature modules must override) ──────────────────────
 	--- Returns true if the feature module is currently enabled.

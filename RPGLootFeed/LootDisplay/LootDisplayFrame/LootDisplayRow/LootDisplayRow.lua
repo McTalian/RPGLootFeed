@@ -111,7 +111,10 @@ function LootDisplayRowMixin:Reset()
 	self.type = nil
 	self.highlight = nil
 	self.isHistoryMode = false
-	self.isSampleRow = false -- Reset sample row flag		self.sampleTooltipText = nil	self.pendingElement = nil
+	self.isSampleRow = false
+	self.hasElementFadeOverride = false
+	self.sampleTooltipText = nil
+	self.pendingElement = nil
 	self.updatePending = false
 	self.waiting = false
 	self.isCustomLink = false
@@ -223,6 +226,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	local text
 	if element.isSampleRow or (element.showForSeconds ~= nil and element.showForSeconds ~= self.showForSeconds) then
 		self.showForSeconds = element.showForSeconds
+		self.hasElementFadeOverride = not element.isSampleRow
 		self:StyleExitAnimation()
 	end
 

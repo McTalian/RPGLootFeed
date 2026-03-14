@@ -385,5 +385,130 @@ describe("LootDisplayRowMixin", function()
 				assert.equal(0.8, captures.showText.a)
 			end)
 		end)
+
+		describe("per-element fade override", function()
+			it("sets hasElementFadeOverride when element provides showForSeconds", function()
+				local captures
+				row, captures = buildRow()
+				row.showForSeconds = 5
+
+				local element = {
+					key = "ITEM_123",
+					textFn = function()
+						return "Legendary Sword"
+					end,
+					quantity = 1,
+					quality = 5,
+					r = 1,
+					g = 0.5,
+					b = 0,
+					a = 1,
+					highlight = false,
+					showForSeconds = 10,
+				}
+
+				row:BootstrapFromElement(element)
+
+				assert.is_true(row.hasElementFadeOverride)
+				assert.equal(10, row.showForSeconds)
+			end)
+
+			it("does not set hasElementFadeOverride for sample rows", function()
+				local captures
+				row, captures = buildRow()
+				row.showForSeconds = 5
+
+				local element = {
+					key = "SAMPLE",
+					textFn = function()
+						return "Sample"
+					end,
+					quantity = 1,
+					quality = 1,
+					highlight = false,
+					isSampleRow = true,
+					showForSeconds = 99,
+				}
+
+				row:BootstrapFromElement(element)
+
+				assert.is_false(row.hasElementFadeOverride)
+			end)
+
+			it("does not set hasElementFadeOverride when element has no showForSeconds", function()
+				local captures
+				row, captures = buildRow()
+				row.showForSeconds = 5
+
+				local element = {
+					key = "ITEM_456",
+					textFn = function()
+						return "Common Item"
+					end,
+					quantity = 1,
+					quality = 1,
+					r = 1,
+					g = 1,
+					b = 1,
+					a = 1,
+					highlight = false,
+				}
+
+				row:BootstrapFromElement(element)
+
+				assert.is_falsy(row.hasElementFadeOverride)
+				assert.equal(5, row.showForSeconds)
+			end)
+
+			it("preserves per-element showForSeconds when UpdateFadeoutDelay is called", function()
+				row = buildRow()
+				-- Load the animation mixin so UpdateFadeoutDelay is available
+				assert(loadfile("RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowAnimationMixin.lua"))(
+					"TestAddon",
+					ns
+				)
+				for k, v in pairs(RLF_RowAnimationMixin) do
+					row[k] = v
+				end
+
+				row.showForSeconds = 10
+				row.hasElementFadeOverride = true
+				row.isSampleRow = false
+
+				-- Stub StyleExitAnimation to avoid UI calls
+				stub(row, "StyleExitAnimation")
+
+				row:UpdateFadeoutDelay()
+
+				assert.equal(10, row.showForSeconds)
+				assert.stub(row.StyleExitAnimation).was.called(1)
+			end)
+
+			it("overwrites showForSeconds with frame default when no override is set", function()
+				row = buildRow()
+				assert(loadfile("RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowAnimationMixin.lua"))(
+					"TestAddon",
+					ns
+				)
+				for k, v in pairs(RLF_RowAnimationMixin) do
+					row[k] = v
+				end
+
+				row.showForSeconds = 10
+				row.hasElementFadeOverride = false
+				row.isSampleRow = false
+				row.frameType = ns.Frames.MAIN
+
+				-- Configure the frame default
+				ns.db.global.animations.exit = ns.db.global.animations.exit or {}
+				ns.db.global.animations.exit.fadeOutDelay = 3
+
+				stub(row, "StyleExitAnimation")
+
+				row:UpdateFadeoutDelay()
+
+				assert.equal(3, row.showForSeconds)
+			end)
+		end)
 	end)
 end)
