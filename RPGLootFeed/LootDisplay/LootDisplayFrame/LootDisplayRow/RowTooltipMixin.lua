@@ -30,7 +30,7 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 		if inCombat then
 			return
 		end
-		if not LinkUtil.IsLinkType(self.link, "item") then
+		if LinkUtil and not LinkUtil.IsLinkType(self.link, "item") then
 			-- It doesn't look like we can get hover behavior for transmog links but
 			-- they don't provide much information anyway
 			return
@@ -76,7 +76,7 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 			return
 		end
 
-		if event == "MODIFIER_STATE_CHANGED" and key == "LSHIFT" then
+		if event == "MODIFIER_STATE_CHANGED" and (key == "LSHIFT" or key == "RSHIFT") then
 			if state == 1 then
 				showTooltip()
 			else
@@ -113,8 +113,8 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 				end
 				shortened = shortened:sub(1, barS - 1)
 				local _, id = strsplit(":", shortened)
-				if id then
-					TransmogUtil.OpenCollectionToItem(id)
+				if id and TransmogUtil then
+					TransmogUtil.OpenCollectionToItem(tonumber(id))
 				end
 			elseif self.link then
 				-- Open the ItemRefTooltip to mimic in-game chat behavior
@@ -171,7 +171,7 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 			self.Icon:UnregisterEvent("MODIFIER_STATE_CHANGED")
 		end)
 		self.Icon:SetScript("OnEvent", function(_, event, key, state)
-			if event == "MODIFIER_STATE_CHANGED" and key == "LSHIFT" then
+			if event == "MODIFIER_STATE_CHANGED" and (key == "LSHIFT" or key == "RSHIFT") then
 				if state == 1 then
 					showTooltip()
 				else

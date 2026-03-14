@@ -59,7 +59,7 @@ function DbAccessor:AnyFeatureConfig(featureKey)
 	if not frames then
 		return nil
 	end
-	for _, frameConfig in pairs(frames) do
+	for _, frameConfig in ipairs(frames) do
 		if frameConfig.features and frameConfig.features[featureKey] and frameConfig.features[featureKey].enabled then
 			return frameConfig.features[featureKey]
 		end
