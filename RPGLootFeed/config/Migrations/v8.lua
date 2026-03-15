@@ -746,70 +746,72 @@ function migration:run()
 	-- changed.  We hardcode the old defaults here as the final fallback tier so
 	-- every user migrating gets the correct party frame values regardless of what
 	-- their main frame looks like.
-	local f2 = global.frames[2]
-	if partyLootSeparate and (f2 == nil or f2.name == "") then
-		local plPos = partyLoot.positioning or {}
-		local plSiz = partyLoot.sizing or {}
-		local plSty = partyLoot.styling or {}
+	if partyLootSeparate then
+		local f2 = global.frames[2]
+		if f2 == nil or f2.name == "" then
+			local plPos = partyLoot.positioning or {}
+			local plSiz = partyLoot.sizing or {}
+			local plSty = partyLoot.styling or {}
 
-		-- Old party loot defaults (from main branch PartyLootConfig.lua) that
-		-- were removed in Phase 4.  Used as final fallback for nil keys.
-		local oldPartyDefaults = {
-			positioning = {
-				relativePoint = "UIParent",
-				anchorPoint = "LEFT",
-				xOffset = 0,
-				yOffset = 375,
-				frameStrata = "MEDIUM",
-			},
-			sizing = {
-				feedWidth = 330,
-				maxRows = 10,
-				rowHeight = 22,
-				padding = 2,
-				iconSize = 18,
-			},
-		}
-		local dpPos = oldPartyDefaults.positioning
-		local dpSiz = oldPartyDefaults.sizing
+			-- Old party loot defaults (from main branch PartyLootConfig.lua) that
+			-- were removed in Phase 4.  Used as final fallback for nil keys.
+			local oldPartyDefaults = {
+				positioning = {
+					relativePoint = "UIParent",
+					anchorPoint = "LEFT",
+					xOffset = 0,
+					yOffset = 375,
+					frameStrata = "MEDIUM",
+				},
+				sizing = {
+					feedWidth = 330,
+					maxRows = 10,
+					rowHeight = 22,
+					padding = 2,
+					iconSize = 18,
+				},
+			}
+			local dpPos = oldPartyDefaults.positioning
+			local dpSiz = oldPartyDefaults.sizing
 
-		-- All features disabled except partyLoot.
-		local partyFrameOverrides = {
-			itemLoot = false,
-			partyLoot = true,
-			currency = false,
-			money = false,
-			experience = false,
-			reputation = false,
-			profession = false,
-			travelPoints = false,
-			transmog = false,
-		}
+			-- All features disabled except partyLoot.
+			local partyFrameOverrides = {
+				itemLoot = false,
+				partyLoot = true,
+				currency = false,
+				money = false,
+				experience = false,
+				reputation = false,
+				profession = false,
+				travelPoints = false,
+				transmog = false,
+			}
 
-		---@type RLF_FrameConfig
-		global.frames[2] = {
-			name = "Party", -- nocheck
-			positioning = {
-				relativePoint = plPos.relativePoint or dpPos.relativePoint,
-				anchorPoint = plPos.anchorPoint or dpPos.anchorPoint,
-				xOffset = plPos.xOffset or dpPos.xOffset,
-				yOffset = plPos.yOffset or dpPos.yOffset,
-				frameStrata = plPos.frameStrata or dpPos.frameStrata,
-			},
-			sizing = {
-				feedWidth = plSiz.feedWidth or dpSiz.feedWidth,
-				maxRows = plSiz.maxRows or dpSiz.maxRows,
-				rowHeight = plSiz.rowHeight or dpSiz.rowHeight,
-				padding = plSiz.padding or dpSiz.padding,
-				iconSize = plSiz.iconSize or dpSiz.iconSize,
-			},
-			-- Styling old defaults matched the global styling defaults, so
-			-- falling back to global.styling is correct here.
-			styling = copyStylingWithFallback(plSty, global.styling),
-			-- Party frame inherits the global animation settings as a baseline.
-			animations = copyAnimations(global.animations),
-			features = buildFeatures(global, partyFrameOverrides),
-		}
+			---@type RLF_FrameConfig
+			global.frames[2] = {
+				name = "Party", -- nocheck
+				positioning = {
+					relativePoint = plPos.relativePoint or dpPos.relativePoint,
+					anchorPoint = plPos.anchorPoint or dpPos.anchorPoint,
+					xOffset = plPos.xOffset or dpPos.xOffset,
+					yOffset = plPos.yOffset or dpPos.yOffset,
+					frameStrata = plPos.frameStrata or dpPos.frameStrata,
+				},
+				sizing = {
+					feedWidth = plSiz.feedWidth or dpSiz.feedWidth,
+					maxRows = plSiz.maxRows or dpSiz.maxRows,
+					rowHeight = plSiz.rowHeight or dpSiz.rowHeight,
+					padding = plSiz.padding or dpSiz.padding,
+					iconSize = plSiz.iconSize or dpSiz.iconSize,
+				},
+				-- Styling old defaults matched the global styling defaults, so
+				-- falling back to global.styling is correct here.
+				styling = copyStylingWithFallback(plSty, global.styling),
+				-- Party frame inherits the global animation settings as a baseline.
+				animations = copyAnimations(global.animations),
+				features = buildFeatures(global, partyFrameOverrides),
+			}
+		end
 		global.nextFrameId = 3
 	else
 		global.nextFrameId = global.nextFrameId or 2
