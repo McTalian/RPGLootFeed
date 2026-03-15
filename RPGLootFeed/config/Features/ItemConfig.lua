@@ -165,7 +165,8 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 											or fc().pricesForSellableItems == PricesEnum.Highest
 										) and G_RLF.AuctionIntegrations.numActiveIntegrations == 0
 									then
-										fc().pricesForSellableItems = PricesEnum.Vendor
+										-- Integration unavailable; display vendor as fallback but preserve the saved preference
+										return PricesEnum.Vendor
 									end
 									return fc().pricesForSellableItems
 								end,
@@ -215,11 +216,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 								hidden = function()
 									local activeIntegrations = G_RLF.AuctionIntegrations.activeIntegrations
 									local numActiveIntegrations = G_RLF.AuctionIntegrations.numActiveIntegrations
-									local hide = not activeIntegrations or numActiveIntegrations == 0
-									if hide then
-										fc().auctionHouseSource = G_RLF.AuctionIntegrations.nilIntegration:ToString()
-									end
-									return hide
+									return not activeIntegrations or numActiveIntegrations == 0
 								end,
 								get = function(info)
 									local activeIntegrations = G_RLF.AuctionIntegrations.activeIntegrations
@@ -229,7 +226,8 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 										or not activeIntegrations[fc().auctionHouseSource]
 										or numActiveIntegrations == 0
 									then
-										fc().auctionHouseSource = G_RLF.AuctionIntegrations.nilIntegration:ToString()
+										-- Integration unavailable; display none as fallback but preserve the saved preference
+										return G_RLF.AuctionIntegrations.nilIntegration:ToString()
 									end
 									return fc().auctionHouseSource
 								end,
