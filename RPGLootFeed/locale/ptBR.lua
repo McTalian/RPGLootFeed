@@ -14,6 +14,11 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.30.2
+-- L["AHSourceChangeConfirmFmt"] = "Your saved Auction House source \"%s\" is not currently loaded. Changing this will overwrite your saved preference. Are you sure?"
+-- L["AHSourceUnavailableFmt"] = "%s (unavailable)"
+--#endregion
+
 --#region 1.30.0
 -- L["+ New Frame"] = "+ New Frame"
 -- L["Add Frame"] = "Add Frame"

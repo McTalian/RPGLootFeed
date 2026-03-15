@@ -74,6 +74,19 @@ describe("AuctionIntegrations module", function()
 			assert.equal(AuctionIntegrations.activeIntegration, AuctionIntegrations.nilIntegration)
 		end)
 
+		it("does not clobber saved auctionHouseSource when the saved integration is temporarily unavailable", function()
+			-- Simulates: user had "Auctionator" saved, but Auctionator is disabled this session.
+			-- The DB preference must be preserved so it is restored when Auctionator comes back.
+			ns.db.global.item.auctionHouseSource = ns.L["Auctionator"]
+			ns.db.global.frames = { [1] = { features = { itemLoot = { auctionHouseSource = ns.L["Auctionator"] } } } }
+
+			AuctionIntegrations:Init()
+
+			-- Runtime falls back to nilIntegration but the saved value must not be overwritten
+			assert.equal(AuctionIntegrations.activeIntegration, AuctionIntegrations.nilIntegration)
+			assert.equal(ns.L["Auctionator"], ns.db.global.frames[1].features.itemLoot.auctionHouseSource)
+		end)
+
 		it("GetAHPrice returns nil when no active integration", function()
 			AuctionIntegrations:Init()
 
@@ -121,6 +134,24 @@ describe("AuctionIntegrations module", function()
 			assert.spy(spyGetAHPrice).was.called_with(AuctionIntegrations.activeIntegration, "testItemLink")
 			assert.equal(100, price)
 		end)
+
+		it(
+			"does not clobber saved auctionHouseSource when TSM is active but Auctionator was saved preference",
+			function()
+				-- Simulates: user had "Auctionator" saved but only TSM is loaded this session.
+				-- TSM becomes the runtime active integration, but the DB value must be preserved.
+				ns.db.global.item.auctionHouseSource = ns.L["Auctionator"]
+				ns.db.global.frames =
+					{ [1] = { features = { itemLoot = { auctionHouseSource = ns.L["Auctionator"] } } } }
+
+				AuctionIntegrations:Init()
+
+				assert.equal(1, AuctionIntegrations.numActiveIntegrations)
+				-- Runtime uses the only available integration (Auctionator, since TSM is nil here)
+				-- but the saved DB preference must not be overwritten
+				assert.equal(ns.L["Auctionator"], ns.db.global.frames[1].features.itemLoot.auctionHouseSource)
+			end
+		)
 	end)
 
 	insulate("only TSM installed", function()
