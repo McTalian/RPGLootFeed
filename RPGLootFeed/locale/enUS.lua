@@ -11,6 +11,11 @@ local L = LibStub("AceLocale-3.0"):NewLocale(G_RLF.localeName, "enUS", true)
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.30.2
+L["Main"] = "Main"
+L["MigrationError"] = "Migration error (v%d):"
+--#endregion
+
 --#region 1.30.0
 L["+ New Frame"] = "+ New Frame"
 L["Add Frame"] = "Add Frame"

@@ -21,8 +21,27 @@ RLF:SetDefaultModulePrototype({
 ---@field protected fn fun(self: RLF_Module, func: function, ...?: any): any
 
 local function DbMigrations()
-	for _, migration in ipairs(G_RLF.migrations) do
-		migration:run()
+	local latestMigrationVersion = #G_RLF.migrations
+	if G_RLF.db.global.migrationVersion == nil or G_RLF.db.global.migrationVersion == 0 then
+		G_RLF:LogDebug(
+			"Seeding migrationVersion to " .. latestMigrationVersion .. " on fresh install and skipping migrations."
+		)
+		G_RLF.db.global.migrationVersion = latestMigrationVersion
+		return
+	end
+
+	for version, migration in ipairs(G_RLF.migrations) do
+		local ok, err = pcall(function()
+			migration:run()
+		end)
+		if not ok then
+			local colorMessage = "|cffff4444"
+				.. string.format(G_RLF.L["MigrationError"], version)
+				.. "|r "
+				.. tostring(err)
+			RLF:Print(colorMessage)
+			RLF:Print(G_RLF.L["Issues"])
+		end
 	end
 end
 

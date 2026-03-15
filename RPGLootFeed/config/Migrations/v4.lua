@@ -14,7 +14,7 @@ function migration:run()
 	end
 
 	---@diagnostic disable-next-line: undefined-field
-	if G_RLF.db.global.item.itemQualityFilter ~= nil then
+	if G_RLF.db.global.item ~= nil and G_RLF.db.global.item.itemQualityFilter ~= nil then
 		---@diagnostic disable-next-line: undefined-field
 		for i, v in ipairs(G_RLF.db.global.item.itemQualityFilter) do
 			G_RLF.DbMigrations:Migrate(

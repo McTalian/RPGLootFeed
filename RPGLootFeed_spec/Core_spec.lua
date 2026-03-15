@@ -40,6 +40,56 @@ describe("Core module", function()
 				RLF:OnInitialize()
 				assert.spy(RLF.OnInitialize).was.called(1)
 			end)
+
+			describe("DbMigrations (new install)", function()
+				it("seeds migrationVersion to latestMigrationVersion on fresh install", function()
+					ns.migrations = {
+						{ run = function() end }, -- 1
+						{ run = function() end }, -- 2
+						{ run = function() end }, -- 3
+						{ run = function() end }, -- 4
+						{ run = function() end }, -- 5
+						{ run = function() end }, -- 6
+						{ run = function() end }, -- 7
+					}
+
+					RLF:OnInitialize()
+
+					assert.are.equal(7, ns.db.global.migrationVersion)
+				end)
+
+				it("calls no migration run functions", function()
+					local run1 = spy.new(function() end)
+					local run2 = spy.new(function() end)
+					ns.migrations = {
+						{ run = run1 },
+						{ run = run2 },
+					}
+
+					RLF:OnInitialize()
+
+					-- Core always calls every migration:run(); each migration decides
+					-- internally (via ShouldRunMigration) whether to do anything.
+					assert.spy(run1).was.not_called()
+					assert.spy(run2).was.not_called()
+				end)
+
+				it("does not skip migrations when migrationVersion > 0", function()
+					local run1 = spy.new(function() end)
+					ns.migrations = { { run = run1 } }
+					-- Override AceDB mock to return a db with an existing version
+					local aceDb = libStubReturn["AceDB-3.0"]
+					local origNew = aceDb.New
+					stub(aceDb, "New", function()
+						return { global = { migrationVersion = 1 } }
+					end)
+
+					RLF:OnInitialize()
+
+					assert.spy(run1).was.called()
+					aceDb.New = origNew
+				end)
+			end)
 		end)
 
 		describe("OnSlashCommand", function()

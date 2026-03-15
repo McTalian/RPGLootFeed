@@ -13,7 +13,11 @@ function migration:run()
 		return
 	end
 
-	if G_RLF.db.global.styling.enableRowBorder ~= nil and G_RLF.db.global.styling.enableRowBorder == true then
+	if
+		G_RLF.db.global.styling ~= nil
+		and G_RLF.db.global.styling.enableRowBorder ~= nil
+		and G_RLF.db.global.styling.enableRowBorder == true
+	then
 		G_RLF.db.global.styling.rowBorderTexture = "1 Pixel"
 	end
 
