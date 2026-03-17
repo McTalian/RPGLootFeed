@@ -11,6 +11,17 @@ local L = LibStub("AceLocale-3.0"):NewLocale(G_RLF.localeName, "enUS", true)
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.31.0
+L["DismissRecovery"] = "Dismiss and Clean Up"
+L["RestoreOldSettings"] = "Restore Old Settings"
+L["Settings Recovery"] = "Settings Recovery"
+L["SettingsRecoveryBody"] = "RPGLootFeed detected settings from a version prior to %s that were not correctly carried over during the upgrade to %s. Your original settings are safely preserved and can be restored below, or you can dismiss this notice if you have already re-configured the addon to your liking."
+L["SettingsRecoveryDesc"] = "Legacy settings detected from before %s."
+L["SettingsRecoveryDetailsLabel"] = "Full diff (copy/paste to notepad for reference):"
+L["SettingsRecoveryNoChanges"] = "No differences detected between your old settings and the current defaults."
+L["SettingsRecoverySummaryHdr"] = "Summary of differences between your old settings and the current defaults:"
+--#endregion
+
 --#region 1.30.2
 L["Main"] = "Main"
 L["MigrationError"] = "Migration error (v%d):"
