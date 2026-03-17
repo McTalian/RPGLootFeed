@@ -16,4 +16,5 @@
     <Script file="DbAccessors.lua"/>
     <Include file="Migrations/migrations.xml"/>
     <Script file="About.lua"/>
+    <Script file="SettingsRecovery.lua"/>
 </Ui>

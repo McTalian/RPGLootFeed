@@ -27,7 +27,12 @@ local function makeNs(migrationVersion)
 	return ns
 end
 
+local function loadMigrationHelpers(ns)
+	return assert(loadfile("RPGLootFeed/config/Migrations/MigrationHelpers.lua"))("TestAddon", ns)
+end
+
 local function loadV8(ns)
+	loadMigrationHelpers(ns)
 	return assert(loadfile("RPGLootFeed/config/Migrations/v8.lua"))("TestAddon", ns)
 end
 
@@ -312,7 +317,7 @@ describe("Migration v8", function()
 	end)
 
 	describe("idempotency", function()
-		it("running twice does not overwrite frames[1]", function()
+		it("ShouldRunMigration prevents re-runs after migrationVersion is set", function()
 			local ns = makeNs(7)
 			ns.db.global.positioning = { anchorPoint = "BOTTOMLEFT" }
 			ns.db.global.sizing = {}
@@ -329,13 +334,60 @@ describe("Migration v8", function()
 			loadV8(ns)
 			ns.migrations[8]:run()
 
-			-- Manually change the name and re-run by resetting the version guard
+			-- Manually change the name; re-running should be a no-op
+			-- because migrationVersion is now 8
 			ns.db.global.frames[1].name = "Custom"
-			ns.db.global.migrationVersion = 7
 
 			ns.migrations[8]:run()
-			-- frames[1] already existed, so the second run must not overwrite it
+			-- ShouldRunMigration returns false, so frames[1] is not overwritten
 			assert.are.equal("Custom", ns.db.global.frames[1].name)
+		end)
+
+		describe("when AceDB proxy exists for frames[1]", function()
+			-- Simulates AceDB creating a proxy at frames[1] from explicit
+			-- defaults.  Since v8 no longer uses rawget guards, the migration
+			-- always writes frames[1] when ShouldRunMigration allows it,
+			-- regardless of proxies.
+			it("overwrites the proxy with real data from old flat keys", function()
+				local ns = makeNs(7)
+				ns.db.global.positioning = { anchorPoint = "BOTTOMLEFT", xOffset = 400 }
+				ns.db.global.sizing = { feedWidth = 330, maxRows = 10 }
+				ns.db.global.styling = { growUp = true }
+				ns.db.global.animations = { enter = { type = "fade" } }
+				ns.db.global.item = { enabled = true }
+				ns.db.global.currency = { enabled = true }
+				ns.db.global.money = { enabled = true }
+				ns.db.global.xp = { enabled = true }
+				ns.db.global.rep = { enabled = true }
+				ns.db.global.prof = { enabled = true }
+				ns.db.global.travelPoints = { enabled = true }
+				ns.db.global.transmog = { enabled = true }
+
+				-- Simulate AceDB __index default: frames[1] reads as a table
+				-- but rawget(frames, 1) returns nil (never explicitly written).
+				local aceDbDefault =
+					{ name = "Main", positioning = {}, sizing = {}, styling = {}, animations = {}, features = {} }
+				ns.db.global.frames = setmetatable({}, {
+					__index = function(t, k)
+						if k == 1 then
+							return aceDbDefault
+						end
+					end,
+					__newindex = rawset,
+				})
+
+				loadV8(ns)
+				ns.migrations[8]:run()
+
+				-- Migration wrote a real table at frames[1]
+				local f1 = rawget(ns.db.global.frames, 1)
+				assert.is_not_nil(f1, "frames[1] should have been written by migration")
+				-- Values should come from user's old flat keys, not the aceDB default
+				assert.are.equal("BOTTOMLEFT", f1.positioning.anchorPoint)
+				assert.are.equal(400, f1.positioning.xOffset)
+				assert.is_true(f1.styling.growUp)
+				assert.is_true(f1.features.itemLoot.enabled)
+			end)
 		end)
 	end)
 

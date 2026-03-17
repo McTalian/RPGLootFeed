@@ -3,6 +3,7 @@
             xsi:schemaLocation="http://www.blizzard.com/wow/ui/
 ..\FrameXML\UI.xsd">
     <Script file="base.lua"/>
+    <Script file="MigrationHelpers.lua"/>
     <Script file="v1.lua"/>
     <Script file="v2.lua"/>
     <Script file="v3.lua"/>
@@ -11,4 +12,5 @@
     <Script file="v6.lua"/>
     <Script file="v7.lua"/>
     <Script file="v8.lua"/>
+    <Script file="v9.lua"/>
 </Ui>
