@@ -11,6 +11,29 @@ local lsm = G_RLF.lsm
 local PricesEnum = G_RLF.PricesEnum
 
 local AH_CONFIRM_DIALOG = "RPGLOOTFEED_CONFIRM_AH_SOURCE"
+local PRICES_CONFIRM_DIALOG = "RPGLOOTFEED_CONFIRM_PRICES_MODE"
+
+--- Returns true when a PricesEnum value requires an active AH integration.
+local function isAHBasedMode(mode)
+	return mode == PricesEnum.AH
+		or mode == PricesEnum.VendorAH
+		or mode == PricesEnum.AHVendor
+		or mode == PricesEnum.Highest
+end
+
+--- Returns the display label for an AH-based PricesEnum value.
+local function ahPriceModeLabel(mode)
+	if mode == PricesEnum.AH then
+		return G_RLF.L["Auction Price"]
+	elseif mode == PricesEnum.VendorAH then
+		return G_RLF.L["Vendor Price then Auction Price"]
+	elseif mode == PricesEnum.AHVendor then
+		return G_RLF.L["Auction Price then Vendor Price"]
+	elseif mode == PricesEnum.Highest then
+		return G_RLF.L["Highest Price"]
+	end
+	return mode
+end
 
 --- Lazily registers the StaticPopup confirmation dialog for AH source changes.
 --- Guarded so it is a no-op outside of the WoW client (e.g. in unit tests).
@@ -20,6 +43,31 @@ local function registerAHConfirmDialog()
 	end
 	StaticPopupDialogs[AH_CONFIRM_DIALOG] = {
 		text = G_RLF.L["AHSourceChangeConfirmFmt"],
+		button1 = YES,
+		button2 = NO,
+		OnAccept = function(self, data)
+			if data and data.apply then
+				data.apply()
+			end
+		end,
+		OnCancel = function()
+			G_RLF:NotifyChange(addonName)
+		end,
+		timeout = 0,
+		whileDead = true,
+		hideOnEscape = true,
+		preferredIndex = 3,
+	}
+end
+
+--- Lazily registers the StaticPopup confirmation dialog for price mode changes.
+--- Guarded so it is a no-op outside of the WoW client (e.g. in unit tests).
+local function registerPricesConfirmDialog()
+	if not StaticPopupDialogs or StaticPopupDialogs[PRICES_CONFIRM_DIALOG] then
+		return
+	end
+	StaticPopupDialogs[PRICES_CONFIRM_DIALOG] = {
+		text = G_RLF.L["PricesModeChangeConfirmFmt"],
 		button1 = YES,
 		button2 = NO,
 		OnAccept = function(self, data)
@@ -156,6 +204,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 								type = "select",
 								name = G_RLF.L["Prices for Sellable Items"],
 								desc = G_RLF.L["PricesForSellableItemsDesc"],
+								width = 1.5,
 								values = function()
 									local values = {
 										[PricesEnum.None] = G_RLF.L["None"],
@@ -166,6 +215,18 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 										values[PricesEnum.VendorAH] = G_RLF.L["Vendor Price then Auction Price"]
 										values[PricesEnum.AHVendor] = G_RLF.L["Auction Price then Vendor Price"]
 										values[PricesEnum.Highest] = G_RLF.L["Highest Price"]
+									end
+									-- Include the saved AH-based mode even if unavailable so the
+									-- dropdown shows the real preference rather than an empty entry.
+									local savedMode = fc().pricesForSellableItems
+									if
+										isAHBasedMode(savedMode)
+										and G_RLF.AuctionIntegrations.numActiveIntegrations == 0
+									then
+										values[savedMode] = string.format(
+											G_RLF.L["AHSourceUnavailableFmt"],
+											ahPriceModeLabel(savedMode)
+										)
 									end
 									return values
 								end,
@@ -180,25 +241,43 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 										table.insert(order, PricesEnum.AHVendor)
 										table.insert(order, PricesEnum.Highest)
 									end
-
+									-- Append the unavailable saved mode at the end of the list.
+									local savedMode = fc().pricesForSellableItems
+									if
+										isAHBasedMode(savedMode)
+										and G_RLF.AuctionIntegrations.numActiveIntegrations == 0
+									then
+										table.insert(order, savedMode)
+									end
 									return order
 								end,
-								get = function(info)
-									if
-										(
-											fc().pricesForSellableItems == PricesEnum.AH
-											or fc().pricesForSellableItems == PricesEnum.VendorAH
-											or fc().pricesForSellableItems == PricesEnum.AHVendor
-											or fc().pricesForSellableItems == PricesEnum.Highest
-										) and G_RLF.AuctionIntegrations.numActiveIntegrations == 0
-									then
-										-- Integration unavailable; display vendor as fallback but preserve the saved preference
-										return PricesEnum.Vendor
-									end
+								get = function()
+									-- Return the real saved value; if it is AH-based and unavailable
+									-- it resolves to the "(unavailable)" entry added in `values`.
 									return fc().pricesForSellableItems
 								end,
-								set = function(info, value)
-									fc().pricesForSellableItems = value
+								set = function(_, value)
+									local currentSaved = fc().pricesForSellableItems
+									local savedIsUnavailable = isAHBasedMode(currentSaved)
+										and G_RLF.AuctionIntegrations.numActiveIntegrations == 0
+
+									local function applyChange()
+										fc().pricesForSellableItems = value
+									end
+
+									-- Prompt the user before overwriting a preference for a mode
+									-- that requires an AH addon which is temporarily disabled.
+									if savedIsUnavailable and value ~= currentSaved and StaticPopup_Show then
+										registerPricesConfirmDialog()
+										StaticPopup_Show(
+											PRICES_CONFIRM_DIALOG,
+											ahPriceModeLabel(currentSaved),
+											nil,
+											{ apply = applyChange }
+										)
+									else
+										applyChange()
+									end
 								end,
 								order = 1,
 							},
@@ -206,6 +285,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 								type = "select",
 								name = G_RLF.L["Auction House Source"],
 								desc = G_RLF.L["AuctionHouseSourceDesc"],
+								width = 1.5,
 								values = function()
 									local values = {}
 									local nilStr = G_RLF.AuctionIntegrations.nilIntegration:ToString()
@@ -409,6 +489,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							poorEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Poor"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Poor].enabled
@@ -420,6 +501,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							poorDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Poor"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Poor"]),
 								min = 0,
@@ -438,6 +520,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							commonEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Common"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Common].enabled
@@ -449,6 +532,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							commonDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Common"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Common"]),
 								min = 0,
@@ -467,6 +551,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							uncommonEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Uncommon"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Uncommon].enabled
@@ -478,6 +563,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							uncommonDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Uncommon"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Uncommon"]),
 								min = 0,
@@ -496,6 +582,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							rareEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Rare"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Rare].enabled
@@ -507,6 +594,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							rareDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Rare"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Rare"]),
 								min = 0,
@@ -525,6 +613,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							epicEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Epic"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Epic].enabled
@@ -536,6 +625,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							epicDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Epic"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Epic"]),
 								min = 0,
@@ -554,6 +644,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							legendaryEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Legendary"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Legendary].enabled
@@ -565,6 +656,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							legendaryDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Legendary"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Legendary"]),
 								min = 0,
@@ -583,6 +675,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							artifactEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Artifact"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Artifact].enabled
@@ -594,6 +687,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							artifactDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Artifact"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Artifact"]),
 								min = 0,
@@ -612,6 +706,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							heirloomEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = G_RLF.L["Heirloom"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.Heirloom].enabled
@@ -623,6 +718,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							heirloomDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], G_RLF.L["Heirloom"]),
 								desc = string.format(G_RLF.L["DurationDesc"], G_RLF.L["Heirloom"]),
 								min = 0,
@@ -641,6 +737,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							wowTokenEnabled = {
 								type = "toggle",
+								width = 1.5,
 								name = _G["ITEM_QUALITY8_DESC"],
 								get = function()
 									return fc().itemQualitySettings[G_RLF.ItemQualEnum.WoWToken].enabled
@@ -652,6 +749,7 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 							wowTokenDuration = {
 								type = "range",
+								width = 1.5,
 								name = string.format(G_RLF.L["Duration (seconds)"], _G["ITEM_QUALITY8_DESC"]),
 								desc = string.format(G_RLF.L["DurationDesc"], _G["ITEM_QUALITY8_DESC"]),
 								min = 0,

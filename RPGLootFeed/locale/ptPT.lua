@@ -18,6 +18,7 @@ end
 --#region 1.31.1
 -- L["AHSourceChangeConfirmFmt"] = "Your saved Auction House source \"%s\" is not currently loaded. Changing this will overwrite your saved preference. Are you sure?"
 -- L["AHSourceUnavailableFmt"] = "%s (unavailable)"
+-- L["PricesModeChangeConfirmFmt"] = "Your saved price mode \"%s\" requires an Auction House addon which is not currently loaded. Changing this will overwrite your saved preference. Are you sure?"
 --#endregion
 
 --#region 1.31.0
