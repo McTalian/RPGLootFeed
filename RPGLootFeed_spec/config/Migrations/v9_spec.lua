@@ -148,7 +148,7 @@ describe("Migration v9", function()
 	describe("when migrationVersion < 9 but v8 ran correctly (snapshot matches frames[1])", function()
 		it("does not store pendingSettingsRecovery when values match", function()
 			local ns = makeNs(8)
-			-- Old flat keys and frames[1] have the SAME custom values (v8 copied correctly)
+			-- Old flat keys with customized values
 			ns.db.global.positioning = {
 				anchorPoint = "TOPRIGHT",
 				xOffset = 400,
@@ -176,41 +176,12 @@ describe("Migration v9", function()
 			ns.db.global.prof = { enabled = true }
 			ns.db.global.travelPoints = { enabled = true }
 			ns.db.global.transmog = { enabled = true }
-			-- frames[1] was correctly written by v8 with the same values
-			ns.db.global.frames = {
-				[1] = {
-					name = "Main",
-					positioning = {
-						anchorPoint = "TOPRIGHT",
-						xOffset = 400,
-						yOffset = 375,
-						relativePoint = "UIParent",
-						frameStrata = "MEDIUM",
-					},
-					sizing = { feedWidth = 500, maxRows = 10, rowHeight = 22, padding = 2, iconSize = 18 },
-					styling = {
-						growUp = false,
-						fontSize = 12,
-						fontFace = "Friz Quadrata TT",
-						textAlignment = "LEFT",
-						enabledSecondaryRowText = false,
-						enableRowBorder = false,
-						rowBackgroundType = 1,
-					},
-					features = {
-						itemLoot = { enabled = true },
-						partyLoot = { enabled = false },
-						currency = { enabled = true },
-						money = { enabled = true },
-						experience = { enabled = true },
-						reputation = { enabled = true },
-						profession = { enabled = true },
-						travelPoints = { enabled = true },
-						transmog = { enabled = true },
-					},
-				},
-			}
+			-- Simulate v8 having run correctly: build frames[1] from the same
+			-- snapshot builder so all fields (including LEGACY_DEFAULTS fallbacks)
+			-- are guaranteed identical.
 			loadV9(ns)
+			local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+			ns.db.global.frames = { [1] = snapshot }
 			ns.migrations[9]:run()
 			assert.is_nil(ns.db.global.pendingSettingsRecovery)
 		end)
@@ -235,30 +206,10 @@ describe("Migration v9", function()
 				rowBackgroundType = 1,
 			}
 			ns.db.global.item = { enabled = true }
-			ns.db.global.frames = {
-				[1] = {
-					name = "Main",
-					positioning = {
-						anchorPoint = "BOTTOMLEFT",
-						xOffset = 720,
-						yOffset = 375,
-						relativePoint = "UIParent",
-						frameStrata = "MEDIUM",
-					},
-					sizing = { feedWidth = 330, maxRows = 10, rowHeight = 22, padding = 2, iconSize = 18 },
-					styling = {
-						growUp = true,
-						fontSize = 10,
-						fontFace = "Friz Quadrata TT",
-						textAlignment = "LEFT",
-						enabledSecondaryRowText = false,
-						enableRowBorder = false,
-						rowBackgroundType = 1,
-					},
-					features = { itemLoot = { enabled = true } },
-				},
-			}
+			-- Build frames[1] from the snapshot builder for exact match
 			loadV9(ns)
+			local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+			ns.db.global.frames = { [1] = snapshot }
 			ns.migrations[9]:run()
 			assert.are.equal(9, ns.db.global.migrationVersion)
 		end)

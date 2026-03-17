@@ -8,92 +8,91 @@ local G_RLF = ns
 -- Private helpers
 --------------------------------------------------
 
--- Count non-table (scalar) leaf values in a table, recursively.
-local function countLeaves(t)
-	if type(t) ~= "table" then
-		return 0
+--- Map a dotted diff path to a UI category name.
+--- @param path string  e.g. "positioning.xOffset" or "features.itemLoot.enabled"
+--- @return string  category label
+local function categoryForPath(path)
+	local section = path:match("^([^.]+)")
+	if section == "positioning" then
+		return G_RLF.L["Positioning"]
+	elseif section == "sizing" then
+		return G_RLF.L["Sizing"]
+	elseif section == "styling" then
+		return G_RLF.L["Styling"]
+	elseif section == "animations" then
+		return G_RLF.L["Animations"]
+	elseif section == "features" then
+		return G_RLF.L["Loot Feeds"]
 	end
-	local count = 0
-	for _, v in pairs(t) do
-		if type(v) == "table" then
-			count = count + countLeaves(v)
-		else
-			count = count + 1
-		end
-	end
-	return count
+	return section
 end
 
--- Flatten a table into "prefix.key: value" lines, recursively.
-local function flattenTable(t, prefix, lines)
-	if type(t) ~= "table" then
-		return
-	end
-	for k, v in pairs(t) do
-		local fullKey = prefix ~= "" and (prefix .. "." .. tostring(k)) or tostring(k)
-		if type(v) == "table" then
-			flattenTable(v, fullKey, lines)
-		else
-			lines[#lines + 1] = fullKey .. ": " .. tostring(v)
-		end
-	end
-end
-
---- Build a per-category summary of the pending recovery snapshot.
---- @return string
-local function buildSummaryText()
+--- Get the list of diffs between the pending snapshot and current frames[1].
+--- Caches the result in the recovery table so we don't recompute every UI refresh.
+--- @return table  array of { path, old, new }
+local function getDiffs()
 	local recovery = G_RLF.db.global.pendingSettingsRecovery
 	if not recovery or not recovery.snapshot then
+		return {}
+	end
+	if recovery._cachedDiffs then
+		return recovery._cachedDiffs
+	end
+	local currentFrame = G_RLF.db.global.frames and G_RLF.db.global.frames[1]
+	local diffs = G_RLF:ComputeSnapshotDiff(recovery.snapshot, currentFrame or {})
+	recovery._cachedDiffs = diffs
+	return diffs
+end
+
+--- Build a per-category summary counting actual differences.
+--- @return string
+local function buildSummaryText()
+	local diffs = getDiffs()
+	if #diffs == 0 then
 		return G_RLF.L["SettingsRecoveryNoChanges"]
 	end
 
-	local s = recovery.snapshot
+	-- Count diffs per category
+	local categoryCounts = {}
+	local categoryOrder = {}
+	for _, d in ipairs(diffs) do
+		local cat = categoryForPath(d.path)
+		if not categoryCounts[cat] then
+			categoryCounts[cat] = 0
+			categoryOrder[#categoryOrder + 1] = cat
+		end
+		categoryCounts[cat] = categoryCounts[cat] + 1
+	end
+
 	local parts = {}
-
-	local function addPart(label, t)
-		local count = countLeaves(t)
-		if count > 0 then
-			parts[#parts + 1] = "  " .. label .. ": " .. count
-		end
-	end
-
-	addPart(G_RLF.L["Positioning"], s.positioning)
-	addPart(G_RLF.L["Sizing"], s.sizing)
-	addPart(G_RLF.L["Styling"], s.styling)
-	addPart(G_RLF.L["Animations"], s.animations)
-
-	if type(s.features) == "table" then
-		local featureCount = 0
-		for _, featureCfg in pairs(s.features) do
-			featureCount = featureCount + countLeaves(featureCfg)
-		end
-		if featureCount > 0 then
-			parts[#parts + 1] = "  " .. G_RLF.L["Loot Feeds"] .. ": " .. featureCount
-		end
-	end
-
-	if #parts == 0 then
-		return G_RLF.L["SettingsRecoveryNoChanges"]
+	for _, cat in ipairs(categoryOrder) do
+		parts[#parts + 1] = "  " .. cat .. ": " .. categoryCounts[cat]
 	end
 
 	return G_RLF.L["SettingsRecoverySummaryHdr"] .. "\n" .. table.concat(parts, "\n")
 end
 
---- Build a flat key: value diff of the pending recovery snapshot.
+--- Build a detailed per-setting diff showing old → new values.
 --- @return string
 local function buildDetailsText()
-	local recovery = G_RLF.db.global.pendingSettingsRecovery
-	if not recovery or not recovery.snapshot then
+	local diffs = getDiffs()
+	if #diffs == 0 then
 		return G_RLF.L["SettingsRecoveryNoChanges"]
 	end
 
 	local lines = {}
-	flattenTable(recovery.snapshot, "", lines)
-	table.sort(lines)
-
-	if #lines == 0 then
-		return G_RLF.L["SettingsRecoveryNoChanges"]
+	for _, d in ipairs(diffs) do
+		local oldStr = tostring(d.old)
+		local newStr = tostring(d.new)
+		if d.old == nil then
+			oldStr = "(nil)"
+		end
+		if d.new == nil then
+			newStr = "(nil)"
+		end
+		lines[#lines + 1] = d.path .. ": " .. oldStr .. " → " .. newStr
 	end
+	table.sort(lines)
 
 	return table.concat(lines, "\n")
 end

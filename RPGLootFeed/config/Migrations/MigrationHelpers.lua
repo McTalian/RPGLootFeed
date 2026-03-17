@@ -745,7 +745,7 @@ function G_RLF:BuildV8RecoverySnapshot(global)
 		or global.prof ~= nil
 		or global.travelPoints ~= nil
 		or global.transmog ~= nil
-		or (global.partyLoot ~= nil and global.partyLoot.enabled ~= nil)
+		or global.partyLoot ~= nil
 	if not hasOldData then
 		return nil -- fresh install, nothing to recover
 	end
@@ -759,9 +759,69 @@ function G_RLF:BuildV8RecoverySnapshot(global)
 	}
 end
 
+--- Recursively compare two values for equality.
+--- Tables are compared by key; non-table values use ==.
+--- Ignores the "name" key at the top level of snapshots (it's cosmetic).
+--- @param a any
+--- @param b any
+--- @return boolean  true if a and b are deeply equal
+local function deepEqual(a, b)
+	if type(a) ~= type(b) then
+		return false
+	end
+	if type(a) ~= "table" then
+		return a == b
+	end
+	-- Check all keys in a
+	for k, v in pairs(a) do
+		if not deepEqual(v, b[k]) then
+			return false
+		end
+	end
+	-- Check for keys in b that are not in a
+	for k in pairs(b) do
+		if a[k] == nil then
+			return false
+		end
+	end
+	return true
+end
+
+--- Collect all leaf-level differences between two tables.
+--- Returns an array of { path = "dotted.path", old = snapshotVal, new = currentVal }.
+--- "old" means the snapshot (legacy) value; "new" means the current frames[1] value.
+--- @param a table  snapshot table
+--- @param b table  current config table
+--- @param prefix string  dotted path prefix (pass "" for root)
+--- @param diffs table  accumulator array (pass {} for root)
+--- @return table  array of diff entries
+local function collectDiffs(a, b, prefix, diffs)
+	a = a or {}
+	b = b or {}
+	-- Gather all keys from both tables
+	local keys = {}
+	for k in pairs(a) do
+		keys[k] = true
+	end
+	for k in pairs(b) do
+		keys[k] = true
+	end
+	for k in pairs(keys) do
+		local fullKey = prefix ~= "" and (prefix .. "." .. tostring(k)) or tostring(k)
+		local va, vb = a[k], b[k]
+		if type(va) == "table" or type(vb) == "table" then
+			collectDiffs(type(va) == "table" and va or {}, type(vb) == "table" and vb or {}, fullKey, diffs)
+		elseif va ~= vb then
+			diffs[#diffs + 1] = { path = fullKey, old = va, new = vb }
+		end
+	end
+	return diffs
+end
+
 --- Compare a recovery snapshot against the current frame config.
 --- Returns true if any meaningful difference is found, indicating
 --- that the snapshot has settings worth recovering.
+--- Skips the cosmetic "name" key since it's always "Main".
 --- @param snapshot table  The snapshot built from old flat keys
 --- @param currentFrame table  The current frames[1] (may be AceDB proxy)
 --- @return boolean  true if the snapshot differs from currentFrame
@@ -770,94 +830,30 @@ function G_RLF:SnapshotDiffersFromFrame(snapshot, currentFrame)
 		return snapshot ~= nil
 	end
 
-	-- Compare positioning
-	local sp = snapshot.positioning or {}
-	local cp = currentFrame.positioning or {}
-	if sp.anchorPoint ~= cp.anchorPoint then
-		return true
-	end
-	if sp.xOffset ~= cp.xOffset then
-		return true
-	end
-	if sp.yOffset ~= cp.yOffset then
-		return true
-	end
-	if sp.relativePoint ~= cp.relativePoint then
-		return true
-	end
-	if sp.frameStrata ~= cp.frameStrata then
-		return true
-	end
-
-	-- Compare sizing
-	local ss = snapshot.sizing or {}
-	local cs = currentFrame.sizing or {}
-	if ss.feedWidth ~= cs.feedWidth then
-		return true
-	end
-	if ss.maxRows ~= cs.maxRows then
-		return true
-	end
-	if ss.rowHeight ~= cs.rowHeight then
-		return true
-	end
-	if ss.padding ~= cs.padding then
-		return true
-	end
-	if ss.iconSize ~= cs.iconSize then
-		return true
-	end
-
-	-- Compare styling (key fields)
-	local sst = snapshot.styling or {}
-	local cst = currentFrame.styling or {}
-	if sst.growUp ~= cst.growUp then
-		return true
-	end
-	if sst.fontSize ~= cst.fontSize then
-		return true
-	end
-	if sst.fontFace ~= cst.fontFace then
-		return true
-	end
-	if sst.textAlignment ~= cst.textAlignment then
-		return true
-	end
-	if sst.enabledSecondaryRowText ~= cst.enabledSecondaryRowText then
-		return true
-	end
-	if sst.enableRowBorder ~= cst.enableRowBorder then
-		return true
-	end
-	if sst.rowBackgroundType ~= cst.rowBackgroundType then
-		return true
-	end
-
-	-- Compare feature enabled flags
-	local sf = snapshot.features or {}
-	local cf = currentFrame.features or {}
-	local featureKeys = {
-		"itemLoot",
-		"partyLoot",
-		"currency",
-		"money",
-		"experience",
-		"reputation",
-		"profession",
-		"travelPoints",
-		"transmog",
-	}
-	for _, key in ipairs(featureKeys) do
-		local sfeat = sf[key]
-		local cfeat = cf[key]
-		if sfeat and cfeat then
-			if sfeat.enabled ~= cfeat.enabled then
-				return true
-			end
-		elseif (sfeat ~= nil) ~= (cfeat ~= nil) then
+	-- Compare each section recursively (skip "name" — cosmetic only)
+	local sections = { "positioning", "sizing", "styling", "animations", "features" }
+	for _, section in ipairs(sections) do
+		if not deepEqual(snapshot[section], currentFrame[section]) then
 			return true
 		end
 	end
 
 	return false
+end
+
+--- Build an array of diff entries between the snapshot and current frame,
+--- suitable for display in the Settings Recovery UI.
+--- @param snapshot table  The snapshot built from old flat keys
+--- @param currentFrame table  The current frames[1]
+--- @return table  array of { path, old, new }
+function G_RLF:ComputeSnapshotDiff(snapshot, currentFrame)
+	if not snapshot or not currentFrame then
+		return {}
+	end
+	local diffs = {}
+	local sections = { "positioning", "sizing", "styling", "animations", "features" }
+	for _, section in ipairs(sections) do
+		collectDiffs(snapshot[section], currentFrame[section], section, diffs)
+	end
+	return diffs
 end

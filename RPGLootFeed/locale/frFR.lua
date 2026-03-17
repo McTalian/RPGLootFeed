@@ -19,7 +19,7 @@ end
 -- L["Settings Recovery"] = "Settings Recovery"
 -- L["SettingsRecoveryBody"] = "RPGLootFeed detected settings from a version prior to %s that were not correctly carried over during the upgrade to %s. Your original settings are safely preserved and can be restored below, or you can dismiss this notice if you have already re-configured the addon to your liking."
 -- L["SettingsRecoveryDesc"] = "Legacy settings detected from before %s."
--- L["SettingsRecoveryDetailsLabel"] = "Full diff (copy/paste to notepad for reference):"
+-- L["SettingsRecoveryDetailsLabel"] = "Settings diff — old value -> current value (copy/paste for reference):"
 -- L["SettingsRecoveryNoChanges"] = "No differences detected between your old settings and the current defaults."
 -- L["SettingsRecoverySummaryHdr"] = "Summary of differences between your old settings and the current defaults:"
 --#endregion
