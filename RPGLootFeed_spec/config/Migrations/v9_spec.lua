@@ -145,6 +145,39 @@ describe("Migration v9", function()
 		end)
 	end)
 
+	describe("BuildV8RecoverySnapshot with separateFrame = true", function()
+		it("disables partyLoot on Main frame snapshot when separateFrame is true", function()
+			local ns = makeNs(8)
+			ns.db.global.item = { enabled = true }
+			ns.db.global.partyLoot = { separateFrame = true, enabled = true }
+			loadV9(ns)
+			local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+			assert.is_not_nil(snapshot)
+			assert.is_false(snapshot.features.partyLoot.enabled)
+		end)
+
+		it("does not disable partyLoot on Main frame snapshot when separateFrame is false", function()
+			local ns = makeNs(8)
+			ns.db.global.item = { enabled = true }
+			ns.db.global.partyLoot = { separateFrame = false, enabled = true }
+			loadV9(ns)
+			local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+			assert.is_not_nil(snapshot)
+			assert.is_true(snapshot.features.partyLoot.enabled)
+		end)
+
+		it("does not disable partyLoot when partyLoot table is nil", function()
+			local ns = makeNs(8)
+			ns.db.global.item = { enabled = true }
+			ns.db.global.partyLoot = nil
+			loadV9(ns)
+			local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+			assert.is_not_nil(snapshot)
+			-- partyLoot not present but item is — snapshot should still be built
+			assert.is_not_nil(snapshot.features.partyLoot)
+		end)
+	end)
+
 	describe("when migrationVersion < 9 but v8 ran correctly (snapshot matches frames[1])", function()
 		it("does not store pendingSettingsRecovery when values match", function()
 			local ns = makeNs(8)

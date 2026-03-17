@@ -749,13 +749,18 @@ function G_RLF:BuildV8RecoverySnapshot(global)
 	if not hasOldData then
 		return nil -- fresh install, nothing to recover
 	end
+	-- Mirror v8's behavior: if the user had a separate party frame,
+	-- partyLoot was disabled on the Main frame.
+	local partyLoot = global.partyLoot
+	local partyLootSeparate = partyLoot and partyLoot.separateFrame == true
+
 	return {
 		name = G_RLF.L["Main"],
 		positioning = copyPositioning(global.positioning),
 		sizing = copySizing(global.sizing),
 		styling = copyStyling(global.styling),
 		animations = copyAnimations(global.animations),
-		features = buildFeatures(global),
+		features = buildFeatures(global, partyLootSeparate and { partyLoot = false } or nil),
 	}
 end
 
