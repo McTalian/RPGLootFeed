@@ -69,7 +69,14 @@ function AuctionIntegrations:Init()
 		end
 	end
 
-	if self.activeIntegration and ahSource ~= self.activeIntegration:ToString() then
+	-- Only persist the active integration back to the DB when the saved source
+	-- is available (or unset). If the saved source names an integration that is
+	-- currently disabled/unloaded, keep the saved preference so it is restored
+	-- automatically once that addon is re-enabled.
+	local savedSourceIsUnavailable = ahSource
+		and ahSource ~= Integ_Base:ToString()
+		and not self.activeIntegrations[ahSource]
+	if self.activeIntegration and ahSource ~= self.activeIntegration:ToString() and not savedSourceIsUnavailable then
 		-- TODO: AuctionIntegrations is a singleton with one activeIntegration.
 		-- When multi-frame per-frame AH source selection is needed, this module
 		-- should become frame-aware (pass frameId into GetAHPrice, etc.).
