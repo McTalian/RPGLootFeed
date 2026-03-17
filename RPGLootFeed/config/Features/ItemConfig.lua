@@ -48,6 +48,7 @@ local function registerAHConfirmDialog()
 		OnAccept = function(self, data)
 			if data and data.apply then
 				data.apply()
+				G_RLF:NotifyChange(addonName)
 			end
 		end,
 		OnCancel = function()
@@ -73,6 +74,7 @@ local function registerPricesConfirmDialog()
 		OnAccept = function(self, data)
 			if data and data.apply then
 				data.apply()
+				G_RLF:NotifyChange(addonName)
 			end
 		end,
 		OnCancel = function()
