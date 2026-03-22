@@ -218,6 +218,19 @@ G_RLF.options.args.global.args.general = {
 					end,
 					order = 1,
 				},
+				pinOnHover = {
+					type = "toggle",
+					name = G_RLF.L["Lock Row Position On Hover"],
+					desc = G_RLF.L["LockRowPositionOnHoverDesc"],
+					width = "double",
+					get = function()
+						return G_RLF.db.global.interactions.pinOnHover
+					end,
+					set = function(info, value)
+						G_RLF.db.global.interactions.pinOnHover = value
+					end,
+					order = 2,
+				},
 			},
 		},
 	},

@@ -50,6 +50,11 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 			self.ExitAnimation:Stop()
 			self.HighlightAnimation:Stop()
 			self:ResetHighlightBorder()
+			-- Propagate pin to row (ClickableButton sits on top and intercepts OnEnter)
+			local frame = self:GetParent()
+			if frame then
+				self:PinPosition(frame)
+			end
 		end
 		showTooltip()
 
@@ -60,7 +65,15 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 	-- OnLeave: Hide tooltip and stop listening for Shift changes
 	self.ClickableButton:SetScript("OnLeave", function()
 		if not isHistoryFrame then
-			self.ExitAnimation:Play()
+			-- Only restart exit animation and release pin if mouse has truly left
+			-- the row, not merely moved from button to another part of the row.
+			if not self:IsMouseOver() then
+				self.ExitAnimation:Play()
+				local frame = self:GetParent()
+				if frame then
+					frame:ReleasePin(self)
+				end
+			end
 		end
 		hideTooltip()
 
@@ -159,13 +172,26 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 				self.ExitAnimation:Stop()
 				self.HighlightAnimation:Stop()
 				self:ResetHighlightBorder()
+				-- Propagate pin to row
+				local frame = self:GetParent()
+				if frame then
+					self:PinPosition(frame)
+				end
 			end
 			showTooltip()
 			self.Icon:RegisterEvent("MODIFIER_STATE_CHANGED")
 		end)
 		self.Icon:SetScript("OnLeave", function()
 			if not isHistoryFrame then
-				self.ExitAnimation:Play()
+				-- Only restart exit animation and release pin if mouse has truly left
+				-- the row, not merely moved from icon to another part of the row.
+				if not self:IsMouseOver() then
+					self.ExitAnimation:Play()
+					local frame = self:GetParent()
+					if frame then
+						frame:ReleasePin(self)
+					end
+				end
 			end
 			hideTooltip()
 			self.Icon:UnregisterEvent("MODIFIER_STATE_CHANGED")

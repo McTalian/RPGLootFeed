@@ -127,6 +127,8 @@ function LootDisplayRowMixin:Reset()
 	self.itemCountFn = nil
 	self.logFn = nil
 	self.onReleased = nil
+	self.isPinned = false
+	self.pinnedFrameOffset = nil
 
 	-- Reset UI elements that were part of the template
 	self.TopBorder:SetAlpha(0)
@@ -231,6 +233,41 @@ function LootDisplayRowMixin:SetClickThrough(enabled)
 			GameTooltip:Hide()
 		end
 	end
+end
+
+--- Lock this row at its current visual position so it is not moved by
+--- Phase 2's FLIP repositioning when nearby rows exit.
+--- @param frame RLF_LootDisplayFrame
+function LootDisplayRowMixin:PinPosition(frame)
+	G_RLF:LogDebug(
+		"[PIN] PinPosition: key="
+			.. tostring(self.key)
+			.. " isPinned="
+			.. tostring(self.isPinned)
+			.. " pinOnHover="
+			.. tostring(G_RLF.db.global.interactions.pinOnHover),
+		addonName
+	)
+	if self.isPinned then
+		return
+	end
+	if not G_RLF.db.global.interactions.pinOnHover then
+		return
+	end
+
+	local frameEdgeY = (frame.vertDir == "BOTTOM") and frame:GetBottom() or frame:GetTop()
+	local edgeY = (frame.vertDir == "BOTTOM") and self:GetBottom() or self:GetTop()
+
+	self.pinnedFrameOffset = edgeY - frameEdgeY
+	self:ClearAllPoints()
+	self:SetPoint(frame.vertDir, frame, frame.vertDir, 0, self.pinnedFrameOffset)
+
+	self.isPinned = true
+	frame.hasPinnedRow = true
+	G_RLF:LogDebug(
+		"[PIN] PinPosition: PINNED key=" .. tostring(self.key) .. " offset=" .. tostring(self.pinnedFrameOffset),
+		addonName
+	)
 end
 
 function LootDisplayRowMixin:Styles()
@@ -482,7 +519,9 @@ function LootDisplayRowMixin:UpdateNeighborPositions(frame)
 	local _next = self._next
 	local _prev = self._prev
 
-	if _next then
+	-- Do not disturb a pinned row's anchor.  It is visually fixed; it will
+	-- re-anchor itself in ReleasePin → UpdatePosition when the hover ends.
+	if _next and not _next.isPinned then
 		_next:ClearAllPoints()
 		if _prev then
 			_next:SetPoint(vertDir, _prev, opposite, 0, yOffset)
