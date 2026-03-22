@@ -492,8 +492,13 @@ function ItemInfo:GetUpgradeText(fromInfo, fontSize)
 	local atlasIcon = "npe_arrowrightglow"
 	local sizeCoeff = G_RLF.AtlasIconCoefficients[atlasIcon] or 1
 	local atlasIconSize = fontSize * sizeCoeff
-	local atlasArrow = CreateAtlasMarkup(atlasIcon, atlasIconSize, atlasIconSize, 0, 0)
-	return "    " .. fromStr .. " " .. atlasArrow .. " " .. toStr
+	-- Use a plain ASCII arrow instead of |A| atlas markup or Unicode characters.
+	-- |A|/|T| inline sequences do not receive Translation animation offsets and
+	-- cause visual jank when the row shifts.  Unicode right-arrow (U+2192) does
+	-- not render in WoW's font renderer, so "-->" is used as the separator.
+	local _ = atlasIconSize -- kept for future real-texture overlay if desired
+	local arrowSep = "-->"
+	return "    " .. fromStr .. " " .. arrowSep .. " " .. toStr
 end
 
 local nameToSubClass

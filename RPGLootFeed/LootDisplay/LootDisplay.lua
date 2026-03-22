@@ -324,6 +324,16 @@ local function processRow(element, frame)
 		end)
 	else
 		-- New row
+		-- Apply the same blocking rule as processFromQueue: if a row is pinned
+		-- or shift animations are running, enqueue rather than adding rows that
+		-- would displace the layout or pile on top of the pinned row.
+		-- (When processFromQueue calls processRow these conditions are always
+		-- false, so this gate is a no-op for queue-drain paths.)
+		local lootFrame = lootFrames[frame]
+		if lootFrame and ((lootFrame.shiftingRowCount or 0) > 0 or lootFrame.hasPinnedRow) then
+			lootQueues[frame]:enqueue(element)
+			return
+		end
 		row = lootFrames[frame]:LeaseRow(key)
 		if row == nil then
 			lootQueues[frame]:enqueue(element)
@@ -351,6 +361,14 @@ local function processFromQueue(frame)
 	frame = frame or G_RLF.Frames.MAIN
 	local queue = lootQueues[frame]
 	if not queue then
+		return
+	end
+	-- Block queue drain while rows are animating to their new positions OR
+	-- while a row is pinned (to prevent layout conflicts with the detached row).
+	-- ShiftAnimation:OnFinished sends RLF_ROW_RETURNED once shiftingRowCount
+	-- reaches 0, which re-triggers this function via the AceBucket.
+	local lootFrame = lootFrames[frame]
+	if lootFrame and ((lootFrame.shiftingRowCount or 0) > 0 or lootFrame.hasPinnedRow) then
 		return
 	end
 	local snapshotQueueSize = queue:size()

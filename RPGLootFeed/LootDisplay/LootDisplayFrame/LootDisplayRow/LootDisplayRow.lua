@@ -148,9 +148,15 @@ function LootDisplayRowMixin:Reset()
 
 	self:StopAllAnimations()
 
+	self:HideCoinDisplay()
+	self:HideSecondaryCoinDisplay()
+
 	if self.glowTexture then
 		self.glowTexture:Hide()
+		self.glowTexture:SetScale(1)
+		self.glowTexture:SetAlpha(0.75)
 	end
+	self._glowWasPlaying = false
 	if self.HighlightBGOverlay then
 		self.HighlightBGOverlay:SetAlpha(0)
 	end
@@ -164,8 +170,10 @@ function LootDisplayRowMixin:Reset()
 	self.UnitPortrait:SetTexture(nil)
 	self.PrimaryText:SetText(nil)
 	self.PrimaryText:SetTextColor(unpack(defaultColor))
+	self._primaryR, self._primaryG, self._primaryB, self._primaryA = nil, nil, nil, nil
 	self.SecondaryText:SetText(nil)
 	self.SecondaryText:SetTextColor(unpack(defaultColor))
+	self._secondaryR, self._secondaryG, self._secondaryB, self._secondaryA = nil, nil, nil, nil
 	self.SecondaryText:Hide()
 	self.SecondaryLineLayout:Hide()
 	self.AmountText:SetText(nil)
@@ -271,6 +279,32 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self:ShowText(text, r, g, b, a)
 	local amountText = self.amountTextFn and self.amountTextFn(0) or ""
 	self:ShowAmountText(amountText, r or 1, g or 1, b or 1, a or 1)
+
+	-- Primary coin display (real Textures replacing |T| markup — no animation jank)
+	if element.coinDataFn then
+		local cg, cs, cc = element.coinDataFn(0)
+		if cg or cs or cc then
+			self:UpdateCoinDisplay(cg or 0, cs or 0, cc or 0)
+			self:LayoutPrimaryLine()
+		else
+			self:HideCoinDisplay()
+		end
+	else
+		self:HideCoinDisplay()
+	end
+
+	-- Secondary coin display (vendor/AH price or money total — real Textures)
+	if element.secondaryCoinDataFn then
+		local sg, ss, sc, satl, ssz, sgt = element.secondaryCoinDataFn(0)
+		if sg or ss or sc or satl then
+			self:UpdateSecondaryCoinDisplay(sg or 0, ss or 0, sc or 0, satl, ssz, sgt)
+		else
+			self:HideSecondaryCoinDisplay()
+		end
+	else
+		self:HideSecondaryCoinDisplay()
+	end
+
 	self.highlight = highlight
 	RunNextFrame(function()
 		self:Enter()
@@ -344,6 +378,31 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	local amountText = element.amountTextFn and element.amountTextFn(oldAmount) or ""
 	self:ShowAmountText(amountText, r or 1, g or 1, b or 1, a or 1)
 
+	-- Primary coin display
+	if element.coinDataFn then
+		local cg, cs, cc = element.coinDataFn(oldAmount)
+		if cg or cs or cc then
+			self:UpdateCoinDisplay(cg or 0, cs or 0, cc or 0)
+			self:LayoutPrimaryLine()
+		else
+			self:HideCoinDisplay()
+		end
+	else
+		self:HideCoinDisplay()
+	end
+
+	-- Secondary coin display
+	if element.secondaryCoinDataFn then
+		local sg, ss, sc, satl, ssz, sgt = element.secondaryCoinDataFn(oldAmount)
+		if sg or ss or sc or satl then
+			self:UpdateSecondaryCoinDisplay(sg or 0, ss or 0, sc or 0, satl, ssz, sgt)
+		else
+			self:HideSecondaryCoinDisplay()
+		end
+	else
+		self:HideSecondaryCoinDisplay()
+	end
+
 	if not G_RLF.DbAccessor:Animations(self.frameType).update.disableHighlight then
 		self.HighlightAnimation:Stop()
 		self.HighlightAnimation:Play()
@@ -366,7 +425,12 @@ function LootDisplayRowMixin:UpdatePosition(frame)
 		self.opposite = opposite
 		self.yOffset = yOffset
 		self.anchorTo = self._prev
-		self:SetFrameLevel(self._prev:GetFrameLevel() - 1)
+		-- Use a gap of 10 levels per row so that a row's child frames
+		-- (ItemButton, PrimaryLineLayout, etc.) never collide with an
+		-- adjacent row's base level.  WoW auto-raises child frames
+		-- above their parent, so with a gap of 1 the children of row N
+		-- can overlap with row N-1's backdrop-border level.
+		self:SetFrameLevel(self._prev:GetFrameLevel() - 10)
 	else
 		self:SetPoint(vertDir, frame, vertDir)
 		self.anchorPoint = vertDir
@@ -390,7 +454,7 @@ function LootDisplayRowMixin:UpdateNeighborPositions(frame)
 			_next.opposite = opposite
 			_next.yOffset = yOffset
 			_next.anchorTo = _prev
-			_next:SetFrameLevel(_prev:GetFrameLevel() - 1)
+			_next:SetFrameLevel(_prev:GetFrameLevel() - 10)
 		else
 			_next:SetPoint(vertDir, frame, vertDir)
 			_next.anchorPoint = vertDir
