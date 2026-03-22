@@ -55,13 +55,14 @@ local function buildFrameGroup(id)
 	local group = {
 		type = "group",
 		name = frameAtlas .. frameName,
+		desc = string.format(G_RLF.L["FMT_FRAME_DESC"], frameName),
 		order = 10 + id,
 		childGroups = "tree",
 		args = {
 			appearance = {
 				type = "group",
 				name = G_RLF.L["Appearance"],
-				desc = G_RLF.L["AppearanceDesc"],
+				desc = string.format(G_RLF.L["FMT_APPEARANCE_DESC"], frameName),
 				order = 1,
 				childGroups = "tree",
 				args = {
@@ -72,7 +73,7 @@ local function buildFrameGroup(id)
 					},
 					appearanceDesc = {
 						type = "description",
-						name = G_RLF.L["AppearanceDesc"],
+						name = string.format(G_RLF.L["FMT_APPEARANCE_DESC"], frameName),
 						order = 1,
 						fontSize = "medium",
 					},
@@ -85,7 +86,7 @@ local function buildFrameGroup(id)
 			lootFeeds = {
 				type = "group",
 				name = G_RLF.L["Loot Feeds"],
-				desc = G_RLF.L["LootFeedsDesc"],
+				desc = string.format(G_RLF.L["FMT_LOOT_FEEDS_DESC"], frameName),
 				order = 2,
 				childGroups = "tree",
 				args = {
@@ -96,7 +97,7 @@ local function buildFrameGroup(id)
 					},
 					lootFeedsDesc = {
 						type = "description",
-						name = G_RLF.L["LootFeedsDesc"],
+						name = string.format(G_RLF.L["FMT_LOOT_FEEDS_DESC"], frameName),
 						order = 1,
 						fontSize = "medium",
 					},
@@ -134,7 +135,7 @@ local function buildManageFrameArgs()
 			name = G_RLF.L["Frame Name"],
 			desc = G_RLF.L["FrameNameDesc"],
 			order = baseOrder,
-			width = "double",
+			width = 1.8,
 			get = function()
 				local cfg = G_RLF.db.global.frames[id]
 				return cfg and cfg.name or ""
@@ -151,9 +152,13 @@ local function buildManageFrameArgs()
 		if id ~= G_RLF.Frames.MAIN then
 			args["delete_" .. id] = {
 				type = "execute",
-				name = G_RLF.L["Delete Frame"],
+				name = function()
+					local cfg = G_RLF.db.global.frames[id]
+					local name = cfg and cfg.name or tostring(id)
+					return string.format(G_RLF.L["FMT_DELETE_FRAME"], name)
+				end,
 				order = baseOrder + 1,
-				width = "double",
+				width = 1.8,
 				confirm = true,
 				confirmText = G_RLF.L["DeleteFrameConfirm"],
 				func = function()
@@ -165,9 +170,13 @@ local function buildManageFrameArgs()
 		else
 			args["delete_" .. id] = {
 				type = "execute",
-				name = G_RLF.L["Delete Frame"],
+				name = function()
+					local cfg = G_RLF.db.global.frames[id]
+					local name = cfg and cfg.name or tostring(id)
+					return string.format(G_RLF.L["FMT_DELETE_FRAME"], name)
+				end,
 				order = baseOrder + 1,
-				width = "double",
+				width = 1.8,
 				disabled = true,
 				func = function() end,
 			}
@@ -186,7 +195,7 @@ function FramesConfig:RebuildArgs()
 
 	-- Remove old per-frame entries and management groups before rebuilding.
 	for key in pairs(rootArgs) do
-		if key:match("^frame_") or key == "newFrame" or key == "manageFrames" then
+		if key:match("^frame_") or key == "manageFrames" then
 			rootArgs[key] = nil
 		end
 	end
@@ -202,94 +211,104 @@ function FramesConfig:RebuildArgs()
 		rootArgs["frame_" .. id] = buildFrameGroup(id)
 	end
 
-	-- "+ New Frame" group (order 98)
-	rootArgs.newFrame = {
-		type = "group",
+	-- Build manage frames args (rename/delete rows), then append "+ New Frame" controls
+	local manageArgs = buildManageFrameArgs()
+
+	local frameCount = 0
+	for _ in pairs(G_RLF.db.global.frames) do
+		frameCount = frameCount + 1
+	end
+	local nextBaseOrder = frameCount * 2 + 2
+
+	manageArgs.newFrameHeader = {
+		type = "header",
 		name = G_RLF.L["+ New Frame"],
-		desc = G_RLF.L["NewFrameGroupDesc"],
-		order = 98,
-		args = {
-			newFrameName = {
-				type = "input",
-				name = G_RLF.L["New Frame Name"],
-				desc = G_RLF.L["NewFrameNameDesc"],
-				order = 1,
-				get = function()
-					return pendingNewFrameName
-				end,
-				set = function(_, value)
-					pendingNewFrameName = value
-				end,
-			},
-			addFrame = {
-				type = "execute",
-				name = G_RLF.L["Add Frame"],
-				desc = G_RLF.L["AddFrameDesc"],
-				order = 2,
-				disabled = function()
-					local count = 0
-					for _ in pairs(G_RLF.db.global.frames) do
-						count = count + 1
-					end
-					return count >= MAX_FRAMES
-				end,
-				func = function()
-					local count = 0
-					for _ in pairs(G_RLF.db.global.frames) do
-						count = count + 1
-					end
-					if count >= MAX_FRAMES then
-						G_RLF.Notifications:AddNotification(G_RLF.L["Frames"], G_RLF.L["MaxFramesReached"], "info")
-						return
-					end
+		order = nextBaseOrder,
+	}
+	manageArgs.newFrameGroupDesc = {
+		type = "description",
+		name = G_RLF.L["NewFrameGroupDesc"],
+		order = nextBaseOrder + 0.5,
+		fontSize = "medium",
+	}
+	manageArgs.newFrameName = {
+		type = "input",
+		name = G_RLF.L["New Frame Name"],
+		desc = G_RLF.L["NewFrameNameDesc"],
+		order = nextBaseOrder + 1,
+		get = function()
+			return pendingNewFrameName
+		end,
+		set = function(_, value)
+			pendingNewFrameName = value
+		end,
+	}
+	manageArgs.addFrame = {
+		type = "execute",
+		name = G_RLF.L["Add Frame"],
+		desc = G_RLF.L["AddFrameDesc"],
+		order = nextBaseOrder + 2,
+		disabled = function()
+			local count = 0
+			for _ in pairs(G_RLF.db.global.frames) do
+				count = count + 1
+			end
+			return count >= MAX_FRAMES
+		end,
+		func = function()
+			local count = 0
+			for _ in pairs(G_RLF.db.global.frames) do
+				count = count + 1
+			end
+			if count >= MAX_FRAMES then
+				G_RLF.Notifications:AddNotification(G_RLF.L["Frames"], G_RLF.L["MaxFramesReached"], "info")
+				return
+			end
 
-					local newId = G_RLF.db.global.nextFrameId
-					G_RLF.db.global.nextFrameId = newId + 1
+			local newId = G_RLF.db.global.nextFrameId
+			G_RLF.db.global.nextFrameId = newId + 1
 
-					local name = (pendingNewFrameName ~= "") and pendingNewFrameName
-						or (G_RLF.L["Frames"] .. " " .. newId)
-					pendingNewFrameName = ""
+			local name = (pendingNewFrameName ~= "") and pendingNewFrameName or (G_RLF.L["Frames"] .. " " .. newId)
+			pendingNewFrameName = ""
 
-					local mainCfg = G_RLF.db.global.frames[G_RLF.Frames.MAIN]
-					local function deepCopy(t)
-						if type(t) ~= "table" then
-							return t
-						end
-						local out = {}
-						for k, v in pairs(t) do
-							out[k] = deepCopy(v)
-						end
-						return out
-					end
-					local newFeatures = deepCopy(mainCfg.features)
-					for _, featureCfg in pairs(newFeatures) do
-						featureCfg.enabled = false
-					end
+			local mainCfg = G_RLF.db.global.frames[G_RLF.Frames.MAIN]
+			local function deepCopy(t)
+				if type(t) ~= "table" then
+					return t
+				end
+				local out = {}
+				for k, v in pairs(t) do
+					out[k] = deepCopy(v)
+				end
+				return out
+			end
+			local newFeatures = deepCopy(mainCfg.features)
+			for _, featureCfg in pairs(newFeatures) do
+				featureCfg.enabled = false
+			end
 
-					G_RLF.db.global.frames[newId] = {
-						name = name,
-						positioning = deepCopy(mainCfg.positioning),
-						sizing = deepCopy(mainCfg.sizing),
-						styling = deepCopy(mainCfg.styling),
-						animations = deepCopy(mainCfg.animations),
-						features = newFeatures,
-					}
+			G_RLF.db.global.frames[newId] = {
+				name = name,
+				positioning = deepCopy(mainCfg.positioning),
+				sizing = deepCopy(mainCfg.sizing),
+				styling = deepCopy(mainCfg.styling),
+				animations = deepCopy(mainCfg.animations),
+				features = newFeatures,
+			}
 
-					G_RLF.LootDisplay:InitFrame(newId)
-					self:RebuildArgs()
-					notifyChange()
-				end,
-			},
-		},
+			G_RLF.LootDisplay:InitFrame(newId)
+			self:RebuildArgs()
+			notifyChange()
+		end,
 	}
 
-	-- "Manage Frames" group (order 99)
+	-- "Manage Frames" group (order 98, last before About)
 	rootArgs.manageFrames = {
 		type = "group",
 		name = G_RLF.L["Manage Frames"],
 		desc = G_RLF.L["ManageFramesDesc"],
-		order = 99,
-		args = buildManageFrameArgs(),
+		order = 98,
+		args = manageArgs,
 	}
 end
 

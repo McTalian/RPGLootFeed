@@ -6,11 +6,11 @@ local G_RLF = ns
 
 local General = {}
 
-G_RLF.options.args.global.args.general = {
+G_RLF.options.args.general = {
 	type = "group",
 	handler = General,
 	name = G_RLF.L["General"],
-	desc = G_RLF.L["GeneralDesc"],
+	desc = G_RLF.L["GeneralDesc1.32"],
 	order = 1,
 	args = {
 		quickActions = {

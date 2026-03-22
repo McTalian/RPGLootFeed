@@ -133,7 +133,7 @@ end
 -- AceConfig tab registration
 --------------------------------------------------
 
-G_RLF.options.args.global.args.settingsRecovery = {
+G_RLF.options.args.settingsRecovery = {
 	type = "group",
 	name = G_RLF.L["Settings Recovery"],
 	desc = function()

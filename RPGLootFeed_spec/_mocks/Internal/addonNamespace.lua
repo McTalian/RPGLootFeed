@@ -203,9 +203,6 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		ns.options = {
 			args = {},
 		}
-		ns.options.args.global = {
-			args = {},
-		}
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.ConfigFeaturesInit then
 		ns.mainFeatureOrder = {
