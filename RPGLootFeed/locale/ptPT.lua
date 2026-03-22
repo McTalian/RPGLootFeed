@@ -15,6 +15,19 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.32.0
+-- L["Disable Mouse Interactions In Combat"] = "Disable Mouse Interactions In Combat"
+-- L["DisableMouseInCombatDesc"] = "When enabled, the loot feed will not capture mouse events during combat, allowing camera rotation and other mouse interactions to pass through."
+-- L["Interactions"] = "Interactions"
+-- L["InteractionsDesc"] = "Configure how the loot feed interacts with mouse events."
+-- L["Lock Row Position On Hover"] = "Lock Row Position On Hover"
+-- L["LockRowPositionOnHoverDesc"] = "When enabled, hovering over a row will lock it in place so it doesn't slide away when other rows exit the feed."
+-- L["Repositioning Animation"] = "Repositioning Animation"
+-- L["Repositioning Duration"] = "Repositioning Duration"
+-- L["RepositioningAnimationDesc"] = "Configure how rows animate to their new positions when another row exits."
+-- L["RepositioningDurationDesc"] = "Duration of the row repositioning animation in seconds. Lower values are faster; at the minimum (0.05s) the shift is nearly instant."
+--#endregion
+
 --#region 1.31.1
 -- L["AHSourceChangeConfirmFmt"] = "Your saved Auction House source \"%s\" is not currently loaded. Changing this will overwrite your saved preference. Are you sure?"
 -- L["AHSourceUnavailableFmt"] = "%s (unavailable)"
