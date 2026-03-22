@@ -47,9 +47,11 @@ local LAYOUT = {
 local FONT = {
 	"SetFont",
 	"SetFontObject",
+	"GetFontObject",
 	"SetShadowColor",
 	"SetShadowOffset",
 	"SetTextColor",
+	"GetTextColor",
 	"SetText",
 	"GetStringWidth",
 	"GetStringHeight",
@@ -58,11 +60,6 @@ local FONT = {
 	"SetWidth",
 	"IsShown",
 }
-
---- Creates a mock Texture/Frame element with layout stubs.
-local function mockTexture()
-	return stubMethods({}, LAYOUT)
-end
 
 --- Creates a mock FontString element with layout + font stubs.
 --- GetStringWidth/GetStringHeight return sensible defaults.
@@ -76,7 +73,14 @@ local function mockFontString()
 	fs.GetUnboundedStringWidth = function()
 		return 80
 	end
+	-- Default white — matches the WoW reset colour and what Init() applies.
+	fs.GetTextColor:returns(1, 1, 1, 1)
 	return fs
+end
+
+--- Creates a mock Texture/Frame element with layout stubs.
+local function mockTexture()
+	return stubMethods({}, LAYOUT)
 end
 
 --- Creates a mock layout container that mimics the PrimaryLineLayout / SecondaryLineLayout
@@ -214,6 +218,18 @@ function M.new(frameType)
 	-- ── Row-level helpers referenced by mixins ────────────────────────────
 	row.ResetHighlightBorder = function() end
 	stub(row, "ResetHighlightBorder")
+
+	-- WoW frame methods used by RowTooltipMixin pin/unpin propagation.
+	-- Default: no parent, mouse not over. Tests that exercise pin logic
+	-- should override these stubs as needed.
+	row.GetParent = function()
+		return nil
+	end
+	stub(row, "GetParent")
+	row.IsMouseOver = function()
+		return false
+	end
+	stub(row, "IsMouseOver")
 
 	return row
 end

@@ -170,7 +170,8 @@ describe("Money", function()
 			assert.is_not_nil(elements[1])
 			assert.is_not_nil(elements[1].primary)
 			assert.equal("primary", elements[1].primary.type)
-			assert.equal("{sign}{coinString}", elements[1].primary.template)
+			-- coinString prefix comes before sign so accountant mode produces "(-…)"
+			assert.equal("{coinString}{sign}", elements[1].primary.template)
 			assert.equal(1, elements[1].primary.order)
 		end)
 
@@ -231,27 +232,46 @@ describe("Money", function()
 			assert.is_function(element.secondaryTextFn)
 		end)
 
-		it("textFn uses TextTemplateEngine", function()
+		it("textFn returns empty string for positive amounts (coins via coinDataFn)", function()
 			local element = buildElement(50000)
 
 			local result = element.textFn(25000)
 
-			-- Should contain the total amount: 50000 + 25000 = 75000 copper = 7g 50s 0c
-			assert.truthy(result)
+			-- Positive amounts produce no sign; coin amounts come from coinDataFn
 			assert.is_string(result)
-			assert.matches("7g 50s 0c", result)
+			assert.equal("", result)
 		end)
 
-		it("secondaryTextFn shows money total when enabled", function()
+		it("coinDataFn returns correct denomination breakdown", function()
+			local element = buildElement(50000)
+
+			-- 50000 + 25000 = 75000 copper = 7g 50s 0c
+			local gold, silver, copper = element.coinDataFn(25000)
+			assert.equal(7, gold)
+			assert.equal(50, silver)
+			assert.equal(0, copper)
+		end)
+
+		it("secondaryTextFn returns space placeholder when showMoneyTotal (coins via secondaryCoinDataFn)", function()
 			ns.db.global.money.showMoneyTotal = true
 			local element = buildElement(50000)
 
 			local result = element.secondaryTextFn(25000)
 
-			-- Should contain current money display (mocked as 1500000 = 150g 0s 0c)
-			assert.truthy(result)
-			assert.is_string(result)
-			assert.matches("150g 0s 0c", result)
+			-- Returns a single-space placeholder so the row layout applies the vertical
+			-- split (primary top / secondary bottom).  Actual coins come from secondaryCoinDataFn.
+			assert.equal(" ", result)
+		end)
+
+		it("secondaryCoinDataFn returns current money denomination breakdown", function()
+			ns.db.global.money.showMoneyTotal = true
+			local element = buildElement(50000)
+
+			-- GetMoney mock returns 1500000 = 150g 0s 0c
+			local gold, silver, copper = element.secondaryCoinDataFn(25000)
+			assert.equal(150, gold)
+			assert.equal(0, silver)
+			assert.equal(0, copper)
 		end)
 
 		it("secondaryTextFn returns empty when showMoneyTotal disabled due to whitespace detection", function()
@@ -268,20 +288,32 @@ describe("Money", function()
 			ns.db.global.money.accountantMode = true
 			local element = buildElement(50000)
 
-			local result = element.textFn()
+			-- textFn returns the opening bracket; coins come from coinDataFn;
+			-- amountTextFn returns the closing bracket
+			local textResult = element.textFn()
+			assert.equal("(", textResult)
 
-			-- Should wrap the amount in parentheses: (5g 0s 0c)
-			assert.matches("%(5g 0s 0c%)", result)
+			local amountResult = element.amountTextFn()
+			assert.equal(")", amountResult)
+
+			local gold, silver, copper = element.coinDataFn()
+			assert.equal(5, gold)
+			assert.equal(0, silver)
+			assert.equal(0, copper)
 		end)
 
 		it("handles negative amounts", function()
 			local element = buildElement(-50000)
 
+			-- textFn returns the minus sign; coins come from coinDataFn
 			local result = element.textFn()
+			assert.equal("-", result)
 
-			-- Should show negative amount: -5g 0s 0c
-			assert.matches("%-", result) -- Should start with minus sign
-			assert.matches("5g 0s 0c", result) -- Should contain the absolute amount
+			local gold, silver, copper = element.coinDataFn()
+			assert.equal(5, gold)
+			assert.equal(0, silver)
+			assert.equal(0, copper)
+
 			-- Negative money should be displayed in red
 			assert.equals(1, element.r)
 			assert.equals(0, element.g)
@@ -460,18 +492,26 @@ describe("Money", function()
 			local payload = Money:BuildPayload(50000)
 			local element = ns.LootElementBase:fromPayload(payload)
 
-			-- Use element's textFn (backed by TextTemplateEngine) — row 1
+			-- Row 1: textFn returns empty for positive amounts; coins via coinDataFn
 			local row1Layout = element.textFn()
+			assert.equal("", row1Layout)
 
-			-- Should contain the money amount (5g 0s 0c)
-			assert.matches("5g 0s 0c", row1Layout)
+			-- coinDataFn returns denomination amounts (5g 0s 0c)
+			local gold, silver, copper = element.coinDataFn()
+			assert.equal(5, gold)
+			assert.equal(0, silver)
+			assert.equal(0, copper)
 
-			-- Test row 2 layout - should exist since showMoneyTotal = true
+			-- Row 2: secondaryTextFn returns a space placeholder (vertical split trigger);
+			-- actual coins are rendered via secondaryCoinDataFn.
 			local row2Layout = element.secondaryTextFn()
+			assert.equal(" ", row2Layout)
 
-			-- Should contain current money total and spacer
-			assert.matches("150g 0s 0c", row2Layout) -- Current money total
-			assert.matches("    ", row2Layout) -- Should have spacer
+			-- secondaryCoinDataFn returns current money (150g from mock)
+			local sg, ss, sc = element.secondaryCoinDataFn()
+			assert.equal(150, sg)
+			assert.equal(0, ss)
+			assert.equal(0, sc)
 		end)
 	end)
 
@@ -497,10 +537,12 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper = element.secondaryCoinDataFn(0)
 
 				-- Should be truncated to 1523g 0s 0c (silver and copper removed)
-				assert.matches("1523g 0s 0c", result)
+				assert.equal(1523, gold)
+				assert.equal(0, silver)
+				assert.equal(0, copper)
 			end)
 
 			it("does not truncate amounts under 1000 gold", function()
@@ -511,10 +553,12 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper = element.secondaryCoinDataFn(0)
 
 				-- Should keep full precision
-				assert.matches("987g 65s 43c", result)
+				assert.equal(987, gold)
+				assert.equal(65, silver)
+				assert.equal(43, copper)
 			end)
 
 			it("handles exactly 1000 gold threshold", function()
@@ -525,10 +569,12 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper = element.secondaryCoinDataFn(0)
 
 				-- Should not truncate at exactly 1000g
-				assert.matches("1000g 0s 0c", result)
+				assert.equal(1000, gold)
+				assert.equal(0, silver)
+				assert.equal(0, copper)
 			end)
 
 			it("handles exactly 1000g 1c threshold", function()
@@ -539,10 +585,12 @@ describe("Money", function()
 				ns.db.global.money.showMoneyTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper = element.secondaryCoinDataFn(0)
 
 				-- Should truncate to 1000g 0s 0c (just over threshold)
-				assert.matches("1000g 0s 0c", result)
+				assert.equal(1000, gold)
+				assert.equal(0, silver)
+				assert.equal(0, copper)
 			end)
 		end)
 
@@ -556,10 +604,13 @@ describe("Money", function()
 				ns.db.global.money.abbreviateTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper, _, _, goldText = element.secondaryCoinDataFn(0)
 
-				-- Should abbreviate to 2.50Kg 0s 0c
-				assert.matches("2%.50Kg 0s 0c", result)
+				-- gold value intact for positivity checks; goldText is abbreviated
+				assert.equal(2500, gold)
+				assert.equal(0, silver)
+				assert.equal(0, copper)
+				assert.equal("2.50K", goldText)
 			end)
 
 			it("does not abbreviate when disabled", function()
@@ -571,10 +622,11 @@ describe("Money", function()
 				ns.db.global.money.abbreviateTotal = false
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper, _, _, goldText = element.secondaryCoinDataFn(0)
 
-				-- Should not abbreviate
-				assert.matches("2500g 0s 0c", result)
+				-- No abbreviation; goldText should be nil
+				assert.equal(2500, gold)
+				assert.is_nil(goldText)
 			end)
 
 			it("does not abbreviate amounts under 1000 gold", function()
@@ -586,10 +638,11 @@ describe("Money", function()
 				ns.db.global.money.abbreviateTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper, _, _, goldText = element.secondaryCoinDataFn(0)
 
-				-- Should not abbreviate (under threshold)
-				assert.matches("987g 65s 43c", result)
+				-- Should not abbreviate (under threshold); goldText should be nil
+				assert.equal(987, gold)
+				assert.is_nil(goldText)
 			end)
 
 			it("handles millions of gold", function()
@@ -601,10 +654,11 @@ describe("Money", function()
 				ns.db.global.money.abbreviateTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper, _, _, goldText = element.secondaryCoinDataFn(0)
 
-				-- Should abbreviate to 25.00Kg 0s 0c
-				assert.matches("25%.00Kg 0s 0c", result)
+				-- Should abbreviate to 25.00K
+				assert.equal(25000, gold)
+				assert.equal("25.00K", goldText)
 			end)
 		end)
 
@@ -618,10 +672,13 @@ describe("Money", function()
 				ns.db.global.money.abbreviateTotal = true
 
 				local element = buildElement(50000)
-				local result = element.secondaryTextFn(0)
+				local gold, silver, copper, _, _, goldText = element.secondaryCoinDataFn(0)
 
-				-- Should truncate to 2512g then abbreviate to 2.51Kg
-				assert.matches("2%.51Kg 0s 0c", result)
+				-- Truncated to 2512g 0s 0c, then abbreviated goldText to 2.51K
+				assert.equal(2512, gold)
+				assert.equal(0, silver)
+				assert.equal(0, copper)
+				assert.equal("2.51K", goldText)
 			end)
 		end)
 

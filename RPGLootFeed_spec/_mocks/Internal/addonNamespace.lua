@@ -85,6 +85,9 @@ function addonNamespaceMocks:unitLoadedAfter(loadSection)
 		addonNamespaceMocks.PerfPixel.PScale = stub(ns.PerfPixel, "PScale", function(v)
 			return v
 		end)
+		-- noQualColor is initialized in Core.lua:OnInitialize from C_Item.GetItemQualityColor.
+		-- The mock returns r=1, g=0.5, b=0 for Poor quality.
+		ns.noQualColor = { r = 1, g = 0.5, b = 0 }
 	end
 	if loadSection >= addonNamespaceMocks.LoadSections.Locale then
 		require("RPGLootFeed_spec._mocks.Libs.LibStub")
