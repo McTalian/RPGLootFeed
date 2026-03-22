@@ -197,6 +197,29 @@ G_RLF.options.args.global.args.general = {
 				},
 			},
 		},
+		interactionsOptions = {
+			type = "group",
+			name = G_RLF.L["Interactions"],
+			desc = G_RLF.L["InteractionsDesc"],
+			inline = true,
+			order = 6,
+			args = {
+				disableMouseInCombat = {
+					type = "toggle",
+					name = G_RLF.L["Disable Mouse Interactions In Combat"],
+					desc = G_RLF.L["DisableMouseInCombatDesc"],
+					width = "double",
+					get = function()
+						return G_RLF.db.global.interactions.disableMouseInCombat
+					end,
+					set = function(info, value)
+						G_RLF.db.global.interactions.disableMouseInCombat = value
+						G_RLF.LootDisplay:OnPlayerCombatChange()
+					end,
+					order = 1,
+				},
+			},
+		},
 	},
 }
 
