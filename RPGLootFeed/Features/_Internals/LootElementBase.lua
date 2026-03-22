@@ -50,6 +50,15 @@ function G_RLF.LootElementBase:new()
 	element.topLeftText = nil
 	element.topLeftColor = nil
 
+	-- ── Coin display providers (real-texture coin icons) ─────────────────────
+	-- When set, the row creates a CoinDisplay / SecondaryCoinDisplay frame so that
+	-- coin icons are real Texture children (not |T| markup), which travel correctly
+	-- with Translation animations.
+	-- coinDataFn(existingCopper) → gold, silver, copper  (primary line)
+	-- secondaryCoinDataFn(existingCopper) → gold, silver, copper, prefixAtlas, prefixSize
+	element.coinDataFn = nil
+	element.secondaryCoinDataFn = nil
+
 	-- ── RGBA color (default: opaque white) ─────────────────────────────────────
 	element.r = 1
 	element.g = 1
@@ -152,6 +161,10 @@ function G_RLF.LootElementBase:fromPayload(payload)
 	element.secondaryText = payload.secondaryText
 	element.secondaryTextColor = payload.secondaryTextColor
 
+	-- ── Coin display providers ────────────────────────────────────────────────
+	element.coinDataFn = payload.coinDataFn
+	element.secondaryCoinDataFn = payload.secondaryCoinDataFn
+
 	-- ── Color ──────────────────────────────────────────────────────────────────
 	if payload.r then
 		element.r = payload.r
@@ -213,6 +226,8 @@ end
 ---@field secondaryTextFn? fun(currentAmount: number): string Secondary line text provider
 ---@field secondaryText? string Static secondary text override
 ---@field secondaryTextColor? table ColorMixin with .r, .g, .b
+---@field coinDataFn? fun(existingCopper?: number): number, number, number Primary coin display (gold, silver, copper); replaces |T| markup for money rows
+---@field secondaryCoinDataFn? fun(existingCopper?: number): number, number, number, string?, number?, string? Secondary coin display (gold, silver, copper, prefixAtlas?, prefixSize?, goldText?)
 ---@field r? number Red channel (0-1, default 1)
 ---@field g? number Green channel (0-1, default 1)
 ---@field b? number Blue channel (0-1, default 1)

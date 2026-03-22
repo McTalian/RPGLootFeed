@@ -271,6 +271,30 @@ function G_RLF.BuildAnimationsArgs(id, order)
 					},
 				},
 			},
+			repositioningAnimations = {
+				type = "group",
+				name = G_RLF.L["Repositioning Animation"],
+				desc = G_RLF.L["RepositioningAnimationDesc"],
+				inline = true,
+				order = 5,
+				args = {
+					repositioningDuration = {
+						type = "range",
+						name = G_RLF.L["Repositioning Duration"],
+						desc = G_RLF.L["RepositioningDurationDesc"],
+						min = 0.05,
+						max = 0.5,
+						step = 0.05,
+						get = function()
+							return G_RLF.DbAccessor:Animations(id).reposition.duration
+						end,
+						set = function(info, value)
+							G_RLF.DbAccessor:Animations(id).reposition.duration = value
+						end,
+						order = 1,
+					},
+				},
+			},
 		},
 	}
 end

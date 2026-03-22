@@ -133,6 +133,8 @@ end
 ---@field rankStandingMax integer?
 ---@field contextInfo string?
 ---@field color colorRGBA?
+---@field paragonIconAtlas string?   Atlas name for the paragon reward bag icon (no |A| markup)
+---@field paragonIconSize  number?   Pixel size for the paragon reward bag icon
 
 local rewardIcon = "ParagonReputation_Bag"
 
@@ -298,8 +300,11 @@ function RepUtils.GetFactionData(factionId, repType)
 			local stylingDb = G_RLF.DbAccessor:Styling(G_RLF.Frames.MAIN)
 			local sizeCoeff = G_RLF.AtlasIconCoefficients[rewardIcon] or 1
 			local atlasIconSize = stylingDb.fontSize * sizeCoeff
-			local atlasMarkup = CreateAtlasMarkup(rewardIcon, atlasIconSize, atlasIconSize, 0, 0)
-			factionData.contextInfo = factionData.contextInfo .. atlasMarkup .. "    "
+			-- Store as data fields instead of injecting |A| markup into contextInfo.
+			-- Inline atlas markup does not receive Translation animation offsets and
+			-- causes visual jank; the row layer renders the icon via SecondaryCoinDisplay.
+			factionData.paragonIconAtlas = rewardIcon
+			factionData.paragonIconSize = atlasIconSize
 		end
 	end
 

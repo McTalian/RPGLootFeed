@@ -55,33 +55,25 @@ end
 -- Defined after Money so the inner closure can reference Money._moneyAdapter.
 local function createMoneyContextProvider()
 	return function(context, data)
-		-- Get coin string for the total amount
-		context.coinString = Money._moneyAdapter.GetCoinTextureString(context.absTotal)
-
 		local moneyConfig = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
 
-		-- Support for accountant mode
+		-- Coin icons are real Textures (via coinDataFn on the payload), not |T| markup.
+		-- The primary text template only carries the sign prefix and, for accountant
+		-- mode, the opening bracket.  The closing bracket is appended via amountTextFn.
 		if moneyConfig.accountantMode then
-			context.coinString = "(" .. context.coinString .. ")"
+			context.coinString = "("
+			-- accountantClosing is set so amountTextFn can append ")"
+			context.accountantMode = true
+		else
+			context.coinString = ""
+			context.accountantMode = false
 		end
 
-		-- Current money total for secondary text
+		-- Secondary text: only retain the spacer indent when the money total is shown.
+		-- The actual coin amounts are rendered via secondaryCoinDataFn.
 		if moneyConfig.showMoneyTotal then
-			local currentMoney = Money._moneyAdapter.GetMoney()
-			if currentMoney > 10000000 then -- More than 1000 gold
-				currentMoney = math.floor(currentMoney / 10000) * 10000 -- truncate silver and copper
-			end
-			context.currentMoney = Money._moneyAdapter.GetCoinTextureString(currentMoney)
-
-			-- Handle abbreviation if enabled
-			if moneyConfig.abbreviateTotal and currentMoney > 10000000 then
-				local goldOnly = math.floor(currentMoney / 10000)
-				context.currentMoney =
-					context.currentMoney:gsub(tostring(goldOnly), TextTemplateEngine:AbbreviateNumber(goldOnly))
-			end
+			context.currentMoney = "" -- coins come from SecondaryCoinDisplay
 		else
-			-- When showMoneyTotal is disabled, provide empty currentMoney
-			-- This will cause row 2 to be only spacers, which ProcessRowElements will detect and return ""
 			context.currentMoney = ""
 		end
 	end
@@ -142,7 +134,54 @@ function Money:BuildPayload(quantity)
 			return TextTemplateEngine:ProcessRowElements(1, elementData, existingCopper)
 		end,
 		secondaryTextFn = function(existingCopper)
-			return TextTemplateEngine:ProcessRowElements(2, elementData, existingCopper)
+			local mc = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+			if mc.showMoneyTotal then
+				-- Return a single-space placeholder so the row layout applies the
+				-- vertical split (primary top / secondary bottom).  The actual wallet
+				-- total is rendered by SecondaryCoinDisplay (real Textures).
+				return " "
+			end
+			return ""
+		end,
+		-- Accountant-mode closing bracket surfaced as AmountText so CoinDisplay
+		-- can sit between the opening "(" in PrimaryText and the ")" suffix.
+		amountTextFn = function(existingCopper)
+			local mc = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+			if mc.accountantMode then
+				return ")"
+			end
+			return ""
+		end,
+		-- Primary coin display: real Texture denomination frames instead of |T| markup.
+		---@param existingCopper? number
+		coinDataFn = function(existingCopper)
+			local total = math.abs((existingCopper or 0) + quantity)
+			local gold = math.floor(total / 10000)
+			local silver = math.floor((total % 10000) / 100)
+			local copper = total % 100
+			return gold, silver, copper
+		end,
+		-- Secondary coin display: current wallet total rendered with real Textures.
+		---@param existingCopper? number
+		secondaryCoinDataFn = function(existingCopper)
+			local mc = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+			if not mc.showMoneyTotal then
+				return nil
+			end
+			local currentMoney = Money._moneyAdapter.GetMoney()
+			-- Truncation: amounts over 1000g strip silver and copper
+			if currentMoney > 10000000 then
+				currentMoney = math.floor(currentMoney / 10000) * 10000
+			end
+			local gold = math.floor(currentMoney / 10000)
+			local silver = math.floor((currentMoney % 10000) / 100)
+			local copper = currentMoney % 100
+			-- Abbreviation: return a formatted goldText string when enabled and >= 1000g
+			local goldText = nil
+			if mc.abbreviateTotal and gold >= 1000 then
+				goldText = TextTemplateEngine:AbbreviateNumber(gold)
+			end
+			return gold, silver, copper, nil, nil, goldText
 		end,
 		IsEnabled = function()
 			return Money:IsEnabled()
@@ -163,12 +202,16 @@ function Money:GenerateTextElements(quantity)
 	local elements = {}
 
 	-- Row 1: Primary money display
+	-- Template produces only the sign/bracket prefix; the actual coin amounts
+	-- are rendered by the row's CoinDisplay frame (real Textures, not |T| markup).
+	-- Template order: "{coinString}{sign}" so accountant mode produces "(-…)"
+	-- where coinString="(" comes before the sign "-".
 	elements[1] = {}
 	elements[1].primary = {
 		type = "primary",
-		template = "{sign}{coinString}",
+		template = "{coinString}{sign}",
 		order = 1,
-		color = nil, -- Will use default color
+		color = nil,
 	}
 
 	-- Row 2: Context text element (money total) - only if enabled

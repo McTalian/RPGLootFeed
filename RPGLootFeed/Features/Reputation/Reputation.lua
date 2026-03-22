@@ -151,6 +151,13 @@ function Rep:BuildPayload(unifiedFactionData)
 			return ""
 		end,
 
+		-- Paragon reward bag icon rendered as a real Texture via SecondaryCoinDisplay.
+		-- Avoids |A| markup in the FontString which causes Translation animation jank.
+		-- Returns (0, 0, 0, atlas, size) so only the prefix icon is shown with no coins.
+		secondaryCoinDataFn = unifiedFactionData.paragonIconAtlas and function()
+			return 0, 0, 0, unifiedFactionData.paragonIconAtlas, unifiedFactionData.paragonIconSize
+		end or nil,
+
 		-- Color
 		r = r,
 		g = g,

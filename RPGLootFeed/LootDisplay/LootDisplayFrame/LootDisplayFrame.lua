@@ -202,6 +202,9 @@ function LootDisplayFrameMixin:Load(frame)
 	}
 	---@type RLF_LootHistoryRowData[]
 	self.rowHistory = {}
+	self.shiftingRowCount = 0
+	self.bypassShiftAnimation = false
+	self.hasPinnedRow = false
 	self.rowFramePool = CreateFramePool("Frame", self, "LootDisplayRowTemplate")
 	self.vertDir, self.opposite, self.yOffset, self.horizDir = self:getPositioningDetails()
 	local positioningDb = G_RLF.DbAccessor:Positioning(self.frameType)
@@ -273,6 +276,7 @@ end
 function LootDisplayFrameMixin:ClearFeed()
 	local row = self.rows.last --[[@as RLF_LootDisplayRow]]
 
+	self.bypassShiftAnimation = true
 	while row do
 		local oldRow = row
 		row = row._prev
@@ -280,6 +284,7 @@ function LootDisplayFrameMixin:ClearFeed()
 		oldRow:Hide()
 		self:ReleaseRow(oldRow)
 	end
+	self.bypassShiftAnimation = false
 end
 
 function LootDisplayFrameMixin:UpdateSize()
@@ -415,6 +420,65 @@ function LootDisplayFrameMixin:ReleaseRow(row)
 		self:StoreRowHistory(row)
 	end
 
+	-- FLIP Phase 1: Snapshot visual edge positions of all remaining rows
+	-- (before ANY anchor changes; GetBottom/GetTop returns the visual position
+	-- including any ongoing Translation offset)
+	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
+	local useShiftAnimation = not self.bypassShiftAnimation and animationsDb.reposition.duration > 0.04
+	local snapshots = {}
+
+	if useShiftAnimation then
+		local getEdgeY = (self.vertDir == "BOTTOM") and function(r)
+			return r:GetBottom()
+		end or function(r)
+			return r:GetTop()
+		end
+
+		-- Fast-forward any running shift animations to their intended final
+		-- position.  Stop() alone snaps the row back to its frame-relative temp
+		-- anchor (oldEdgeY), and the old UpdatePosition call then snapped it
+		-- again to the chain position — both jumps visible to the player.
+		-- Fast-forwarding to _shiftFinalFrameOffset lands the row at the stable
+		-- position it was heading toward, eliminating the backward snap.
+		for r in self.rows:iterate() do
+			---@cast r RLF_LootDisplayRow
+			if r ~= row and r.ShiftAnimation and r.ShiftAnimation:IsPlaying() then
+				r.ShiftAnimation:Stop()
+				if r._shiftFinalFrameOffset ~= nil then
+					r:ClearAllPoints()
+					r:SetPoint(self.vertDir, self, self.vertDir, 0, r._shiftFinalFrameOffset)
+				else
+					-- Fallback: restore chain anchor (safe, old behaviour)
+					r:UpdatePosition(self)
+				end
+				r.PrimaryLineLayout:SetAlpha(1)
+				r.SecondaryLineLayout:SetAlpha(1)
+				r._textHiddenForShift = false
+				self.shiftingRowCount = math.max(0, self.shiftingRowCount - 1)
+			end
+		end
+
+		-- Handle the releasing row itself: stop and restore text alpha.
+		-- No position restore needed — the row is about to be removed.
+		if row.ShiftAnimation and row.ShiftAnimation:IsPlaying() then
+			row.ShiftAnimation:Stop()
+			row.PrimaryLineLayout:SetAlpha(1)
+			row.SecondaryLineLayout:SetAlpha(1)
+			row._textHiddenForShift = false
+			self.shiftingRowCount = math.max(0, self.shiftingRowCount - 1)
+		end
+
+		-- Snapshot visual edge positions AFTER fast-forwarding so the base
+		-- for Phase 3 deltas is measured from a visually stable position.
+		for r in self.rows:iterate() do
+			---@cast r RLF_LootDisplayRow
+			if r ~= row then
+				snapshots[r] = getEdgeY(r)
+			end
+		end
+	end
+
+	-- FLIP Phase 2: Re-anchor the chain (WoW snaps downstream rows here)
 	row:UpdateNeighborPositions(self)
 	self.rows:remove(row)
 	row:SetParent(nil)
@@ -425,11 +489,77 @@ function LootDisplayFrameMixin:ReleaseRow(row)
 	row.key = nil
 	row:Reset()
 	self.rowFramePool:Release(row)
-	-- Notify LootDisplay that capacity has opened on this specific frame so its
-	-- queue can be drained.  A single parameterised message replaces the old
-	-- dual-message RLF_ROW_RETURNED / RLF_PARTY_ROW_RETURNED scheme.
-	G_RLF:SendMessage("RLF_ROW_RETURNED", self.frameType)
+
+	-- Restore chain anchors for all remaining rows before Phase 3 so that
+	-- getEdgeY returns each row's correct final destination, not a stale
+	-- fast-forwarded frame-relative offset.  Rows broken out of the chain
+	-- by a previous AnimateShift batch are frame-directly-anchored and won't
+	-- benefit from WoW's cascade, so we re-anchor each one explicitly.
+	-- All changes occur within the same script invocation so WoW batches
+	-- them — AnimateShift's own ClearAllPoints+SetPoint overwrites these
+	-- anchors before the renderer draws a frame, so no visual snap occurs.
+	if useShiftAnimation then
+		for r in self.rows:iterate() do
+			---@cast r RLF_LootDisplayRow
+			if not r.isPinned then
+				r:UpdatePosition(self)
+			end
+		end
+	end
+
+	-- FLIP Phase 3: Invert — pre-compute all deltas before modifying any
+	-- anchors.  AnimateShift breaks each row out of the chain via
+	-- ClearAllPoints, so reading positions and modifying them in the same
+	-- loop produces order-dependent results with pairs().
+	local shifts
+	if useShiftAnimation then
+		local getEdgeY = (self.vertDir == "BOTTOM") and function(r)
+			return r:GetBottom()
+		end or function(r)
+			return r:GetTop()
+		end
+
+		shifts = {}
+		for r, oldEdgeY in pairs(snapshots) do
+			---@cast r RLF_LootDisplayRow
+			local newEdgeY = getEdgeY(r)
+			local yDelta = oldEdgeY - newEdgeY
+			if math.abs(yDelta) > 0.5 then -- ignore sub-pixel deltas
+				shifts[r] = { yDelta = yDelta, oldEdgeY = oldEdgeY }
+			end
+		end
+	end
+
+	-- FLIP Phase 4: Play — apply animations with pre-computed values.
+	local anyShifting = false
+	if shifts then
+		for r, info in pairs(shifts) do
+			r:AnimateShift(info.yDelta, info.oldEdgeY)
+			anyShifting = true
+		end
+	end
+
+	-- Only send RLF_ROW_RETURNED immediately when no shift animation was
+	-- started. When shifts ARE active, OnFinished sends it once shiftingRowCount
+	-- reaches 0 — a single deterministic drain trigger, no double-fire.
+	if not anyShifting then
+		G_RLF:SendMessage("RLF_ROW_RETURNED", self.frameType)
+	end
 	self:UpdateTabVisibility()
+end
+
+--- Restore proper inter-row chain anchors on all active rows.
+--- Called after all shift animations complete so rows transition from
+--- frame-relative temp anchors back to the doubly-linked list chain.
+--- Pinned rows are skipped: their anchor is a fixed frame-relative offset
+--- managed by PinPosition/ReleasePin, not the sibling chain.
+function LootDisplayFrameMixin:RestoreRowChain()
+	for row in self.rows:iterate() do
+		---@cast row RLF_LootDisplayRow
+		if not row.isPinned then
+			row:UpdatePosition(self)
+		end
+	end
 end
 
 function LootDisplayFrameMixin:StoreRowHistory(row)

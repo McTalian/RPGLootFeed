@@ -28,12 +28,21 @@ local G_RLF = ns
 ---@field fadeIn Alpha
 ---@field slideIn Translation
 
+---@class RLF_RowShiftAnimationGroup: AnimationGroup
+---@field translation Translation
+
 ---@class RLF_RowAnimationMixin
+---@field ShiftAnimation RLF_RowShiftAnimationGroup
+---@field _shiftFinalFrameOffset number
+---@field _shiftFinalFrameLevel number
 RLF_RowAnimationMixin = {}
 
 function RLF_RowAnimationMixin:StopAllAnimations()
 	if self.glowAnimationGroup then
 		self.glowAnimationGroup:Stop()
+		if self.glowTexture then
+			self.glowTexture:SetScale(1)
+		end
 	end
 	if self.EnterAnimation then
 		self.EnterAnimation:Stop()
@@ -52,6 +61,14 @@ function RLF_RowAnimationMixin:StopAllAnimations()
 	end
 	if self.ElementFadeInAnimation then
 		self.ElementFadeInAnimation:Stop()
+	end
+	if self.ShiftAnimation then
+		self.ShiftAnimation:Stop()
+		-- If the glow was paused for a shift that got interrupted, restart it
+		if self._glowWasPlaying and self.glowAnimationGroup then
+			self.glowAnimationGroup:Play()
+		end
+		self._glowWasPlaying = false
 	end
 
 	-- Stop scripted effects
@@ -167,6 +184,16 @@ function RLF_RowAnimationMixin:StyleElementFadeIn()
 		self.UnitPortrait.elementFadeIn:SetSmoothing(fadeInSmoothing)
 	end
 	self.UnitPortrait.elementFadeIn:SetDuration(fadeInDuration)
+
+	-- CoinDisplay and SecondaryCoinDisplay are created lazily from SetRow().
+	-- On pool reuse, Init() runs before SetRow() so they exist here; update
+	-- the duration on the already-registered animation.
+	if self.CoinDisplay and self.CoinDisplay.elementFadeIn then
+		self.CoinDisplay.elementFadeIn:SetDuration(fadeInDuration)
+	end
+	if self.SecondaryCoinDisplay and self.SecondaryCoinDisplay.elementFadeIn then
+		self.SecondaryCoinDisplay.elementFadeIn:SetDuration(fadeInDuration)
+	end
 end
 
 function RLF_RowAnimationMixin:StyleHighlightBorder()
@@ -229,6 +256,103 @@ function RLF_RowAnimationMixin:StyleHighlightBorder()
 			self.HighlightAnimation:SetLooping("NONE")
 		end
 	end
+end
+
+function RLF_RowAnimationMixin:StyleShiftAnimation()
+	if not self.ShiftAnimation then
+		self.ShiftAnimation = self:CreateAnimationGroup() --[[@as RLF_RowShiftAnimationGroup]]
+		self.ShiftAnimation:SetToFinalAlpha(false)
+		self.ShiftAnimation.translation = self.ShiftAnimation:CreateAnimation("Translation")
+		self.ShiftAnimation.translation:SetSmoothing("IN_OUT")
+		self.ShiftAnimation:SetScript("OnFinished", function()
+			local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
+			if not frame then
+				return
+			end
+			-- Anchor at the pre-computed final position (frame-relative) so the
+			-- row doesn't depend on sibling chain anchors that may still be
+			-- mid-animation.  This eliminates the flicker from the
+			-- offset-clear → UpdatePosition gap.
+			self:ClearAllPoints()
+			self:SetPoint(frame.vertDir, frame, frame.vertDir, 0, self._shiftFinalFrameOffset)
+			-- Preserve correct frame level so borders render properly
+			self:SetFrameLevel(self._shiftFinalFrameLevel)
+			-- Restart glow animation if it was playing before the shift
+			if self._glowWasPlaying and self.glowAnimationGroup then
+				self.glowAnimationGroup:Play()
+				self._glowWasPlaying = false
+			end
+			-- Decrement shift counter
+			frame.shiftingRowCount = math.max(0, (frame.shiftingRowCount or 0) - 1)
+			if frame.shiftingRowCount == 0 then
+				-- All shift animations complete — restore proper chain anchors
+				frame:RestoreRowChain()
+				G_RLF:SendMessage("RLF_ROW_RETURNED", frame.frameType)
+			end
+		end)
+	end
+end
+
+--- Animate this row from its old visual edge position to its new anchor
+--- position via a Translation animation (FLIP technique).
+---
+--- The row is temporarily anchored to the parent frame at the old visual
+--- position.  A Translation slides it to the new position.  OnFinished
+--- re-anchors at the final position (frame-relative) to avoid flicker,
+--- and once all shifts complete the chain is restored.
+---
+--- @param yDelta number oldEdgeY minus newEdgeY in screen coordinates;
+---   positive = row shifted downward, negative = shifted upward.
+--- @param oldEdgeY number the row's visual edge-Y at the time of snapshot.
+function RLF_RowAnimationMixin:AnimateShift(yDelta, oldEdgeY)
+	if not self.ShiftAnimation then
+		self:StyleShiftAnimation()
+	end
+
+	local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
+	if not frame then
+		return
+	end
+
+	-- Update duration from current config
+	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
+	self.ShiftAnimation.translation:SetDuration(animationsDb.reposition.duration)
+
+	local frameEdgeY
+	if frame.vertDir == "BOTTOM" then
+		frameEdgeY = frame:GetBottom()
+	else
+		frameEdgeY = frame:GetTop()
+	end
+
+	-- Pre-compute the final frame-relative offset for OnFinished
+	local newEdgeY = oldEdgeY - yDelta
+	self._shiftFinalFrameOffset = newEdgeY - frameEdgeY
+
+	-- Preserve the current frame level for OnFinished so borders render
+	-- at the correct stacking order during and after the animation.
+	self._shiftFinalFrameLevel = self:GetFrameLevel()
+
+	-- Pause the glow Scale animation so it doesn't accumulate transforms
+	-- across the anchor change.  It will be restarted in OnFinished.
+	local glowWasPlaying = self.glowAnimationGroup and self.glowAnimationGroup:IsPlaying()
+	if glowWasPlaying then
+		self.glowAnimationGroup:Stop()
+	end
+	self._glowWasPlaying = glowWasPlaying
+
+	-- Temporarily anchor to the parent frame at the old visual position
+	self:ClearAllPoints()
+	self:SetPoint(frame.vertDir, frame, frame.vertDir, 0, oldEdgeY - frameEdgeY)
+
+	-- Translation slides from anchor (oldEdgeY) toward newEdgeY
+	-- WoW Translation goes FROM (0,0) TO the offset, so -yDelta moves
+	-- from old position toward new position.
+	self.ShiftAnimation.translation:SetOffset(0, -yDelta)
+
+	-- Increment counter and play
+	frame.shiftingRowCount = (frame.shiftingRowCount or 0) + 1
+	self.ShiftAnimation:Play()
 end
 
 function RLF_RowAnimationMixin:StyleExitAnimation()
@@ -497,6 +621,12 @@ function RLF_RowAnimationMixin:ElementsVisible()
 	self.ItemCountText:SetAlpha(1)
 	self.SecondaryText:SetAlpha(1)
 	self.UnitPortrait:SetAlpha(1)
+	if self.CoinDisplay then
+		self.CoinDisplay:SetAlpha(1)
+	end
+	if self.SecondaryCoinDisplay then
+		self.SecondaryCoinDisplay:SetAlpha(1)
+	end
 end
 
 function RLF_RowAnimationMixin:ElementsInvisible()
@@ -506,6 +636,12 @@ function RLF_RowAnimationMixin:ElementsInvisible()
 	self.ItemCountText:SetAlpha(0)
 	self.SecondaryText:SetAlpha(0)
 	self.UnitPortrait:SetAlpha(0)
+	if self.CoinDisplay then
+		self.CoinDisplay:SetAlpha(0)
+	end
+	if self.SecondaryCoinDisplay then
+		self.SecondaryCoinDisplay:SetAlpha(0)
+	end
 end
 
 function RLF_RowAnimationMixin:FadeInElements()
@@ -661,11 +797,21 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 	self:SetScript("OnEnter", function()
 		---@type RLF_ConfigAnimations
 		local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
+		G_RLF:LogDebug(
+			"[PIN] Row:OnEnter key=" .. tostring(self.key) .. " hasMouseOver=" .. tostring(self.hasMouseOver),
+			addonName
+		)
 		if self.hasMouseOver then
 			return
 		end
-		if not animationsDb.hover.enabled and not self.sampleTooltipText then
-			return
+		-- Always track hover state and pin — these are independent of the
+		-- highlight animation setting.  Also stop the exit animation here so
+		-- hovering anywhere on the row (not just the ClickableButton) pauses
+		-- the fade-out countdown.
+		if not self.isHistoryMode then
+			if self.ExitAnimation then
+				self.ExitAnimation:Stop()
+			end
 		end
 		self.hasMouseOver = true
 		if animationsDb.hover.enabled then
@@ -682,24 +828,54 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 			GameTooltip:SetText(self.sampleTooltipText, 1, 1, 1, 1, true)
 			GameTooltip:Show()
 		end
+		-- Pin the row so it doesn't shift while hovered.
+		local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
+		if frame then
+			self:PinPosition(frame)
+		end
 	end)
 
 	-- OnLeave: Play fade-out animation; hide sample row tooltip if present
 	self:SetScript("OnLeave", function()
 		-- Prevent OnLeave from firing if the mouse is still over the row or any of its children
-		if isMouseOverSelfOrChildren(self) or not self.hasMouseOver then
+		local overSelfOrChildren = isMouseOverSelfOrChildren(self)
+		G_RLF:LogDebug(
+			"[PIN] Row:OnLeave key="
+				.. tostring(self.key)
+				.. " hasMouseOver="
+				.. tostring(self.hasMouseOver)
+				.. " overSelfOrChildren="
+				.. tostring(overSelfOrChildren),
+			addonName
+		)
+		if overSelfOrChildren or not self.hasMouseOver then
 			return
 		end
 		self.hasMouseOver = false
-		-- Stop fade-in if it's playing
-		if self.HighlightFadeIn:IsPlaying() then
-			self.HighlightFadeIn:Stop()
+		-- Resume the exit animation now that mouse has truly left.
+		if not self.isHistoryMode then
+			if self.ExitAnimation then
+				self.ExitAnimation:Play()
+			end
 		end
-		-- Play fade-out
-		self.HighlightFadeOut:Play()
+		---@type RLF_ConfigAnimations
+		local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
+		if animationsDb.hover.enabled then
+			-- Stop fade-in if it's playing
+			if self.HighlightFadeIn:IsPlaying() then
+				self.HighlightFadeIn:Stop()
+			end
+			-- Play fade-out
+			self.HighlightFadeOut:Play()
+		end
 		-- Hide sample row tooltip
 		if self.sampleTooltipText then
 			GameTooltip:Hide()
+		end
+		-- Release the pin so the row animates to its proper chain position.
+		local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
+		if frame then
+			frame:ReleasePin(self)
 		end
 	end)
 end

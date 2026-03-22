@@ -48,20 +48,24 @@ local ItemLoot = FeatureBase:new(FeatureModule.ItemLoot, "AceEvent-3.0", "AceBuc
 
 ItemLoot._itemLootAdapter = G_RLF.WoWAPI.ItemLoot
 
---- Convert params into a string with an icon and price
---- @param icon string
---- @param fontSize number
---- @param price number
---- @return string
-local function getPriceString(icon, fontSize, price)
-	if not icon or not fontSize or not price then
-		return ""
+--- Decompose a copper price amount into denomination parts.
+--- Returns gold, silver, copper, plus the resolved atlas icon and its size.
+--- Used by secondaryCoinDataFn so the row's SecondaryCoinDisplay renders
+--- real Textures instead of |T|/|A| markup.
+---@param icon string Atlas name for the vendor / AH icon
+---@param fontSize number Secondary font size (used to scale the icon)
+---@param price number Price in copper
+---@return number, number, number, string, number  -- gold, silver, copper, prefixAtlas, prefixSize
+local function getPriceParts(icon, fontSize, price)
+	if not price or price <= 0 then
+		return 0, 0, 0, icon or "", fontSize or 0
 	end
 	local sizeCoeff = AtlasIconCoefficients[icon] or 1
-	local atlasIconSize = fontSize * sizeCoeff
-	return ItemLoot._itemLootAdapter.CreateAtlasMarkup(icon, atlasIconSize, atlasIconSize, 0, 0)
-		.. " "
-		.. ItemLoot._itemLootAdapter.GetCoinTextureString(price)
+	local iconSize = fontSize * sizeCoeff
+	local gold = math.floor(price / 10000)
+	local silver = math.floor((price % 10000) / 100)
+	local copper = price % 100
+	return gold, silver, copper, icon or "", iconSize
 end
 
 function ItemLoot:ItemQualityName(enumValue)
@@ -290,6 +294,10 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 			return secondaryText
 		end
 
+		-- Non-equippable sellable items: price display.
+		-- Single-price modes return " " (spacer) here; SecondaryCoinDisplay
+		-- (via secondaryCoinDataFn) renders the real Texture coin icons.
+		-- Multi-price modes return plain text (no |T| markup) for both prices.
 		local effectiveQuantity = ... or 1
 		local itemCfg = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}
 		local vendorIcon = itemCfg.vendorIconTexture
@@ -305,34 +313,101 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 		end
 		local showVendorPrice = vendorPrice > 0
 		local showAuctionPrice = auctionPrice > 0
-		local str = ""
+
+		-- Single-price modes delegate to SecondaryCoinDisplay; just return a spacer.
 		if pricesForSellableItems == PricesEnum.Vendor and showVendorPrice then
-			str = str .. getPriceString(vendorIcon, secondaryFontSize, vendorPrice * effectiveQuantity)
+			return " "
 		elseif pricesForSellableItems == PricesEnum.AH and showAuctionPrice then
-			str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity)
-		elseif pricesForSellableItems == PricesEnum.VendorAH then
+			return " "
+		elseif pricesForSellableItems == PricesEnum.Highest then
+			if showAuctionPrice or showVendorPrice then
+				return " "
+			end
+		end
+
+		-- Multi-price modes: build plain text (no |T| markup → no animation jank)
+		local function plainPrice(copper)
+			local g = math.floor(copper / 10000)
+			local s = math.floor((copper % 10000) / 100)
+			local c = copper % 100
+			local parts = {}
+			if g > 0 then
+				table.insert(parts, g .. "g")
+			end
+			if s > 0 or g > 0 then
+				table.insert(parts, s .. "s")
+			end
+			table.insert(parts, c .. "c")
+			return table.concat(parts, " ")
+		end
+
+		local str = ""
+		if pricesForSellableItems == PricesEnum.VendorAH then
 			if showVendorPrice then
-				str = str .. getPriceString(vendorIcon, secondaryFontSize, vendorPrice * effectiveQuantity) .. "    "
+				str = str .. plainPrice(vendorPrice * effectiveQuantity)
+			end
+			if showVendorPrice and showAuctionPrice then
+				str = str .. "    "
 			end
 			if showAuctionPrice then
-				str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity)
+				str = str .. plainPrice(auctionPrice * effectiveQuantity)
 			end
 		elseif pricesForSellableItems == PricesEnum.AHVendor then
 			if showAuctionPrice then
-				str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity) .. "    "
+				str = str .. plainPrice(auctionPrice * effectiveQuantity)
+			end
+			if showAuctionPrice and showVendorPrice then
+				str = str .. "    "
 			end
 			if showVendorPrice then
-				str = str .. getPriceString(vendorIcon, secondaryFontSize, vendorPrice * effectiveQuantity)
-			end
-		elseif pricesForSellableItems == PricesEnum.Highest then
-			if auctionPrice > vendorPrice then
-				str = str .. getPriceString(auctionIcon, secondaryFontSize, auctionPrice * effectiveQuantity)
-			elseif showVendorPrice then
-				str = str .. getPriceString(vendorIcon, secondaryFontSize, vendorPrice * effectiveQuantity)
+				str = str .. plainPrice(vendorPrice * effectiveQuantity)
 			end
 		end
 
 		return str
+	end
+
+	-- secondaryCoinDataFn: drives SecondaryCoinDisplay (real Textures) for
+	-- single-price modes.  Returns nil for multi-price modes so they fall back
+	-- to the plain-text secondaryTextFn above.
+	payload.secondaryCoinDataFn = function(existingQuantity)
+		if info:IsEquippableItem() then
+			return nil
+		end
+		local effectiveQuantity = (existingQuantity or 0) + quantity
+		if effectiveQuantity <= 0 then
+			effectiveQuantity = quantity
+		end
+		local itemCfg = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}
+		local pricesForSellableItems = itemCfg.pricesForSellableItems
+		local vendorPrice = (info.sellPrice and info.sellPrice > 0) and info.sellPrice or 0
+		local auctionPrice = 0
+		local marketPrice = ItemLoot._itemLootAdapter.GetAHPrice(itemLink)
+		if marketPrice and marketPrice > 0 then
+			auctionPrice = marketPrice
+		end
+		local stylingDb = DbAccessor:Styling(Frames.MAIN)
+		local secondaryFontSize = stylingDb.secondaryFontSize
+		if pricesForSellableItems == PricesEnum.Vendor and vendorPrice > 0 then
+			local g, s, c, atl, sz =
+				getPriceParts(itemCfg.vendorIconTexture, secondaryFontSize, vendorPrice * effectiveQuantity)
+			return g, s, c, atl, sz
+		elseif pricesForSellableItems == PricesEnum.AH and auctionPrice > 0 then
+			local g, s, c, atl, sz =
+				getPriceParts(itemCfg.auctionHouseIconTexture, secondaryFontSize, auctionPrice * effectiveQuantity)
+			return g, s, c, atl, sz
+		elseif pricesForSellableItems == PricesEnum.Highest then
+			if auctionPrice > vendorPrice and auctionPrice > 0 then
+				local g, s, c, atl, sz =
+					getPriceParts(itemCfg.auctionHouseIconTexture, secondaryFontSize, auctionPrice * effectiveQuantity)
+				return g, s, c, atl, sz
+			elseif vendorPrice > 0 then
+				local g, s, c, atl, sz =
+					getPriceParts(itemCfg.vendorIconTexture, secondaryFontSize, vendorPrice * effectiveQuantity)
+				return g, s, c, atl, sz
+			end
+		end
+		return nil
 	end
 
 	-- itemCountFn: replaces the ItemLoot branch in RowTextMixin:UpdateItemCount

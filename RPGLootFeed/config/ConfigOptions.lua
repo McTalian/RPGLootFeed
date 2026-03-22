@@ -327,6 +327,9 @@ G_RLF.defaults = {
 						duration = 0.2,
 						loop = false,
 					},
+					reposition = {
+						duration = 0.2,
+					},
 				},
 				features = {
 					itemLoot = {
