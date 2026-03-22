@@ -765,7 +765,7 @@ describe("ItemInfo", function()
 			local out = toItem:GetUpgradeText(fromItem, 12)
 			assert.matches("90", out)
 			assert.matches("100", out)
-			assert.matches("<->", out) -- atlas arrow placeholder
+			assert.matches("%-%->", out) -- plain-text right arrow (WoW does not render Unicode arrows)
 		end)
 
 		it("generates upgrade text based on roll changes when item levels are equal", function()
@@ -1141,7 +1141,7 @@ describe("ItemInfo", function()
 			local out = toItem:GetUpgradeText(fromItem, 12)
 			assert.matches("10", out)
 			assert.matches("12", out)
-			assert.matches("<->", out)
+			assert.matches("%-%->", out) -- plain-text right arrow (WoW does not render Unicode arrows)
 		end)
 	end)
 

@@ -511,4 +511,261 @@ describe("LootDisplayRowMixin", function()
 			end)
 		end)
 	end)
+
+	-- ── SetClickThrough ────────────────────────────────────────────────────
+
+	describe("SetClickThrough", function()
+		local function buildClickThroughRow()
+			local r = buildRow()
+			-- Add EnableMouse to row and its children
+			stub(r, "EnableMouse")
+			r.ClickableButton.EnableMouse = function() end
+			stub(r.ClickableButton, "EnableMouse")
+			r.Icon.EnableMouse = function() end
+			stub(r.Icon, "EnableMouse")
+			-- Make ExitAnimation.Play a spy so we can assert on it
+			r.ExitAnimation.Play = spy.new(function() end)
+			return r
+		end
+
+		it("disables mouse on row, ClickableButton, and Icon when enabled=true", function()
+			row = buildClickThroughRow()
+			row:SetClickThrough(true)
+
+			assert.is_true(row.isClickThrough)
+			assert.stub(row.EnableMouse).was.called_with(row, false)
+			assert.stub(row.ClickableButton.EnableMouse).was.called_with(row.ClickableButton, false)
+			assert.stub(row.Icon.EnableMouse).was.called_with(row.Icon, false)
+		end)
+
+		it("re-enables mouse on row, ClickableButton, and Icon when enabled=false", function()
+			row = buildClickThroughRow()
+			row.isClickThrough = true
+			row:SetClickThrough(false)
+
+			assert.is_false(row.isClickThrough)
+			assert.stub(row.EnableMouse).was.called_with(row, true)
+			assert.stub(row.ClickableButton.EnableMouse).was.called_with(row.ClickableButton, true)
+			assert.stub(row.Icon.EnableMouse).was.called_with(row.Icon, true)
+		end)
+
+		it("cleans up hover state when enabled=true and hasMouseOver is true", function()
+			_G.GameTooltip = { Hide = spy.new(function() end) }
+			row = buildClickThroughRow()
+			row.hasMouseOver = true
+			row.isHistoryMode = false
+			row.HighlightFadeIn = {
+				IsPlaying = function()
+					return true
+				end,
+				Stop = function() end,
+			}
+			stub(row.HighlightFadeIn, "Stop")
+			row.HighlightFadeOut = { Play = function() end }
+			stub(row.HighlightFadeOut, "Play")
+
+			row:SetClickThrough(true)
+
+			assert.is_false(row.hasMouseOver)
+			assert.stub(row.HighlightFadeIn.Stop).was.called(1)
+			assert.stub(row.HighlightFadeOut.Play).was.called(1)
+			assert.spy(row.ExitAnimation.Play).was.called(1)
+			assert.spy(_G.GameTooltip.Hide).was.called(1)
+		end)
+
+		it("does not play ExitAnimation in history mode when cleaning up hover", function()
+			_G.GameTooltip = { Hide = spy.new(function() end) }
+			row = buildClickThroughRow()
+			row.hasMouseOver = true
+			row.isHistoryMode = true
+			row.HighlightFadeIn = {
+				IsPlaying = function()
+					return false
+				end,
+				Stop = function() end,
+			}
+			row.HighlightFadeOut = { Play = function() end }
+			stub(row.HighlightFadeOut, "Play")
+
+			row:SetClickThrough(true)
+
+			assert.spy(row.ExitAnimation.Play).was_not.called()
+		end)
+
+		it("skips hover cleanup when hasMouseOver is false", function()
+			_G.GameTooltip = { Hide = spy.new(function() end) }
+			row = buildClickThroughRow()
+			row.hasMouseOver = false
+
+			row:SetClickThrough(true)
+
+			assert.spy(row.ExitAnimation.Play).was_not.called()
+			assert.spy(_G.GameTooltip.Hide).was_not.called()
+		end)
+
+		it("calls ReleasePin on frame when isPinned is true on SetClickThrough(true)", function()
+			row = buildClickThroughRow()
+			row.isPinned = true
+			local mockFrame = { ReleasePin = spy.new(function() end) }
+			stub(row, "GetParent").returns(mockFrame)
+			row.hasMouseOver = false
+
+			row:SetClickThrough(true)
+
+			assert.spy(mockFrame.ReleasePin).was.called_with(mockFrame, row)
+		end)
+
+		it("does not call ReleasePin when isPinned is false on SetClickThrough(true)", function()
+			row = buildClickThroughRow()
+			row.isPinned = false
+			local mockFrame = { ReleasePin = spy.new(function() end) }
+			stub(row, "GetParent").returns(mockFrame)
+			row.hasMouseOver = false
+
+			row:SetClickThrough(true)
+
+			assert.spy(mockFrame.ReleasePin).was_not.called()
+		end)
+	end)
+
+	-- ── PinPosition ────────────────────────────────────────────────────────
+
+	describe("PinPosition", function()
+		local function buildPinRow()
+			local r = buildRow()
+			stub(r, "GetBottom").returns(300)
+			stub(r, "GetTop").returns(322)
+			stub(r, "ClearAllPoints")
+			stub(r, "SetPoint")
+			r.isPinned = false
+			r.pinnedFrameOffset = nil
+			return r
+		end
+
+		it("pins the row with frame-relative anchor (growUp, BOTTOM)", function()
+			row = buildPinRow()
+			ns.db.global.interactions = { pinOnHover = true }
+			local mockFrame = {
+				vertDir = "BOTTOM",
+				hasPinnedRow = false,
+				GetBottom = function()
+					return 100
+				end,
+			}
+
+			row:PinPosition(mockFrame)
+
+			assert.is_true(row.isPinned)
+			assert.equal(200, row.pinnedFrameOffset) -- 300 - 100
+			assert.is_true(mockFrame.hasPinnedRow)
+			assert.stub(row.ClearAllPoints).was.called(1)
+			assert.stub(row.SetPoint).was.called_with(match.ref(row), "BOTTOM", match.ref(mockFrame), "BOTTOM", 0, 200)
+		end)
+
+		it("pins the row with frame-relative anchor (growDown, TOP)", function()
+			row = buildPinRow()
+			ns.db.global.interactions = { pinOnHover = true }
+			local mockFrame = {
+				vertDir = "TOP",
+				hasPinnedRow = false,
+				GetTop = function()
+					return 500
+				end,
+			}
+
+			row:PinPosition(mockFrame)
+
+			assert.is_true(row.isPinned)
+			assert.equal(-178, row.pinnedFrameOffset) -- 322 - 500
+			assert.is_true(mockFrame.hasPinnedRow)
+		end)
+
+		it("is a no-op when already pinned", function()
+			row = buildPinRow()
+			ns.db.global.interactions = { pinOnHover = true }
+			row.isPinned = true
+			local mockFrame = { vertDir = "BOTTOM", hasPinnedRow = false }
+
+			row:PinPosition(mockFrame)
+
+			assert.stub(row.ClearAllPoints).was_not.called()
+			assert.is_false(mockFrame.hasPinnedRow) -- unchanged
+		end)
+
+		it("is a no-op when pinOnHover setting is disabled", function()
+			row = buildPinRow()
+			ns.db.global.interactions = { pinOnHover = false }
+			local mockFrame = { vertDir = "BOTTOM", hasPinnedRow = false }
+
+			row:PinPosition(mockFrame)
+
+			assert.is_false(row.isPinned)
+			assert.stub(row.ClearAllPoints).was_not.called()
+		end)
+	end)
+
+	-- ── Reset clears pin state ─────────────────────────────────────────────
+
+	describe("Reset pin state cleanup", function()
+		it("clears isPinned and pinnedFrameOffset in Reset()", function()
+			-- Build row from the mixin and provide the minimum stubs Reset() needs.
+			row = {}
+			for k, v in pairs(LootDisplayRowMixin) do
+				row[k] = v
+			end
+			row.isPinned = true
+			row.pinnedFrameOffset = 42
+
+			local function noopEl()
+				return {
+					SetAlpha = function() end,
+					SetText = function() end,
+					SetTextColor = function() end,
+					Hide = function() end,
+					SetTexture = function() end,
+					SetVertexColor = function() end,
+				}
+			end
+
+			stub(row, "Hide")
+			stub(row, "SetAlpha")
+			stub(row, "ClearAllPoints")
+			stub(row, "CreateTopLeftText")
+			stub(row, "StopAllAnimations")
+			stub(row, "StopScriptedEffects")
+			stub(row, "HideCoinDisplay")
+			stub(row, "HideSecondaryCoinDisplay")
+
+			row.TopBorder = noopEl()
+			row.RightBorder = noopEl()
+			row.BottomBorder = noopEl()
+			row.LeftBorder = noopEl()
+			row.UnitPortrait = noopEl()
+			row.HighlightBGOverlay = noopEl()
+			row.PrimaryText = noopEl()
+			row.AmountText = noopEl()
+			row.ItemCountText = noopEl()
+			row.SecondaryText = noopEl()
+			row.SecondaryLineLayout = { Hide = function() end }
+			row.Icon = {
+				Reset = function() end,
+				SetScript = function() end,
+				topLeftText = { Hide = function() end },
+				IconBorder = noopEl(),
+				NormalTexture = noopEl(),
+				HighlightTexture = noopEl(),
+				PushedTexture = noopEl(),
+			}
+			row.ClickableButton = {
+				Hide = function() end,
+				GetRegions = function() end,
+				SetScript = function() end,
+			}
+
+			row:Reset()
+
+			assert.is_false(row.isPinned)
+			assert.is_nil(row.pinnedFrameOffset)
+		end)
+	end)
 end)

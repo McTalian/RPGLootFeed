@@ -272,4 +272,273 @@ describe("LootDisplay module", function()
 		assert.spy(row1.UpdateQuantity).was.called(1)
 		assert.spy(row2.UpdateQuantity).was.called(0)
 	end)
+
+	-- ── processFromQueue shift animation guard ────────────────────────────
+
+	describe("processFromQueue shift guard", function()
+		it("blocks queue drain when frame has shiftingRowCount > 0", function()
+			local frame1 = makeFrameWithRow()
+			_G.CreateFrame = function()
+				return frame1
+			end
+
+			local dequeueSpy = spy.new(function() end)
+			local mockQueue = {
+				enqueue = spy.new(function() end),
+				dequeue = dequeueSpy,
+				isEmpty = spy.new(function()
+					return false
+				end),
+				size = spy.new(function()
+					return 1
+				end),
+			}
+			nsMocks.Queue.new.returns(mockQueue)
+
+			ns.db.global.frames = {
+				[ns.Frames.MAIN] = {
+					features = { itemLoot = { enabled = true } },
+				},
+			}
+
+			LootDisplayModule:InitFrame(ns.Frames.MAIN)
+			-- Simulate that rows are currently shifting
+			frame1.shiftingRowCount = 1
+
+			LootDisplayModule:OnRowReturn({ [ns.Frames.MAIN] = 1 })
+
+			-- Queue should NOT have been drained
+			assert.spy(dequeueSpy).was_not.called()
+		end)
+
+		it("allows queue drain when shiftingRowCount is 0", function()
+			local frame1 = makeFrameWithRow()
+			_G.CreateFrame = function()
+				return frame1
+			end
+
+			local element = {
+				type = ns.FeatureModule.ItemLoot,
+				key = "pending",
+				IsEnabled = function()
+					return true
+				end,
+			}
+			local dequeueSpy = spy.new(function()
+				return element
+			end)
+			local callCount = 0
+			local mockQueue = {
+				enqueue = spy.new(function() end),
+				dequeue = dequeueSpy,
+				isEmpty = spy.new(function()
+					callCount = callCount + 1
+					return callCount > 1
+				end),
+				size = spy.new(function()
+					return 1
+				end),
+			}
+			nsMocks.Queue.new.returns(mockQueue)
+
+			ns.db.global.frames = {
+				[ns.Frames.MAIN] = {
+					features = { itemLoot = { enabled = true } },
+				},
+			}
+
+			LootDisplayModule:InitFrame(ns.Frames.MAIN)
+			frame1.shiftingRowCount = 0
+
+			LootDisplayModule:OnRowReturn({ [ns.Frames.MAIN] = 1 })
+
+			assert.spy(dequeueSpy).was.called(1)
+		end)
+
+		it("blocks queue drain when hasPinnedRow is true", function()
+			local frame1 = makeFrameWithRow()
+			_G.CreateFrame = function()
+				return frame1
+			end
+
+			local dequeueSpy = spy.new(function() end)
+			local mockQueue = {
+				enqueue = spy.new(function() end),
+				dequeue = dequeueSpy,
+				isEmpty = spy.new(function()
+					return false
+				end),
+				size = spy.new(function()
+					return 1
+				end),
+			}
+			nsMocks.Queue.new.returns(mockQueue)
+
+			ns.db.global.frames = {
+				[ns.Frames.MAIN] = {
+					features = { itemLoot = { enabled = true } },
+				},
+			}
+
+			LootDisplayModule:InitFrame(ns.Frames.MAIN)
+			frame1.shiftingRowCount = 0
+			frame1.hasPinnedRow = true
+
+			LootDisplayModule:OnRowReturn({ [ns.Frames.MAIN] = 1 })
+
+			assert.spy(dequeueSpy).was_not.called()
+		end)
+	end)
+
+	-- ── processRow live-path pin gate ────────────────────────────────────
+	-- When a new loot event arrives via OnLootReady (not from the queue),
+	-- processRow must enqueue rather than lease when the frame is pinned or
+	-- shifting, so rows don't pile on top of a pinned row off-screen.
+
+	describe("processRow live-path pin gate", function()
+		local function makeNewRowFrame(enqueueSpy)
+			local frame = {
+				Load = spy.new(function(self, id)
+					self.frameType = id
+				end),
+				-- GetRow returns nil → forces the new-row path
+				GetRow = spy.new(function()
+					return nil
+				end),
+				LeaseRow = spy.new(function()
+					return nil
+				end),
+				UpdateQueueLabel = spy.new(function() end),
+				IsFeatureEnabled = function(self, element)
+					return LootDisplayFrameMixin.IsFeatureEnabled(self, element)
+				end,
+			}
+			return frame
+		end
+
+		local function makeElement()
+			return {
+				type = ns.FeatureModule.ItemLoot,
+				key = "new_item",
+				IsEnabled = function()
+					return true
+				end,
+			}
+		end
+
+		it("enqueues a new element when hasPinnedRow is true (live event bypass)", function()
+			local enqueueSpy = spy.new(function() end)
+			local frame1 = makeNewRowFrame(enqueueSpy)
+			_G.CreateFrame = function()
+				return frame1
+			end
+
+			local mockQueue = {
+				enqueue = enqueueSpy,
+				dequeue = spy.new(function() end),
+				isEmpty = spy.new(function()
+					return true
+				end),
+				size = spy.new(function()
+					return 0
+				end),
+			}
+			nsMocks.Queue.new.returns(mockQueue)
+
+			ns.db.global.frames = {
+				[ns.Frames.MAIN] = {
+					features = { itemLoot = { enabled = true } },
+				},
+			}
+
+			LootDisplayModule:InitFrame(ns.Frames.MAIN)
+			frame1.hasPinnedRow = true
+			frame1.shiftingRowCount = 0
+
+			LootDisplayModule:OnLootReady(nil, makeElement())
+
+			assert.spy(enqueueSpy).was.called(1)
+			assert.spy(frame1.LeaseRow).was_not.called()
+		end)
+
+		it("enqueues a new element when shiftingRowCount > 0 (live event bypass)", function()
+			local enqueueSpy = spy.new(function() end)
+			local frame1 = makeNewRowFrame(enqueueSpy)
+			_G.CreateFrame = function()
+				return frame1
+			end
+
+			local mockQueue = {
+				enqueue = enqueueSpy,
+				dequeue = spy.new(function() end),
+				isEmpty = spy.new(function()
+					return true
+				end),
+				size = spy.new(function()
+					return 0
+				end),
+			}
+			nsMocks.Queue.new.returns(mockQueue)
+
+			ns.db.global.frames = {
+				[ns.Frames.MAIN] = {
+					features = { itemLoot = { enabled = true } },
+				},
+			}
+
+			LootDisplayModule:InitFrame(ns.Frames.MAIN)
+			frame1.hasPinnedRow = false
+			frame1.shiftingRowCount = 2
+
+			LootDisplayModule:OnLootReady(nil, makeElement())
+
+			assert.spy(enqueueSpy).was.called(1)
+			assert.spy(frame1.LeaseRow).was_not.called()
+		end)
+
+		it("leases immediately when neither pinned nor shifting", function()
+			local leasedRow = {
+				BootstrapFromElement = spy.new(function() end),
+			}
+			local leaseRowSpy = spy.new(function(self, k)
+				return leasedRow
+			end)
+			local frame1 = makeNewRowFrame()
+			frame1.LeaseRow = leaseRowSpy
+			_G.CreateFrame = function()
+				return frame1
+			end
+
+			-- Save spy to a local: initQueueForFrame wraps q.enqueue with
+			-- updateQueueLabelsWrapper which replaces mockQueue.enqueue, so
+			-- asserting on mockQueue.enqueue directly would fail.
+			local enqueueSpy = spy.new(function() end)
+			local mockQueue = {
+				enqueue = enqueueSpy,
+				dequeue = spy.new(function() end),
+				isEmpty = spy.new(function()
+					return true
+				end),
+				size = spy.new(function()
+					return 0
+				end),
+			}
+			nsMocks.Queue.new.returns(mockQueue)
+
+			ns.db.global.frames = {
+				[ns.Frames.MAIN] = {
+					features = { itemLoot = { enabled = true } },
+				},
+			}
+
+			LootDisplayModule:InitFrame(ns.Frames.MAIN)
+			frame1.hasPinnedRow = false
+			frame1.shiftingRowCount = 0
+
+			LootDisplayModule:OnLootReady(nil, makeElement())
+
+			assert.spy(leaseRowSpy).was.called(1)
+			assert.spy(enqueueSpy).was_not.called()
+		end)
+	end)
 end)

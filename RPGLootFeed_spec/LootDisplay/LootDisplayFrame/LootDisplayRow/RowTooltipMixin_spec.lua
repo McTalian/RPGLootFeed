@@ -86,6 +86,42 @@ describe("RLF_RowTooltipMixin", function()
 					RLF_RowTooltipMixin.SetupTooltip(row, true)
 				end)
 			end)
+
+			describe("showTooltip (via OnEnter callback)", function()
+				-- Capture the OnEnter callback by overriding SetScript
+				local capturedCallbacks
+				before_each(function()
+					capturedCallbacks = {}
+					row.ClickableButton.SetScript = function(self, event, fn)
+						capturedCallbacks[event] = fn
+					end
+					_G.GameTooltip = {
+						SetOwner = spy.new(function() end),
+						SetHyperlink = spy.new(function() end),
+						Show = spy.new(function() end),
+						Hide = spy.new(function() end),
+					}
+					-- Default: tooltips enabled, no shift requirement
+					ns.db.global.tooltips = { hover = { enabled = true, onShift = false } }
+				end)
+
+				it("shows tooltip even when player is in combat (no combat guard)", function()
+					_G.UnitAffectingCombat = function()
+						return true
+					end
+					RLF_RowTooltipMixin.SetupTooltip(row)
+
+					-- Trigger OnEnter callback directly (simulates mouse enter during combat)
+					row.ExitAnimation.Stop = function() end
+					row.HighlightAnimation.Stop = function() end
+					row.ResetHighlightBorder = function() end
+					row.ClickableButton.RegisterEvent = function() end
+					capturedCallbacks["OnEnter"]()
+
+					assert.spy(_G.GameTooltip.SetOwner).was.called(1)
+					assert.spy(_G.GameTooltip.Show).was.called(1)
+				end)
+			end)
 		end)
 	end)
 end)

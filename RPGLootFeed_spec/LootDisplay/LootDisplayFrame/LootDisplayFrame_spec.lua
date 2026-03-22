@@ -28,7 +28,7 @@ describe("LootDisplayFrameMixin", function()
 		end)
 	end)
 
-	local frame, mockSizing, mockPositioning, mockStyling, mockGlobalFns
+	local frame, mockSizing, mockPositioning, mockStyling, mockAnimations, mockGlobalFns
 	before_each(function()
 		mockGlobalFns = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 		-- Define the global G_RLF
@@ -55,6 +55,10 @@ describe("LootDisplayFrameMixin", function()
 
 		mockStyling = stub(ns.DbAccessor, "Styling").returns({
 			growUp = true,
+		})
+
+		mockAnimations = stub(ns.DbAccessor, "Animations").returns({
+			reposition = { duration = 0 },
 		})
 	end)
 
@@ -249,6 +253,8 @@ describe("LootDisplayFrameMixin", function()
 		frame.rowFramePool = {
 			Release = spy.new(function() end),
 		}
+		-- FLIP is disabled by the default mockAnimations (duration = 0),
+		-- so rows only needs `remove` — no `iterate` required.
 		frame.rows = {
 			remove = spy.new(function(self, row)
 				return true
@@ -261,6 +267,8 @@ describe("LootDisplayFrameMixin", function()
 		local stubStoreRowHistory = stub(frame, "StoreRowHistory")
 		local stubUpdateTabVisibility = stub(frame, "UpdateTabVisibility")
 		frame.frameType = ns.Frames.MAIN
+		frame.shiftingRowCount = 0
+		frame.bypassShiftAnimation = false
 
 		frame:ReleaseRow(mockRow)
 
@@ -536,6 +544,603 @@ describe("LootDisplayFrameMixin", function()
 			}
 			local element = { type = ns.FeatureModule.ItemLoot }
 			assert.is_false(frame:IsFeatureEnabled(element))
+		end)
+	end)
+
+	-- ── SetCombatClickThrough ──────────────────────────────────────────────
+
+	describe("SetCombatClickThrough", function()
+		local function makeIterableRows(rows)
+			return {
+				iterate = function()
+					local i = 0
+					return function()
+						i = i + 1
+						return rows[i]
+					end
+				end,
+			}
+		end
+
+		it(
+			"sets isClickThrough=true and calls SetClickThrough(true) on rows when in combat and setting enabled",
+			function()
+				ns.db.global.interactions = { disableMouseInCombat = true }
+				local mockRow = { SetClickThrough = spy.new(function() end) }
+				frame.rows = makeIterableRows({ mockRow })
+
+				frame:SetCombatClickThrough(true)
+
+				assert.is_true(frame.isClickThrough)
+				assert.spy(mockRow.SetClickThrough).was.called_with(mockRow, true)
+			end
+		)
+
+		it("sets isClickThrough=false when leaving combat", function()
+			ns.db.global.interactions = { disableMouseInCombat = true }
+			local mockRow = { SetClickThrough = spy.new(function() end) }
+			frame.rows = makeIterableRows({ mockRow })
+
+			frame:SetCombatClickThrough(false)
+
+			assert.is_false(frame.isClickThrough)
+			assert.spy(mockRow.SetClickThrough).was.called_with(mockRow, false)
+		end)
+
+		it("does not set isClickThrough when setting is disabled", function()
+			ns.db.global.interactions = { disableMouseInCombat = false }
+			local mockRow = { SetClickThrough = spy.new(function() end) }
+			frame.rows = makeIterableRows({ mockRow })
+
+			frame:SetCombatClickThrough(true)
+
+			assert.is_false(frame.isClickThrough)
+			assert.spy(mockRow.SetClickThrough).was.called_with(mockRow, false)
+		end)
+	end)
+
+	-- ── LeaseRow click-through propagation ────────────────────────────────
+
+	describe("LeaseRow with isClickThrough", function()
+		it("calls SetClickThrough(true) on a new row when frame is in click-through mode", function()
+			local mockRow = {
+				Init = spy.new(function() end),
+				SetParent = spy.new(function() end),
+				UpdatePosition = spy.new(function() end),
+				Hide = spy.new(function() end),
+				ResetHighlightBorder = spy.new(function() end),
+				SetClickThrough = spy.new(function() end),
+			}
+			frame.rowFramePool = {
+				Acquire = spy.new(function()
+					return mockRow
+				end),
+			}
+			frame.frameType = ns.Frames.MAIN
+			frame.rows = {
+				push = spy.new(function()
+					return true
+				end),
+				length = 0,
+			}
+			frame.keyRowMap = { length = 0 }
+			frame.isClickThrough = true
+			stub(frame, "UpdateTabVisibility")
+			stub(frame, "getNumberOfRows").returns(0)
+			mockSizing.returns({ maxRows = 5 })
+
+			frame:LeaseRow("testKey")
+
+			assert.spy(mockRow.SetClickThrough).was.called_with(mockRow, true)
+		end)
+
+		it("does not call SetClickThrough when frame is not in click-through mode", function()
+			local mockRow = {
+				Init = spy.new(function() end),
+				SetParent = spy.new(function() end),
+				UpdatePosition = spy.new(function() end),
+				Hide = spy.new(function() end),
+				ResetHighlightBorder = spy.new(function() end),
+				SetClickThrough = spy.new(function() end),
+			}
+			frame.rowFramePool = {
+				Acquire = spy.new(function()
+					return mockRow
+				end),
+			}
+			frame.frameType = ns.Frames.MAIN
+			frame.rows = {
+				push = spy.new(function()
+					return true
+				end),
+				length = 0,
+			}
+			frame.keyRowMap = { length = 0 }
+			frame.isClickThrough = false
+			stub(frame, "UpdateTabVisibility")
+			stub(frame, "getNumberOfRows").returns(0)
+			mockSizing.returns({ maxRows = 5 })
+
+			frame:LeaseRow("testKey")
+
+			assert.spy(mockRow.SetClickThrough).was_not.called()
+		end)
+	end)
+
+	-- ── ReleaseRow shift animation (FLIP) ──────────────────────────────────
+
+	describe("ReleaseRow shift animation", function()
+		--- Build a minimal iterable rows mock with the given list of row tables.
+		local function makeIterableRows(rows)
+			return {
+				last = rows[#rows],
+				iterate = function()
+					local i = 0
+					return function()
+						i = i + 1
+						return rows[i]
+					end
+				end,
+				remove = spy.new(function() end),
+			}
+		end
+
+		--- Build a minimal mock row with the layout methods FLIP needs.
+		local function makeShiftRow(key, bottomY)
+			local r = {
+				key = key,
+				isSampleRow = false,
+				UpdateNeighborPositions = spy.new(function() end),
+				SetParent = spy.new(function() end),
+				Reset = spy.new(function() end),
+				AnimateShift = spy.new(function() end),
+				ClearAllPoints = spy.new(function() end),
+				SetPoint = spy.new(function() end),
+				UpdatePosition = spy.new(function() end),
+				GetBottom = function()
+					return bottomY
+				end,
+				GetTop = function()
+					return bottomY + 22
+				end,
+				ShiftAnimation = nil,
+				_shiftFinalFrameOffset = nil,
+				_textHiddenForShift = false,
+				PrimaryLineLayout = { SetAlpha = spy.new(function() end) },
+				SecondaryLineLayout = { SetAlpha = spy.new(function() end) },
+				Dump = function()
+					return key
+				end,
+			}
+			return r
+		end
+
+		before_each(function()
+			frame.frameType = ns.Frames.MAIN
+			frame.vertDir = "BOTTOM"
+			frame.shiftingRowCount = 0
+			frame.bypassShiftAnimation = false
+			frame.keyRowMap = { length = 0 }
+			frame.rowHistory = {}
+			frame.rowFramePool = { Release = spy.new(function() end) }
+			stub(frame, "StoreRowHistory")
+			stub(frame, "UpdateTabVisibility")
+			stub(frame, "GetBottom").returns(0)
+		end)
+
+		it("skips FLIP and sends RLF_ROW_RETURNED immediately when duration <= 0.04", function()
+			mockAnimations.returns({ reposition = { duration = 0 } })
+			local releasedRow = makeShiftRow("key1", 100)
+			local remainingRow = makeShiftRow("key2", 150)
+			frame.rows = makeIterableRows({ releasedRow, remainingRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			assert.spy(remainingRow.AnimateShift).was_not.called()
+			assert.spy(nsMocks.SendMessage).was.called_with(ns, "RLF_ROW_RETURNED", ns.Frames.MAIN)
+		end)
+
+		it("calls AnimateShift on remaining rows that moved", function()
+			mockAnimations.returns({ reposition = { duration = 0.2 } })
+			local releasedRow = makeShiftRow("key1", 100)
+			-- Remaining row sits at 150 before snap, snaps to 120 after
+			local snapCount = 0
+			local remainingRow = makeShiftRow("key2", 150)
+			remainingRow.GetBottom = function()
+				snapCount = snapCount + 1
+				-- First call (snapshot) = 150; after UpdateNeighborPositions = 120
+				if snapCount == 1 then
+					return 150
+				end
+				return 120
+			end
+			frame.rows = makeIterableRows({ releasedRow, remainingRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			assert.spy(remainingRow.AnimateShift).was.called(1)
+			-- yDelta = oldEdge - newEdge = 150 - 120 = 30, oldEdgeY = 150
+			assert.spy(remainingRow.AnimateShift).was.called_with(remainingRow, 30, 150)
+		end)
+
+		it("does NOT send RLF_ROW_RETURNED immediately when at least one row shifts", function()
+			mockAnimations.returns({ reposition = { duration = 0.2 } })
+			local releasedRow = makeShiftRow("key1", 100)
+			local snapCount = 0
+			local remainingRow = makeShiftRow("key2", 150)
+			remainingRow.GetBottom = function()
+				snapCount = snapCount + 1
+				if snapCount == 1 then
+					return 150
+				end
+				return 120
+			end
+			frame.rows = makeIterableRows({ releasedRow, remainingRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			-- RLF_ROW_RETURNED must NOT be sent immediately; OnFinished will send it
+			assert.spy(nsMocks.SendMessage).was_not.called()
+		end)
+
+		it("skips AnimateShift for rows that did not move (sub-pixel delta)", function()
+			mockAnimations.returns({ reposition = { duration = 0.2 } })
+			local releasedRow = makeShiftRow("key1", 100)
+			-- Remaining row doesn't actually move (still at 150 after snap)
+			local remainingRow = makeShiftRow("key2", 150)
+			remainingRow.GetBottom = function()
+				return 150
+			end
+			frame.rows = makeIterableRows({ releasedRow, remainingRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			assert.spy(remainingRow.AnimateShift).was_not.called()
+			-- No shifts → message sent immediately
+			assert.spy(nsMocks.SendMessage).was.called_with(ns, "RLF_ROW_RETURNED", ns.Frames.MAIN)
+		end)
+
+		it("fast-forwards a mid-shift row to _shiftFinalFrameOffset before re-FLIP", function()
+			mockAnimations.returns({ reposition = { duration = 0.2 } })
+			local releasedRow = makeShiftRow("key1", 100)
+			local remainingRow = makeShiftRow("key2", 150)
+			remainingRow.GetBottom = function()
+				return 150
+			end
+			remainingRow._shiftFinalFrameOffset = 35
+			-- Capture the args passed to SetPoint so we can verify them
+			local capturedSetPointArgs
+			remainingRow.SetPoint = function(self, ...)
+				capturedSetPointArgs = { ... }
+			end
+			-- Simulate an in-progress ShiftAnimation on the remaining row
+			remainingRow.ShiftAnimation = {
+				IsPlaying = function()
+					return true
+				end,
+				Stop = spy.new(function() end),
+			}
+			frame.shiftingRowCount = 1
+			frame.rows = makeIterableRows({ releasedRow, remainingRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			assert.spy(remainingRow.ShiftAnimation.Stop).was.called(1)
+			assert.spy(remainingRow.ClearAllPoints).was.called(1)
+			assert.is_not_nil(capturedSetPointArgs)
+			assert.equal(frame.vertDir, capturedSetPointArgs[1])
+			assert.equal(frame, capturedSetPointArgs[2])
+			assert.equal(frame.vertDir, capturedSetPointArgs[3])
+			assert.equal(0, capturedSetPointArgs[4])
+			assert.equal(35, capturedSetPointArgs[5])
+			-- The chain-restore loop (added to fix upstream-row blink) also calls
+			-- UpdatePosition once on each remaining row after fast-forwarding.
+			assert.spy(remainingRow.UpdatePosition).was.called(1)
+			assert.spy(remainingRow.PrimaryLineLayout.SetAlpha).was.called_with(remainingRow.PrimaryLineLayout, 1)
+			assert.spy(remainingRow.SecondaryLineLayout.SetAlpha).was.called_with(remainingRow.SecondaryLineLayout, 1)
+		end)
+
+		it("falls back to UpdatePosition when _shiftFinalFrameOffset is nil", function()
+			mockAnimations.returns({ reposition = { duration = 0.2 } })
+			local releasedRow = makeShiftRow("key1", 100)
+			local remainingRow = makeShiftRow("key2", 150)
+			remainingRow.GetBottom = function()
+				return 150
+			end
+			-- _shiftFinalFrameOffset remains nil (fallback path)
+			remainingRow.ShiftAnimation = {
+				IsPlaying = function()
+					return true
+				end,
+				Stop = spy.new(function() end),
+			}
+			frame.shiftingRowCount = 1
+			frame.rows = makeIterableRows({ releasedRow, remainingRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			assert.spy(remainingRow.ShiftAnimation.Stop).was.called(1)
+			-- Fallback UpdatePosition (no _shiftFinalFrameOffset) + chain-restore loop = 2 calls.
+			assert.spy(remainingRow.UpdatePosition).was.called(2)
+		end)
+
+		it("stops releasing row's mid-shift animation and restores text alpha", function()
+			mockAnimations.returns({ reposition = { duration = 0.2 } })
+			local releasedRow = makeShiftRow("key1", 100)
+			releasedRow.ShiftAnimation = {
+				IsPlaying = function()
+					return true
+				end,
+				Stop = spy.new(function() end),
+			}
+			frame.shiftingRowCount = 1
+			frame.rows = makeIterableRows({ releasedRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			assert.spy(releasedRow.ShiftAnimation.Stop).was.called(1)
+			assert.spy(releasedRow.PrimaryLineLayout.SetAlpha).was.called_with(releasedRow.PrimaryLineLayout, 1)
+			assert.spy(releasedRow.SecondaryLineLayout.SetAlpha).was.called_with(releasedRow.SecondaryLineLayout, 1)
+		end)
+
+		it("bypasses FLIP when bypassShiftAnimation is true (ClearFeed path)", function()
+			mockAnimations.returns({ reposition = { duration = 0.2 } })
+			frame.bypassShiftAnimation = true
+			local releasedRow = makeShiftRow("key1", 100)
+			local remainingRow = makeShiftRow("key2", 150)
+			frame.rows = makeIterableRows({ releasedRow, remainingRow })
+			frame.keyRowMap = { length = 1, key1 = releasedRow }
+
+			frame:ReleaseRow(releasedRow)
+
+			assert.spy(remainingRow.AnimateShift).was_not.called()
+			assert.spy(nsMocks.SendMessage).was.called_with(ns, "RLF_ROW_RETURNED", ns.Frames.MAIN)
+		end)
+	end)
+
+	-- ── Load initializes shiftingRowCount ─────────────────────────────────
+
+	describe("Load", function()
+		it("initializes shiftingRowCount to 0", function()
+			mockGlobalFns.CreateFramePool.returns({})
+			local testList = {}
+			nsMocks.list.returns(testList)
+			stub(frame, "getPositioningDetails")
+			stub(frame, "InitQueueLabel")
+			stub(frame, "UpdateSize")
+			stub(frame, "SetPoint")
+			stub(frame, "SetFrameStrata")
+			stub(frame, "ConfigureTestArea")
+			stub(frame, "CreateTab")
+
+			frame:Load(ns.Frames.MAIN)
+
+			assert.equal(0, frame.shiftingRowCount)
+			assert.is_false(frame.bypassShiftAnimation)
+		end)
+
+		it("initializes hasPinnedRow to false", function()
+			mockGlobalFns.CreateFramePool.returns({})
+			local testList = {}
+			nsMocks.list.returns(testList)
+			stub(frame, "getPositioningDetails")
+			stub(frame, "InitQueueLabel")
+			stub(frame, "UpdateSize")
+			stub(frame, "SetPoint")
+			stub(frame, "SetFrameStrata")
+			stub(frame, "ConfigureTestArea")
+			stub(frame, "CreateTab")
+
+			frame:Load(ns.Frames.MAIN)
+
+			assert.is_false(frame.hasPinnedRow)
+		end)
+	end)
+
+	-- ── ReleasePin ─────────────────────────────────────────────────────────
+
+	describe("ReleasePin", function()
+		local function makeIterableRows(rows)
+			return {
+				iterate = function()
+					local i = 0
+					return function()
+						i = i + 1
+						return rows[i]
+					end
+				end,
+			}
+		end
+
+		local function makePinnedRow(bottomY)
+			return {
+				isPinned = true,
+				pinnedFrameOffset = 50,
+				UpdatePosition = spy.new(function() end),
+				AnimateShift = spy.new(function() end),
+				ClearAllPoints = spy.new(function() end),
+				SetPoint = spy.new(function() end),
+				ShiftAnimation = nil,
+				_shiftFinalFrameOffset = nil,
+				_textHiddenForShift = false,
+				PrimaryLineLayout = { SetAlpha = spy.new(function() end) },
+				SecondaryLineLayout = { SetAlpha = spy.new(function() end) },
+				GetBottom = function()
+					return bottomY
+				end,
+				GetTop = function()
+					return bottomY + 22
+				end,
+			}
+		end
+
+		before_each(function()
+			frame.vertDir = "BOTTOM"
+			frame.frameType = ns.Frames.MAIN
+			frame.shiftingRowCount = 0
+			frame.hasPinnedRow = true
+			stub(frame, "GetBottom").returns(100)
+		end)
+
+		it("is a no-op when row is not pinned", function()
+			local row = makePinnedRow(200)
+			row.isPinned = false
+			frame.rows = makeIterableRows({ row })
+
+			frame:ReleasePin(row)
+
+			assert.spy(row.UpdatePosition).was_not.called()
+		end)
+
+		it("clears isPinned and hasPinnedRow", function()
+			local row = makePinnedRow(200)
+			-- Row doesn't move after unpin (same position)
+			row.UpdatePosition = function(self, f)
+				-- no actual anchor change in test
+			end
+			frame.rows = makeIterableRows({ row })
+
+			frame:ReleasePin(row)
+
+			assert.is_false(row.isPinned)
+			assert.is_nil(row.pinnedFrameOffset)
+			assert.is_false(frame.hasPinnedRow)
+		end)
+
+		it("calls UpdatePosition on the unpinned row", function()
+			local row = makePinnedRow(200)
+			frame.rows = makeIterableRows({ row })
+
+			frame:ReleasePin(row)
+
+			assert.spy(row.UpdatePosition).was.called_with(row, frame)
+		end)
+
+		it("sends RLF_ROW_RETURNED immediately when no rows shift", function()
+			local row = makePinnedRow(200)
+			-- Row stays at same position before and after unpin
+			frame.rows = makeIterableRows({ row })
+
+			frame:ReleasePin(row)
+
+			assert.spy(nsMocks.SendMessage).was.called_with(ns, "RLF_ROW_RETURNED", ns.Frames.MAIN)
+		end)
+
+		it("calls AnimateShift on rows that moved during unpin", function()
+			-- Row was pinned at 200; after UpdatePosition it snaps to 150
+			local callCount = 0
+			local row = makePinnedRow(200)
+			row.GetBottom = function()
+				callCount = callCount + 1
+				if callCount == 1 then
+					return 200 -- snapshot
+				end
+				return 150 -- after UpdatePosition snap
+			end
+			frame.rows = makeIterableRows({ row })
+
+			frame:ReleasePin(row)
+
+			assert.spy(row.AnimateShift).was.called(1)
+			assert.spy(row.AnimateShift).was.called_with(row, 50, 200)
+		end)
+
+		it("does NOT send RLF_ROW_RETURNED immediately when at least one row shifts", function()
+			local callCount = 0
+			local row = makePinnedRow(200)
+			row.GetBottom = function()
+				callCount = callCount + 1
+				return callCount == 1 and 200 or 150
+			end
+			frame.rows = makeIterableRows({ row })
+
+			frame:ReleasePin(row)
+
+			assert.spy(nsMocks.SendMessage).was_not.called()
+		end)
+
+		it("stops in-progress ShiftAnimation and fast-forwards to final offset", function()
+			local row = makePinnedRow(200)
+			local stopSpy = spy.new(function() end)
+			row._shiftFinalFrameOffset = 42
+			-- Capture SetPoint args to verify fast-forward
+			local capturedSetPointArgs
+			row.SetPoint = function(self, ...)
+				capturedSetPointArgs = { ... }
+			end
+			row.ShiftAnimation = {
+				IsPlaying = function()
+					return true
+				end,
+				Stop = stopSpy,
+			}
+			frame.shiftingRowCount = 1
+			frame.rows = makeIterableRows({ row })
+
+			frame:ReleasePin(row)
+
+			assert.spy(stopSpy).was.called(1)
+			assert.spy(row.ClearAllPoints).was.called(1)
+			assert.is_not_nil(capturedSetPointArgs)
+			assert.equal(frame.vertDir, capturedSetPointArgs[1])
+			assert.equal(frame, capturedSetPointArgs[2])
+			assert.equal(frame.vertDir, capturedSetPointArgs[3])
+			assert.equal(0, capturedSetPointArgs[4])
+			assert.equal(42, capturedSetPointArgs[5])
+			assert.spy(row.PrimaryLineLayout.SetAlpha).was.called_with(row.PrimaryLineLayout, 1)
+			assert.spy(row.SecondaryLineLayout.SetAlpha).was.called_with(row.SecondaryLineLayout, 1)
+		end)
+	end)
+
+	-- ── RestoreRowChain pin guard ──────────────────────────────────────────
+
+	describe("RestoreRowChain", function()
+		local function makeIterableRows(rows)
+			return {
+				iterate = function()
+					local i = 0
+					return function()
+						i = i + 1
+						return rows[i]
+					end
+				end,
+			}
+		end
+
+		it("calls UpdatePosition on non-pinned rows", function()
+			local r = { isPinned = false, UpdatePosition = spy.new(function() end) }
+			frame.rows = makeIterableRows({ r })
+
+			frame:RestoreRowChain()
+
+			assert.spy(r.UpdatePosition).was.called_with(r, frame)
+		end)
+
+		it("skips UpdatePosition on pinned rows", function()
+			local r = { isPinned = true, UpdatePosition = spy.new(function() end) }
+			frame.rows = makeIterableRows({ r })
+
+			frame:RestoreRowChain()
+
+			assert.spy(r.UpdatePosition).was_not.called()
+		end)
+
+		it("skips the pinned row but still repositions its free neighbors", function()
+			local pinned = { isPinned = true, UpdatePosition = spy.new(function() end) }
+			local free = { isPinned = false, UpdatePosition = spy.new(function() end) }
+			frame.rows = makeIterableRows({ pinned, free })
+
+			frame:RestoreRowChain()
+
+			assert.spy(pinned.UpdatePosition).was_not.called()
+			assert.spy(free.UpdatePosition).was.called_with(free, frame)
 		end)
 	end)
 end)
