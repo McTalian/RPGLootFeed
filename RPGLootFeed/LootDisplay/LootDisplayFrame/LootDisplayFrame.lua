@@ -201,6 +201,95 @@ function LootDisplayFrameMixin:SetCombatClickThrough(inCombat)
 	end
 end
 
+--- Release the pin on a hovered row, animating it from its pinned position
+--- to its current chain position (FLIP technique, mirroring ReleaseRow).
+--- Called from SetClickThrough (combat start) and SetUpHoverEffect OnLeave.
+--- @param row RLF_LootDisplayRow
+function LootDisplayFrameMixin:ReleasePin(row)
+	G_RLF:LogDebug("[PIN] ReleasePin: key=" .. tostring(row.key) .. " isPinned=" .. tostring(row.isPinned), addonName)
+	if not row.isPinned then
+		return
+	end
+
+	local getEdgeY = (self.vertDir == "BOTTOM") and function(r)
+		return r:GetBottom()
+	end or function(r)
+		return r:GetTop()
+	end
+
+	-- Fast-forward any running shift animations to their intended final position
+	-- before snapshotting, so the delta base is visually stable (not mid-animation).
+	for r in self.rows:iterate() do
+		---@cast r RLF_LootDisplayRow
+		if r.ShiftAnimation and r.ShiftAnimation:IsPlaying() then
+			r.ShiftAnimation:Stop()
+			if r._shiftFinalFrameOffset ~= nil then
+				r:ClearAllPoints()
+				r:SetPoint(self.vertDir, self, self.vertDir, 0, r._shiftFinalFrameOffset)
+			else
+				-- Fallback: restore chain anchor (safe, old behaviour)
+				r:UpdatePosition(self)
+			end
+			r.PrimaryLineLayout:SetAlpha(1)
+			r.SecondaryLineLayout:SetAlpha(1)
+			r._textHiddenForShift = false
+			self.shiftingRowCount = math.max(0, self.shiftingRowCount - 1)
+		end
+	end
+
+	-- FLIP Phase 1: Snapshot visual positions of all rows (including pinned
+	-- row AND rows below it) after fast-forwarding, so the delta base is stable.
+	local snapshots = {}
+	for r in self.rows:iterate() do
+		---@cast r RLF_LootDisplayRow
+		snapshots[r] = getEdgeY(r)
+	end
+
+	-- Clear pin state BEFORE chain restore so UpdateNeighborPositions / FLIP
+	-- iterators don't treat this row as pinned anymore.
+	row.isPinned = false
+	row.pinnedFrameOffset = nil
+	self.hasPinnedRow = false
+
+	-- FLIP Phase 2: Restore the chain anchor for the unpinned row.
+	-- WoW cascades: all rows below snap to their new chain positions.
+	row:UpdatePosition(self)
+
+	-- Restore chain anchors for rows that were fast-forwarded (frame-directly-
+	-- anchored) so Phase 3 getEdgeY calls return correct final positions.
+	-- Same reasoning as the ReleaseRow fix: cascade won't reach rows that
+	-- AnimateShift already broke out of the chain.
+	for r in self.rows:iterate() do
+		---@cast r RLF_LootDisplayRow
+		if not r.isPinned then
+			r:UpdatePosition(self)
+		end
+	end
+
+	-- FLIP Phase 3: Pre-compute all deltas.
+	local shifts = {}
+	for r, oldEdgeY in pairs(snapshots) do
+		---@cast r RLF_LootDisplayRow
+		local newEdgeY = getEdgeY(r)
+		local yDelta = oldEdgeY - newEdgeY
+		if math.abs(yDelta) > 0.5 then
+			shifts[r] = { yDelta = yDelta, oldEdgeY = oldEdgeY }
+		end
+	end
+
+	-- FLIP Phase 4: Play.
+	local anyShifting = false
+	for r, info in pairs(shifts) do
+		---@cast r RLF_LootDisplayRow
+		r:AnimateShift(info.yDelta, info.oldEdgeY)
+		anyShifting = true
+	end
+
+	if not anyShifting then
+		G_RLF:SendMessage("RLF_ROW_RETURNED", self.frameType)
+	end
+end
+
 --- Load the loot display frame
 --- @param frame? G_RLF.Frames
 function LootDisplayFrameMixin:Load(frame)
