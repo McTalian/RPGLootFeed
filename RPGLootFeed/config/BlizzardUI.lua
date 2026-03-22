@@ -17,7 +17,7 @@ G_RLF.defaults.global.blizzOverrides = {
 	bossBannerConfig = G_RLF.DisableBossBanner.ENABLED,
 }
 
-G_RLF.options.args.global.args.blizz = {
+G_RLF.options.args.blizz = {
 	type = "group",
 	handler = BlizzardUI,
 	name = G_RLF.L["Blizzard UI"],

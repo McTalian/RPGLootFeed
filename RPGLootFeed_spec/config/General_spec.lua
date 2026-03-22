@@ -20,15 +20,14 @@ describe("General module", function()
 		assert(loadfile("RPGLootFeed/config/General.lua"))("TestAddon", ns)
 	end)
 
-	it("creates the general options group inside global", function()
-		assert.is_not_nil(ns.options.args.global)
-		assert.is_not_nil(ns.options.args.global.args.general)
-		assert.are.equal("group", ns.options.args.global.args.general.type)
-		assert.are.equal(1, ns.options.args.global.args.general.order)
+	it("creates the general options group at the root", function()
+		assert.is_not_nil(ns.options.args.general)
+		assert.are.equal("group", ns.options.args.general.type)
+		assert.are.equal(1, ns.options.args.general.order)
 	end)
 
 	it("has a Quick Actions inline group", function()
-		local quickActions = ns.options.args.global.args.general.args.quickActions
+		local quickActions = ns.options.args.general.args.quickActions
 		assert.is_not_nil(quickActions)
 		assert.are.equal("group", quickActions.type)
 		assert.is_true(quickActions.inline)
@@ -38,7 +37,7 @@ describe("General module", function()
 	end)
 
 	it("has global feed behavior toggles", function()
-		local args = ns.options.args.global.args.general.args
+		local args = ns.options.args.general.args
 		assert.is_not_nil(args.showMinimapIcon)
 		local feedDisplay = args.feedDisplay
 		assert.is_not_nil(feedDisplay)
@@ -49,7 +48,7 @@ describe("General module", function()
 	end)
 
 	it("has loot history settings", function()
-		local lootHistoryOptions = ns.options.args.global.args.general.args.lootHistoryOptions
+		local lootHistoryOptions = ns.options.args.general.args.lootHistoryOptions
 		assert.is_not_nil(lootHistoryOptions)
 		assert.are.equal("group", lootHistoryOptions.type)
 		assert.is_true(lootHistoryOptions.inline)
@@ -59,7 +58,7 @@ describe("General module", function()
 	end)
 
 	it("has tooltip settings", function()
-		local tooltipOptions = ns.options.args.global.args.general.args.tooltipOptions
+		local tooltipOptions = ns.options.args.general.args.tooltipOptions
 		assert.is_not_nil(tooltipOptions)
 		assert.are.equal("group", tooltipOptions.type)
 		assert.is_true(tooltipOptions.inline)

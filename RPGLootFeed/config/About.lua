@@ -26,12 +26,12 @@ About.argOrder = {
 	["credits"] = -1,
 }
 
-G_RLF.options.args.global.args.about = {
+G_RLF.options.args.about = {
 	type = "group",
 	handler = About,
 	name = G_RLF.L["About"],
 	desc = G_RLF.L["AboutDesc"],
-	order = 3,
+	order = 99,
 	args = {
 		title = {
 			type = "header",

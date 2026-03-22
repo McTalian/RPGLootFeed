@@ -464,23 +464,6 @@ G_RLF.options = {
 	name = addonName,
 	handler = ConfigOptions,
 	type = "group",
-	childGroups = "select",
-	args = {},
-}
-
-local globalAtlas = ""
-
-if G_RLF:IsRetail() then
-	globalAtlas = CreateAtlasMarkup("UI-EventPoi-WorldSoulMemory", 24, 24)
-else
-	globalAtlas = CreateAtlasMarkup("AncientMana", 24, 24)
-end
-
-G_RLF.options.args.global = {
-	type = "group",
-	name = globalAtlas .. G_RLF.L["Global"],
-	desc = G_RLF.L["GlobalDesc"],
-	order = 1,
 	childGroups = "tree",
-	args = {}, -- populated by General.lua, BlizzardUI.lua, About.lua
+	args = {},
 }
