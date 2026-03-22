@@ -284,12 +284,29 @@ describe("Money", function()
 			assert.equal("", result)
 		end)
 
-		it("handles accountant mode", function()
+		it("accountant mode: positive amount is displayed plain (no parens)", function()
 			ns.db.global.money.accountantMode = true
 			local element = buildElement(50000)
 
-			-- textFn returns the opening bracket; coins come from coinDataFn;
-			-- amountTextFn returns the closing bracket
+			-- Positive amounts are NOT wrapped; textFn returns "" and amountTextFn returns ""
+			local textResult = element.textFn()
+			assert.equal("", textResult)
+
+			local amountResult = element.amountTextFn()
+			assert.equal("", amountResult)
+
+			local gold, silver, copper = element.coinDataFn()
+			assert.equal(5, gold)
+			assert.equal(0, silver)
+			assert.equal(0, copper)
+		end)
+
+		it("accountant mode: negative amount is wrapped in parens (no minus sign)", function()
+			ns.db.global.money.accountantMode = true
+			local element = buildElement(-50000)
+
+			-- Negative amounts: opening "(" from textFn, no minus, coins from coinDataFn,
+			-- closing ")" from amountTextFn → "(5g 0s 0c)"
 			local textResult = element.textFn()
 			assert.equal("(", textResult)
 
@@ -300,6 +317,19 @@ describe("Money", function()
 			assert.equal(5, gold)
 			assert.equal(0, silver)
 			assert.equal(0, copper)
+		end)
+
+		it("accountant mode: net goes positive on row update — parens removed", function()
+			ns.db.global.money.accountantMode = true
+			-- Start with a -50000 element but the row already has +100000 accumulated
+			local element = buildElement(-50000)
+
+			-- net = 100000 + (-50000) = 50000 > 0 → no parens
+			local textResult = element.textFn(100000)
+			assert.equal("", textResult)
+
+			local amountResult = element.amountTextFn(100000)
+			assert.equal("", amountResult)
 		end)
 
 		it("handles negative amounts", function()

@@ -58,15 +58,13 @@ local function createMoneyContextProvider()
 		local moneyConfig = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
 
 		-- Coin icons are real Textures (via coinDataFn on the payload), not |T| markup.
-		-- The primary text template only carries the sign prefix and, for accountant
-		-- mode, the opening bracket.  The closing bracket is appended via amountTextFn.
-		if moneyConfig.accountantMode then
+		-- In accountant mode, ONLY negative amounts are wrapped: "(coins)" replaces
+		-- "-coins".  Positive amounts are displayed normally (no parens, no sign).
+		if moneyConfig.accountantMode and context.sign == "-" then
 			context.coinString = "("
-			-- accountantClosing is set so amountTextFn can append ")"
-			context.accountantMode = true
+			context.sign = "" -- parens convey negativity; suppress the minus sign
 		else
 			context.coinString = ""
-			context.accountantMode = false
 		end
 
 		-- Secondary text: only retain the spacer indent when the money total is shown.
@@ -143,12 +141,15 @@ function Money:BuildPayload(quantity)
 			end
 			return ""
 		end,
-		-- Accountant-mode closing bracket surfaced as AmountText so CoinDisplay
-		-- can sit between the opening "(" in PrimaryText and the ")" suffix.
+		-- Accountant-mode closing bracket: only append ")" when the net amount is
+		-- negative (parens wrap negative amounts; positive amounts are shown plain).
 		amountTextFn = function(existingCopper)
 			local mc = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
 			if mc.accountantMode then
-				return ")"
+				local net = (existingCopper or 0) + quantity
+				if net < 0 then
+					return ")"
+				end
 			end
 			return ""
 		end,
