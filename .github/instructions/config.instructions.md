@@ -85,3 +85,11 @@ which writes full frame configs). In that case:
 1. Check whether the saved value equals the old default.
 2. If so, overwrite it with the new default.
 3. If the user has a custom value, leave it untouched.
+
+### Never create empty migrations
+
+Do **not** create a migration script that only bumps `migrationVersion` without
+performing actual data changes. AceDB serves new defaults via `__index` without
+any explicit write — no migration is needed just because a new config key was
+added. Only create a migration (and register it in `migrations.xml`) when the
+script genuinely reads or writes SavedVariables data.
