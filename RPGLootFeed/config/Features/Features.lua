@@ -28,6 +28,11 @@ G_RLF.defaults.global.tooltips = {
 		onShift = false,
 	},
 }
+---@class RLF_ConfigInteractions
+---@field disableMouseInCombat boolean
+G_RLF.defaults.global.interactions = {
+	disableMouseInCombat = true,
+}
 ---@class RLF_ConfigMinimap : LibDBIcon.button.DB
 ---@field hide boolean
 ---@field lock boolean

@@ -189,6 +189,18 @@ function LootDisplayFrameMixin:UpdateTabVisibility()
 	end
 end
 
+--- Apply or remove click-through (mouse passthrough) on all active rows.
+--- Called when combat state changes.
+--- @param inCombat boolean
+function LootDisplayFrameMixin:SetCombatClickThrough(inCombat)
+	local shouldBeClickThrough = inCombat and G_RLF.db.global.interactions.disableMouseInCombat
+	self.isClickThrough = shouldBeClickThrough
+	for row in self.rows:iterate() do
+		---@cast row RLF_LootDisplayRow
+		row:SetClickThrough(shouldBeClickThrough)
+	end
+end
+
 --- Load the loot display frame
 --- @param frame? G_RLF.Frames
 function LootDisplayFrameMixin:Load(frame)
@@ -392,6 +404,10 @@ function LootDisplayFrameMixin:LeaseRow(key, isSampleRow)
 
 	row:Init()
 	row:SetParent(self)
+
+	if self.isClickThrough then
+		row:SetClickThrough(true)
+	end
 
 	self.keyRowMap[key] = row
 	self.keyRowMap.length = self.keyRowMap.length + 1

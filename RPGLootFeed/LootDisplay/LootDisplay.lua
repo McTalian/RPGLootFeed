@@ -97,6 +97,10 @@ function LootDisplay:OnEnable()
 		TestModeModule:OnLootDisplayReady()
 	end)
 
+	RunNextFrame(function()
+		self:OnPlayerCombatChange()
+	end)
+
 	-- So far up through MoP Classic, some/all of these methods are not defined
 	if not G_RLF:IsRetail() then
 		if not ItemButtonMixin.SetItemButtonTexture then
@@ -134,6 +138,7 @@ function LootDisplay:OnPlayerCombatChange()
 	for _, frame in pairs(lootFrames) do
 		if frame then
 			frame:UpdateTabVisibility()
+			frame:SetCombatClickThrough(UnitAffectingCombat("player"))
 		end
 	end
 end

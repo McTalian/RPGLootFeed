@@ -26,10 +26,7 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 		if tooltipDb.hover.onShift and not IsShiftKeyDown() then
 			return
 		end
-		local inCombat = UnitAffectingCombat("player")
-		if inCombat then
-			return
-		end
+
 		if
 			LinkUtil
 			and not LinkUtil.IsLinkType(self.link, "item")

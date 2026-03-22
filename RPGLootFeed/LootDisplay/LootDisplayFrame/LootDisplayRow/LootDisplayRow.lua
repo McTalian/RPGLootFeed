@@ -197,6 +197,42 @@ function LootDisplayRowMixin:Reset()
 	self.ClickableButton:SetScript("OnEvent", nil)
 end
 
+--- Enable or disable mouse interaction on this row and its interactive children.
+--- @param enabled boolean true = click-through (mouse disabled), false = interactive
+function LootDisplayRowMixin:SetClickThrough(enabled)
+	self.isClickThrough = enabled
+	self:EnableMouse(not enabled)
+	self.ClickableButton:EnableMouse(not enabled)
+	if self.Icon then
+		self.Icon:EnableMouse(not enabled)
+	end
+	if enabled then
+		-- Unpin before the hasMouseOver cleanup.  OnLeave will not fire
+		-- when EnableMouse is toggled, so we must unpin explicitly.
+		if self.isPinned then
+			local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
+			if frame then
+				frame:ReleasePin(self)
+			end
+		end
+		-- Clean up hover state so ExitAnimation isn't left paused and
+		-- tooltips don't stay visible after we disable the mouse.
+		if self.hasMouseOver then
+			self.hasMouseOver = false
+			if self.HighlightFadeIn and self.HighlightFadeIn:IsPlaying() then
+				self.HighlightFadeIn:Stop()
+			end
+			if self.HighlightFadeOut then
+				self.HighlightFadeOut:Play()
+			end
+			if not self.isHistoryMode then
+				self.ExitAnimation:Play()
+			end
+			GameTooltip:Hide()
+		end
+	end
+end
+
 function LootDisplayRowMixin:Styles()
 	self:StyleBackground()
 	self:StyleRowBackdrop()
