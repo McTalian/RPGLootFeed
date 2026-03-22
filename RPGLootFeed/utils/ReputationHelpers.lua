@@ -46,6 +46,7 @@ local majorFactionTextureKitIconMap = {
 	["root"] = 7505704, -- Hara'ti
 	["light"] = 7505700, -- Silvermoon Court
 	["delves"] = 6025441, -- Delves
+	["delve"] = 6025441, -- Delves
 	["prey"] = 7493985, -- Prey
 }
 
