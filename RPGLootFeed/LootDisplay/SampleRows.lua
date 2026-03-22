@@ -141,8 +141,45 @@ function LootDisplay:CreateSampleRows(frame)
 				textFn = function(existingCopper)
 					return TextTemplateEngine:ProcessRowElements(1, moneyElementData, existingCopper)
 				end,
-				secondaryTextFn = function(existingCopper)
-					return TextTemplateEngine:ProcessRowElements(2, moneyElementData, existingCopper)
+				secondaryTextFn = function()
+					local mc = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+					if mc.showMoneyTotal then
+						return " "
+					end
+					return ""
+				end,
+				amountTextFn = function(existingCopper)
+					local mc = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+					if mc.accountantMode then
+						local net = (existingCopper or 0) + quantity
+						if net < 0 then
+							return ")"
+						end
+					end
+					return ""
+				end,
+				coinDataFn = function(existingCopper)
+					local total = math.abs((existingCopper or 0) + quantity)
+					local gold = math.floor(total / 10000)
+					local silver = math.floor((total % 10000) / 100)
+					local copper = total % 100
+					return gold, silver, copper
+				end,
+				secondaryCoinDataFn = function()
+					local mc = G_RLF.DbAccessor:AnyFeatureConfig("money") or {}
+					if not mc.showMoneyTotal then
+						return nil
+					end
+					-- Use a fixed representative wallet total for the sample row.
+					local sampleTotal = 1234567 -- ~123g 45s 67c
+					local gold = math.floor(sampleTotal / 10000)
+					local silver = math.floor((sampleTotal % 10000) / 100)
+					local copper = sampleTotal % 100
+					local goldText = nil
+					if mc.abbreviateTotal and gold >= 1000 then
+						goldText = TextTemplateEngine:AbbreviateNumber(gold)
+					end
+					return gold, silver, copper, nil, nil, goldText
 				end,
 				isSampleRow = true,
 				sampleTooltipText = G_RLF.L["Money"],
