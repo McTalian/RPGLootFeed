@@ -11,6 +11,10 @@ local G_RLF = ns
 ---@field ArrowDown Texture
 ---@field ArrowLeft Texture
 ---@field ArrowRight Texture
+---@field isClickThrough boolean
+---@field shiftingRowCount integer
+---@field bypassShiftAnimation boolean
+---@field hasPinnedRow boolean
 LootDisplayFrameMixin = {}
 
 -- Maps a loot element's .type field (G_RLF.FeatureModule value) to the

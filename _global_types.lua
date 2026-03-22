@@ -98,6 +98,16 @@
 ---@field transmog RLF_FeatureConfig_Transmog
 
 --- Per-frame configuration stored under db.global.frames[id].
+---@class RLF_ConfigReposition
+---@field duration number
+
+---@class RLF_ConfigAnimations
+---@field enter table
+---@field exit table
+---@field hover table
+---@field update table
+---@field reposition RLF_ConfigReposition
+
 ---@class RLF_FrameConfig
 ---@field name string Display name shown in the config UI.
 ---@field positioning RLF_ConfigPositioning

@@ -18,6 +18,10 @@ local G_RLF = ns
 ---@field pendingElement table
 ---@field updatePending boolean
 ---@field waiting boolean
+---@field isClickThrough boolean
+---@field isPinned boolean
+---@field pinnedFrameOffset number
+---@field ShiftAnimation RLF_RowShiftAnimationGroup
 ---@field _next RLF_LootDisplayRow
 ---@field _prev RLF_LootDisplayRow
 ---@field Background Texture
