@@ -697,6 +697,8 @@ end
 ---@param silver number
 ---@param copper number
 function RLF_RowTextMixin:UpdateCoinDisplay(gold, silver, copper)
+	-- Cache raw values so StoreRowHistory can snapshot them for loot history.
+	self._coinData = { gold, silver, copper }
 	if not self.CoinDisplay then
 		self:CreateCoinDisplay()
 		-- CreateCoinDisplay calls StyleCoinDisplay internally; font and colour
@@ -885,6 +887,8 @@ end
 ---@param prefixSize?  number  Square pixel size for the prefix icon
 ---@param goldText?    string  Pre-formatted gold amount string (e.g. "2.50K" for abbreviated display)
 function RLF_RowTextMixin:UpdateSecondaryCoinDisplay(gold, silver, copper, prefixAtlas, prefixSize, goldText)
+	-- Cache raw values so StoreRowHistory can snapshot them for loot history.
+	self._secondaryCoinData = { gold, silver, copper, prefixAtlas, prefixSize, goldText }
 	if not self.SecondaryCoinDisplay then
 		self:CreateSecondaryCoinDisplay()
 		-- CreateSecondaryCoinDisplay calls StyleSecondaryCoinDisplay internally;

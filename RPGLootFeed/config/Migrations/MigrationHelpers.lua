@@ -127,6 +127,9 @@ local LEGACY_DEFAULTS = {
 			duration = 0.2,
 			loop = false,
 		},
+		reposition = {
+			duration = 0.2,
+		},
 	},
 	item = {
 		enabled = true,
@@ -328,11 +331,13 @@ local function copyAnimations(source)
 	local exit = source.exit or {}
 	local hover = source.hover or {}
 	local update = source.update or {}
+	local reposition = source.reposition or {}
 	local slide = enter.slide or {}
 	local de = d.enter
 	local dx = d.exit
 	local dh = d.hover
 	local du = d.update
+	local dr = d.reposition
 	local ds = de.slide
 	return {
 		enter = {
@@ -357,6 +362,9 @@ local function copyAnimations(source)
 			disableHighlight = pick(update.disableHighlight, du.disableHighlight),
 			duration = pick(update.duration, du.duration),
 			loop = pick(update.loop, du.loop),
+		},
+		reposition = {
+			duration = pick(reposition.duration, dr.duration),
 		},
 	}
 end
@@ -803,15 +811,10 @@ end
 local function collectDiffs(a, b, prefix, diffs)
 	a = a or {}
 	b = b or {}
-	-- Gather all keys from both tables
-	local keys = {}
+	-- Iterate only snapshot (a) keys.
+	-- Keys present only in b are new features at their default values — not
+	-- user data that was lost — so we intentionally skip them.
 	for k in pairs(a) do
-		keys[k] = true
-	end
-	for k in pairs(b) do
-		keys[k] = true
-	end
-	for k in pairs(keys) do
 		local fullKey = prefix ~= "" and (prefix .. "." .. tostring(k)) or tostring(k)
 		local va, vb = a[k], b[k]
 		if type(va) == "table" or type(vb) == "table" then

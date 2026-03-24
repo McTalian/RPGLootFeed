@@ -152,6 +152,20 @@ describe("MigrationHelpers", function()
 				assert.are.equal("TOPLEFT", snapshot.positioning.anchorPoint)
 			end)
 
+			it("snapshot animations include reposition with defaults when source lacks it", function()
+				-- source has no reposition key (pre-v1.32.0 DB)
+				ns.db.global.animations = { enter = { type = "fade", duration = 0.3 } }
+				local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+				assert.is_not_nil(snapshot.animations.reposition)
+				assert.are.equal(0.2, snapshot.animations.reposition.duration)
+			end)
+
+			it("snapshot animations.reposition uses default when animations table is empty", function()
+				ns.db.global.animations = {}
+				local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+				assert.are.equal(0.2, snapshot.animations.reposition.duration)
+			end)
+
 			it("detects old data from feature keys even when positioning is nil", function()
 				ns.db.global.positioning = nil
 				ns.db.global.sizing = nil
@@ -511,6 +525,36 @@ describe("MigrationHelpers", function()
 			}
 			assert.is_true(ns:SnapshotDiffersFromFrame(snapshot, currentFrame))
 		end)
+
+		it(
+			"returns false when currentFrame has reposition at defaults and snapshot was built without it (v1.32.0 false-positive regression)",
+			function()
+				-- Simulates: user on migrationVersion=9 who upgrades to v1.32.0.
+				-- The snapshot was built before reposition existed; AceDB serves
+				-- reposition.duration = 0.2 via the wildcard default.
+				-- After the Issue 1 fix, BuildV8RecoverySnapshot always includes
+				-- reposition, so both sides equal 0.2 and no false-positive fires.
+				ns.db.global.positioning = { anchorPoint = "BOTTOMLEFT", xOffset = 720, yOffset = 375 }
+				ns.db.global.sizing = { feedWidth = 330, maxRows = 10, rowHeight = 22, padding = 2, iconSize = 18 }
+				ns.db.global.styling = { growUp = true }
+				ns.db.global.animations = { enter = { type = "fade" } }
+				local snapshot = ns:BuildV8RecoverySnapshot(ns.db.global)
+				local currentFrame = {
+					animations = {
+						enter = snapshot.animations.enter,
+						exit = snapshot.animations.exit,
+						hover = snapshot.animations.hover,
+						update = snapshot.animations.update,
+						reposition = { duration = 0.2 }, -- served by AceDB default
+					},
+					positioning = snapshot.positioning,
+					sizing = snapshot.sizing,
+					styling = snapshot.styling,
+					features = snapshot.features,
+				}
+				assert.is_false(ns:SnapshotDiffersFromFrame(snapshot, currentFrame))
+			end
+		)
 	end)
 
 	describe("ComputeSnapshotDiff", function()
@@ -587,7 +631,7 @@ describe("MigrationHelpers", function()
 			assert.is_nil(diffs[1].new)
 		end)
 
-		it("includes keys present only in current frame", function()
+		it("does not include keys present only in currentFrame (new defaults are not user data)", function()
 			local snapshot = {
 				styling = { growUp = true },
 			}
@@ -595,10 +639,26 @@ describe("MigrationHelpers", function()
 				styling = { growUp = true, rowTextSpacing = 5 },
 			}
 			local diffs = ns:ComputeSnapshotDiff(snapshot, current)
-			assert.are.equal(1, #diffs)
-			assert.are.equal("styling.rowTextSpacing", diffs[1].path)
-			assert.is_nil(diffs[1].old)
-			assert.are.equal(5, diffs[1].new)
+			assert.are.equal(0, #diffs)
+		end)
+
+		it("does not report animations.reposition when absent from snapshot but present in currentFrame", function()
+			local snapshot = {
+				animations = { exit = { duration = 1, fadeOutDelay = 5 } },
+			}
+			local currentFrame = {
+				animations = {
+					exit = { duration = 1, fadeOutDelay = 5 },
+					reposition = { duration = 0.2 }, -- new key, not in snapshot
+				},
+			}
+			local diffs = ns:ComputeSnapshotDiff(snapshot, currentFrame)
+			for _, d in ipairs(diffs) do
+				assert.is_falsy(
+					d.path:find("reposition"),
+					"reposition should not appear in diffs, but found: " .. d.path
+				)
+			end
 		end)
 	end)
 
