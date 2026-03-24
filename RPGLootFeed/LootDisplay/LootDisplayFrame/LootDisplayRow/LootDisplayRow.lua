@@ -129,6 +129,7 @@ function LootDisplayRowMixin:Reset()
 	self.onReleased = nil
 	self.isPinned = false
 	self.pinnedFrameOffset = nil
+	self.hasMouseOver = false
 
 	-- Reset UI elements that were part of the template
 	self.TopBorder:SetAlpha(0)
@@ -152,6 +153,8 @@ function LootDisplayRowMixin:Reset()
 
 	self:HideCoinDisplay()
 	self:HideSecondaryCoinDisplay()
+	self._coinData = nil
+	self._secondaryCoinData = nil
 
 	if self.glowTexture then
 		self.glowTexture:Hide()
@@ -480,7 +483,9 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 		self.HighlightAnimation:Stop()
 		self.HighlightAnimation:Play()
 	end
-	if self.ExitAnimation:IsPlaying() then
+	-- Do not restart the exit animation while the row is pinned (user hovering).
+	-- PinPosition stops the animation; it will be resumed when the mouse leaves.
+	if not self.isPinned and self.ExitAnimation:IsPlaying() then
 		self.ExitAnimation:Stop()
 		self.ExitAnimation:Play()
 	end
@@ -603,6 +608,24 @@ function LootDisplayRowMixin:UpdateWithHistoryData(data)
 	-- the ClickableButton over the text for tooltip interaction), and handles
 	-- secondary text layout.
 	self:ShowText(data.rowText, unpack(data.textColor))
+
+	-- Restore coin display for money rows (primary coin textures).
+	if data.coinData then
+		self:UpdateCoinDisplay(data.coinData[1], data.coinData[2], data.coinData[3])
+		self:LayoutPrimaryLine()
+	end
+
+	-- Restore secondary coin display (vendor/AH price, money total, paragon icon).
+	if data.secondaryCoinData then
+		self:UpdateSecondaryCoinDisplay(
+			data.secondaryCoinData[1],
+			data.secondaryCoinData[2],
+			data.secondaryCoinData[3],
+			data.secondaryCoinData[4],
+			data.secondaryCoinData[5],
+			data.secondaryCoinData[6]
+		)
+	end
 
 	-- Apply secondary text color after ShowText (ShowText only shows/hides it)
 	if data.unit and data.secondaryText and stylingDb.enabledSecondaryRowText then

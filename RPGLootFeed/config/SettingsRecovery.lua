@@ -108,17 +108,38 @@ local function cleanUpAppearanceFlatKeys()
 	g.animations = nil
 end
 
+--- Recursively merge `source` into `target` by writing only leaf values.
+--- This preserves AceDB's proxy chain rather than replacing sub-tables with
+--- plain tables, which would break default-value inheritance for any nested
+--- keys absent from the snapshot.
+--- @param target table AceDB proxy sub-table (or plain table)
+--- @param source table plain table to merge in
+local function mergeIntoDb(target, source)
+	for k, v in pairs(source) do
+		if type(v) == "table" then
+			if type(target[k]) == "table" then
+				mergeIntoDb(target[k], v)
+			else
+				target[k] = {}
+				mergeIntoDb(target[k], v)
+			end
+		else
+			target[k] = v
+		end
+	end
+end
+
 --- Apply the recovery snapshot: write it to frames[1] and clean up.
 local function applyRecovery()
 	local recovery = G_RLF.db.global.pendingSettingsRecovery
 	if not recovery then
 		return
 	end
-	G_RLF.db.global.frames[1] = recovery.snapshot
+	mergeIntoDb(G_RLF.db.global.frames[1], recovery.snapshot)
 	cleanUpAppearanceFlatKeys()
 	G_RLF.db.global.pendingSettingsRecovery = nil
 	G_RLF:NotifyChange(addonName)
-	G_RLF.LootDisplay:InitFrame(G_RLF.Frames.MAIN)
+	G_RLF.LootDisplay:RefreshFrame(G_RLF.Frames.MAIN)
 	G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 end
 

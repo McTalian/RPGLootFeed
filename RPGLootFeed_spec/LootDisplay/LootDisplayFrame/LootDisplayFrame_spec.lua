@@ -905,6 +905,108 @@ describe("LootDisplayFrameMixin", function()
 		end)
 	end)
 
+	-- ── ReleaseRow pin state ──────────────────────────────────────────────
+
+	describe("ReleaseRow clears hasPinnedRow for pinned rows", function()
+		local function makeIterableRows(rows)
+			return {
+				last = rows[#rows],
+				iterate = function()
+					local i = 0
+					return function()
+						i = i + 1
+						return rows[i]
+					end
+				end,
+				remove = spy.new(function() end),
+			}
+		end
+
+		local function makePinnedRow(key, isPinned)
+			return {
+				key = key,
+				isPinned = isPinned,
+				isSampleRow = false,
+				onReleased = nil,
+				UpdateNeighborPositions = spy.new(function() end),
+				SetParent = spy.new(function() end),
+				Reset = spy.new(function() end),
+				AnimateShift = spy.new(function() end),
+				ClearAllPoints = spy.new(function() end),
+				SetPoint = spy.new(function() end),
+				UpdatePosition = spy.new(function() end),
+				ShiftAnimation = nil,
+				_shiftFinalFrameOffset = nil,
+				_textHiddenForShift = false,
+				PrimaryLineLayout = { SetAlpha = spy.new(function() end) },
+				SecondaryLineLayout = { SetAlpha = spy.new(function() end) },
+				GetBottom = function()
+					return 100
+				end,
+				GetTop = function()
+					return 122
+				end,
+				Dump = function()
+					return key
+				end,
+			}
+		end
+
+		before_each(function()
+			frame.frameType = ns.Frames.MAIN
+			frame.vertDir = "BOTTOM"
+			frame.shiftingRowCount = 0
+			frame.bypassShiftAnimation = false
+			frame.keyRowMap = { length = 0 }
+			frame.rowHistory = {}
+			frame.rowFramePool = { Release = spy.new(function() end) }
+			stub(frame, "StoreRowHistory")
+			stub(frame, "UpdateTabVisibility")
+			stub(frame, "GetBottom").returns(0)
+		end)
+
+		it("clears hasPinnedRow when releasing a pinned row", function()
+			mockAnimations.returns({ reposition = { duration = 0 } })
+			local row = makePinnedRow("key1", true)
+			frame.hasPinnedRow = true
+			frame.rows = makeIterableRows({ row })
+			frame.keyRowMap = { length = 1, key1 = row }
+
+			frame:ReleaseRow(row)
+
+			assert.is_false(frame.hasPinnedRow)
+		end)
+
+		it("does not clear hasPinnedRow when releasing an unpinned row", function()
+			mockAnimations.returns({ reposition = { duration = 0 } })
+			local row = makePinnedRow("key1", false)
+			frame.hasPinnedRow = true
+			frame.rows = makeIterableRows({ row })
+			frame.keyRowMap = { length = 1, key1 = row }
+
+			frame:ReleaseRow(row)
+
+			assert.is_true(frame.hasPinnedRow)
+		end)
+
+		it("clears hasPinnedRow before calling row:Reset()", function()
+			mockAnimations.returns({ reposition = { duration = 0 } })
+			local row = makePinnedRow("key1", true)
+			frame.hasPinnedRow = true
+			local hasPinnedAtReset
+			row.Reset = function(self)
+				hasPinnedAtReset = frame.hasPinnedRow
+			end
+			frame.rows = makeIterableRows({ row })
+			frame.keyRowMap = { length = 1, key1 = row }
+
+			frame:ReleaseRow(row)
+
+			-- hasPinnedRow must already be false when Reset() runs
+			assert.is_false(hasPinnedAtReset)
+		end)
+	end)
+
 	-- ── Load initializes shiftingRowCount ─────────────────────────────────
 
 	describe("Load", function()

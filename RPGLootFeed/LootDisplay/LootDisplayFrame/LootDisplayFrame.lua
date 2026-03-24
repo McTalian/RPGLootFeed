@@ -592,6 +592,11 @@ function LootDisplayFrameMixin:ReleaseRow(row)
 		row.onReleased = nil
 	end
 	row.key = nil
+	-- If this row was pinned, clear the frame-level pin gate before Reset()
+	-- clears row.isPinned — otherwise the gate stays stuck and blocks the queue.
+	if row.isPinned then
+		self.hasPinnedRow = false
+	end
 	row:Reset()
 	self.rowFramePool:Release(row)
 
@@ -684,6 +689,11 @@ function LootDisplayFrameMixin:StoreRowHistory(row)
 		unit = row.unit,
 		secondaryText = row.SecondaryText:GetText(),
 		secondaryTextColor = { row.SecondaryText:GetTextColor() },
+		-- Coin display data for money/vendor-price rows (textures, not text).
+		-- nil for non-money rows; UpdateWithHistoryData restores these via
+		-- UpdateCoinDisplay / UpdateSecondaryCoinDisplay.
+		coinData = row._coinData,
+		secondaryCoinData = row._secondaryCoinData,
 	}
 	table.insert(self.rowHistory, 1, rowData)
 

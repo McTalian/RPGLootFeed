@@ -68,11 +68,13 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 			-- Only restart exit animation and release pin if mouse has truly left
 			-- the row, not merely moved from button to another part of the row.
 			if not self:IsMouseOver() then
-				self.ExitAnimation:Play()
+				-- Release pin first so isPinned is false before the exit animation
+				-- resumes. Prevents ExitAnimation:Play() from firing while pinned.
 				local frame = self:GetParent()
 				if frame then
 					frame:ReleasePin(self)
 				end
+				self.ExitAnimation:Play()
 			end
 		end
 		hideTooltip()
@@ -186,11 +188,13 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 				-- Only restart exit animation and release pin if mouse has truly left
 				-- the row, not merely moved from icon to another part of the row.
 				if not self:IsMouseOver() then
-					self.ExitAnimation:Play()
+					-- Release pin first so isPinned is false before the exit animation
+					-- resumes. Prevents ExitAnimation:Play() from firing while pinned.
 					local frame = self:GetParent()
 					if frame then
 						frame:ReleasePin(self)
 					end
+					self.ExitAnimation:Play()
 				end
 			end
 			hideTooltip()

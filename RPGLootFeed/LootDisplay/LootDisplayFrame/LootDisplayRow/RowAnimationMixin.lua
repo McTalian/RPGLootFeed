@@ -316,6 +316,9 @@ function RLF_RowAnimationMixin:AnimateShift(yDelta, oldEdgeY)
 
 	-- Update duration from current config
 	local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
+	if not animationsDb.reposition then
+		return
+	end
 	self.ShiftAnimation.translation:SetDuration(animationsDb.reposition.duration)
 
 	local frameEdgeY
@@ -829,9 +832,13 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 			GameTooltip:Show()
 		end
 		-- Pin the row so it doesn't shift while hovered.
-		local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
-		if frame then
-			self:PinPosition(frame)
+		-- History rows are parented to historyContent (a plain Frame with no
+		-- vertDir or ReleasePin method), so skip pinning entirely for them.
+		if not self.isHistoryMode then
+			local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
+			if frame then
+				self:PinPosition(frame)
+			end
 		end
 	end)
 
@@ -852,12 +859,6 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 			return
 		end
 		self.hasMouseOver = false
-		-- Resume the exit animation now that mouse has truly left.
-		if not self.isHistoryMode then
-			if self.ExitAnimation then
-				self.ExitAnimation:Play()
-			end
-		end
 		---@type RLF_ConfigAnimations
 		local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
 		if animationsDb.hover.enabled then
@@ -872,10 +873,20 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 		if self.sampleTooltipText then
 			GameTooltip:Hide()
 		end
-		-- Release the pin so the row animates to its proper chain position.
-		local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
-		if frame then
-			frame:ReleasePin(self)
+		-- Release the pin first so isPinned is false before the exit animation
+		-- resumes. Prevents ExitAnimation:Play() from firing while pinned.
+		-- History rows skip this: historyContent has no ReleasePin method.
+		if not self.isHistoryMode then
+			local frame = self:GetParent() --[[@as RLF_LootDisplayFrame]]
+			if frame then
+				frame:ReleasePin(self)
+			end
+		end
+		-- Resume the exit animation now that mouse has truly left.
+		if not self.isHistoryMode then
+			if self.ExitAnimation then
+				self.ExitAnimation:Play()
+			end
 		end
 	end)
 end
@@ -897,7 +908,7 @@ end
 
 function RLF_RowAnimationMixin:ResetFadeOut()
 	RunNextFrame(function()
-		if self.ExitAnimation then
+		if self.ExitAnimation and not self.isPinned then
 			if self.ExitAnimation:IsPlaying() then
 				self.ExitAnimation:Stop()
 			end

@@ -76,6 +76,27 @@ function LootDisplay:InitFrame(id)
 	end
 end
 
+--- Re-initialise an existing feed frame from the current DB state.
+--- If the frame does not yet exist, delegates to InitFrame.
+--- Clears live rows and flushes the queue before reloading, so the frame
+--- immediately reflects the restored settings without a /reload.
+--- @param id integer Frame ID
+function LootDisplay:RefreshFrame(id)
+	local frame = lootFrames[id]
+	if not frame then
+		self:InitFrame(id)
+		return
+	end
+	frame:ClearFeed()
+	-- Flush any queued items so they are not processed under stale config.
+	if lootQueues[id] then
+		while not lootQueues[id]:isEmpty() do
+			lootQueues[id]:dequeue()
+		end
+	end
+	frame:Load(id)
+end
+
 function LootDisplay:OnInitialize()
 	-- Create a WoW frame for every entry already stored in db.global.frames.
 	-- Migration v8 (Phase 1) ensures these exist for all existing users.
