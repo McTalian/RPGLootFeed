@@ -493,7 +493,22 @@ function RLF_RowTextMixin:LayoutPrimaryLine()
 			coinDisplayWidth = coinDisplayWidth + self.PrimaryLineLayout.spacing
 		end
 	end
-	local maxPrimaryWidth = math.max(1, availableWidth - amountTextWidth - itemCountWidth - coinDisplayWidth)
+
+	-- When SecondaryCoinDisplay (vendor/AH price) is visible but the secondary row
+	-- is not active, it falls back to the primary line. Deduct its width here so
+	-- PrimaryText is truncated before the price display rather than overlapping it.
+	local secondaryCoinOnPrimaryWidth = 0
+	if self.SecondaryCoinDisplay and self.SecondaryCoinDisplay:IsShown() then
+		if not (self.SecondaryLineLayout and self.SecondaryLineLayout:IsShown()) then
+			secondaryCoinOnPrimaryWidth = self.SecondaryCoinDisplay:GetWidth()
+			if secondaryCoinOnPrimaryWidth > 0 then
+				secondaryCoinOnPrimaryWidth = secondaryCoinOnPrimaryWidth + self.PrimaryLineLayout.spacing
+			end
+		end
+	end
+
+	local maxPrimaryWidth =
+		math.max(1, availableWidth - amountTextWidth - itemCountWidth - coinDisplayWidth - secondaryCoinOnPrimaryWidth)
 	local naturalWidth = self.PrimaryText:GetUnboundedStringWidth()
 	local primaryTextWidth = math.min(naturalWidth, maxPrimaryWidth)
 	self.PrimaryText:SetWidth(primaryTextWidth)
@@ -532,10 +547,22 @@ function RLF_RowTextMixin:LayoutSecondaryLine()
 	local iconOffset = iconSize + 2 * (iconSize / 4)
 	local availableWidth = feedWidth - iconOffset - portraitOffset
 
+	-- When SecondaryCoinDisplay is visible on the secondary line, deduct its width
+	-- so SecondaryText truncates before the coin display instead of overflowing.
+	local secondaryCoinWidth = 0
+	if self.SecondaryCoinDisplay and self.SecondaryCoinDisplay:IsShown() then
+		if self.SecondaryLineLayout and self.SecondaryLineLayout:IsShown() then
+			secondaryCoinWidth = self.SecondaryCoinDisplay:GetWidth()
+			if secondaryCoinWidth > 0 then
+				secondaryCoinWidth = secondaryCoinWidth + (self.SecondaryLineLayout.spacing or 2)
+			end
+		end
+	end
+
 	-- Constrain SecondaryText to availableWidth, then re-set its text so the
 	-- engine renders the "." ellipsis against the original (untruncated) string.
 	local naturalWidth = self.SecondaryText:GetUnboundedStringWidth()
-	self.SecondaryText:SetWidth(math.max(1, math.min(naturalWidth, availableWidth)))
+	self.SecondaryText:SetWidth(math.max(1, math.min(naturalWidth, availableWidth - secondaryCoinWidth)))
 	self.SecondaryText:SetText(self.secondaryText or "")
 
 	self.SecondaryLineLayout.fixedWidth = availableWidth
@@ -960,12 +987,24 @@ function RLF_RowTextMixin:UpdateSecondaryCoinDisplay(gold, silver, copper, prefi
 
 	if totalWidth > 0 then
 		scd:SetSize(totalWidth, iconSize)
-		-- Anchor relative to SecondaryText so we follow wherever the secondary
-		-- layout placed it (icon-right side, with the configured spacing gap).
-		local spacing = self.SecondaryLineLayout and self.SecondaryLineLayout.spacing or 2
-		scd:ClearAllPoints()
-		scd:SetPoint("LEFT", self.SecondaryText, "RIGHT", spacing, 0)
 		scd:Show()
+		scd:ClearAllPoints()
+
+		local onSecondaryRow = self.SecondaryLineLayout and self.SecondaryLineLayout:IsShown()
+		if onSecondaryRow then
+			-- Secondary row is active: re-layout the secondary line so SecondaryText
+			-- budget accounts for the coin display width, then anchor after it.
+			self:LayoutSecondaryLine()
+			local spacing = self.SecondaryLineLayout.spacing or 2
+			scd:SetPoint("LEFT", self.SecondaryText, "RIGHT", spacing, 0)
+		else
+			-- Secondary row is not active: fall back to the primary line.
+			-- Re-layout the primary line so PrimaryText budget accounts for the coin
+			-- display width, then anchor just after the truncated primary text.
+			self:LayoutPrimaryLine()
+			local spacing = self.PrimaryLineLayout and self.PrimaryLineLayout.spacing or 2
+			scd:SetPoint("LEFT", self.PrimaryText, "RIGHT", spacing, 0)
+		end
 	else
 		scd:SetSize(0, 0)
 		scd:Hide()
