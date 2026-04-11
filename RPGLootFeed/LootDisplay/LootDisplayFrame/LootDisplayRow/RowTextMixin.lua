@@ -410,6 +410,29 @@ function RLF_RowTextMixin:ShowAmountText(amountText, r, g, b, a)
 	self:LayoutPrimaryLine()
 end
 
+--- Re-anchor SecondaryCoinDisplay after a deferred layout element (e.g. ItemCountText)
+--- has changed visibility.  Only acts when SCD is shown and not on the secondary row.
+function RLF_RowTextMixin:RecheckSecondaryCoinDisplayAnchor()
+	if not self.SecondaryCoinDisplay or not self.SecondaryCoinDisplay:IsShown() then
+		return
+	end
+	local onSecondaryRow = self.SecondaryLineLayout and self.SecondaryLineLayout:IsShown()
+	if onSecondaryRow then
+		return
+	end
+	local spacing = self.PrimaryLineLayout and self.PrimaryLineLayout.spacing or 2
+	local anchorFrame = self.PrimaryText
+	if self.ItemCountText and self.ItemCountText:IsShown() then
+		anchorFrame = self.ItemCountText
+	elseif self.AmountText and self.AmountText:IsShown() then
+		anchorFrame = self.AmountText
+	elseif self.CoinDisplay and self.CoinDisplay:IsShown() then
+		anchorFrame = self.CoinDisplay
+	end
+	self.SecondaryCoinDisplay:ClearAllPoints()
+	self.SecondaryCoinDisplay:SetPoint("LEFT", anchorFrame, "RIGHT", spacing, 0)
+end
+
 function RLF_RowTextMixin:ShowItemCountText(itemCount, options)
 	local WrapChar = G_RLF.WrapCharEnum
 	options = options or {}
@@ -440,6 +463,9 @@ function RLF_RowTextMixin:ShowItemCountText(itemCount, options)
 	-- accurate ItemCountText width is measured and PrimaryText is resized to
 	-- fit within the remaining budget.
 	self:LayoutPrimaryLine()
+	-- Re-anchor SecondaryCoinDisplay now that ItemCountText visibility is final.
+	-- (SecondaryCoinDisplay was anchored before the deferred ShowItemCountText ran.)
+	self:RecheckSecondaryCoinDisplayAnchor()
 end
 
 --- Compute the available text width, apply it to PrimaryText, and call Layout()
@@ -1000,10 +1026,11 @@ function RLF_RowTextMixin:UpdateSecondaryCoinDisplay(gold, silver, copper, prefi
 		else
 			-- Secondary row is not active: fall back to the primary line.
 			-- Re-layout the primary line so PrimaryText budget accounts for the coin
-			-- display width, then anchor just after the truncated primary text.
+			-- display width, then anchor just after the last visible primary element.
+			-- Priority: ItemCountText (layoutIndex=4) → AmountText (layoutIndex=3)
+			--           → CoinDisplay (layoutIndex=2, money rows) → PrimaryText.
 			self:LayoutPrimaryLine()
-			local spacing = self.PrimaryLineLayout and self.PrimaryLineLayout.spacing or 2
-			scd:SetPoint("LEFT", self.PrimaryText, "RIGHT", spacing, 0)
+			self:RecheckSecondaryCoinDisplayAnchor()
 		end
 	else
 		scd:SetSize(0, 0)
