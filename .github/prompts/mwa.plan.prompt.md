@@ -1,5 +1,5 @@
 ---
-name: plan
+name: mwa.plan
 description: Plan a feature from a GitHub issue with technical design and implementation roadmap
 argument-hint: Issue number (e.g., #123)
 agent: agent

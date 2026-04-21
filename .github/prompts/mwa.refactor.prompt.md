@@ -1,6 +1,6 @@
 ---
-name: refactor
-description: Plan and execute complex multi-file refactoring using GPT-5.1-Codex-Max subagent
+name: mwa.refactor
+description: Plan and execute complex multi-file refactoring using GPT-5.4 subagent
 argument-hint: Brief description of refactoring goal
 agent: agent
 tools: ["vscode", "execute", "read", "agent", "edit", "search", "todo"]
@@ -8,18 +8,18 @@ tools: ["vscode", "execute", "read", "agent", "edit", "search", "todo"]
 
 # Refactor - Complex Code Restructuring
 
-You are orchestrating a complex refactoring session. Your role is to **plan, delegate to GPT-5.1-Codex-Max, validate, and recover** if needed. **Never perform large-scale or multi-file refactoring directly** - always delegate the actual code changes to GPT-5.1-Codex-Max via the `runSubagent` tool.
+You are orchestrating a complex refactoring session. Your role is to **plan, delegate to GPT-5.4, validate, and recover** if needed. **Never perform large-scale or multi-file refactoring directly** - always delegate the actual code changes to GPT-5.4 via the `runSubagent` tool.
 
-## Why GPT-5.1-Codex-Max for Refactoring?
+## Why GPT-5.4 for Refactoring?
 
-**Strengths of GPT-5.1-Codex-Max**:
+**Strengths of GPT-5.4**:
 
 - Superior accuracy for multi-line and multi-file code changes
 - Better at preserving exact whitespace, indentation, and code structure
 - More reliable with complex find-and-replace operations across many files
 - Stronger at maintaining consistency when updating multiple call sites
 
-**Your Role as Orchestrator (Claude Sonnet 4.5)**:
+**Your Role as Orchestrator (Claude Haiku 4.5)**:
 
 - High-level planning and validation
 - Pre-flight checks and safety analysis
@@ -31,7 +31,7 @@ You are orchestrating a complex refactoring session. Your role is to **plan, del
 
 ## GOLDEN RULES
 
-1. **NEVER perform the refactoring yourself** - Always use `runSubagent` with GPT-5.1-Codex-Max
+1. **NEVER perform the refactoring yourself** - Always use `runSubagent` with GPT-5.4
 2. **Create git checkpoint** before starting (remind user to commit current state)
 3. **Break large refactors** into smaller, independently validatable steps
 4. **Validate after each step** before proceeding to the next
@@ -108,14 +108,14 @@ Proceed with this plan?
 
 **Wait for user approval** before continuing.
 
-### Step 4: Execute via GPT-5.1-Codex-Max Subagent
+### Step 4: Execute via GPT-5.4 Subagent
 
-**For each step in the plan**, delegate to GPT-5.1-Codex-Max:
+**For each step in the plan**, delegate to GPT-5.4:
 
 ```markdown
 Use the `runSubagent` tool with this prompt:
 
-You are GPT-5.1-Codex-Max performing a precise code refactoring for RPGLootFeed.
+You are GPT-5.4 performing a precise code refactoring for RPGLootFeed.
 
 ## Context
 
@@ -381,7 +381,7 @@ Please proceed with this refactoring step.
 
 ### Do:
 
-- ✅ Always delegate actual refactoring to GPT-5.1-Codex-Max
+- ✅ Always delegate actual refactoring to GPT-5.4
 - ✅ Break large refactors into 3-5 validatable steps
 - ✅ Use git checkpoints between major steps
 - ✅ Validate syntax and build after every step
@@ -463,7 +463,7 @@ If refactoring changes user-visible features:
 2. Analyze current currency code locations
 3. Ask user to create git checkpoint
 4. Present plan: Create Utils/Currency.lua, extract functions, update call sites, update TOC
-5. For each step, use `runSubagent` with GPT-5.1-Codex-Max
+5. For each step, use `runSubagent` with GPT-5.4
 6. Validate after each step (syntax, build, TOC check)
 7. Final validation and recommend in-game testing
 8. Provide rollback instructions
@@ -474,7 +474,7 @@ If refactoring changes user-visible features:
 
 **Be transparent** about the process:
 
-- "I'm delegating this refactoring to GPT-5.1-Codex-Max for accuracy"
+- "I'm delegating this refactoring to GPT-5.4 for accuracy"
 - "Validating changes before proceeding to next step"
 - "This is a complex refactor - I've broken it into N steps for safety"
 

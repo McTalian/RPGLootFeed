@@ -1,5 +1,5 @@
 ---
-name: review
+name: mwa.review
 description: Perform code review from perspective of seasoned WoW addon developer
 argument-hint: Optional: file path or feature area to review
 agent: agent

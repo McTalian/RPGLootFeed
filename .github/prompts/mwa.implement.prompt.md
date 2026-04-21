@@ -1,5 +1,5 @@
 ---
-name: implement
+name: mwa.implement
 description: Implement a feature from a GitHub issue with plan integration
 argument-hint: Issue number (e.g., #123)
 agent: agent
