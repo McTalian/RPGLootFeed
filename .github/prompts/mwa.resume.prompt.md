@@ -1,5 +1,5 @@
 ---
-name: resume
+name: mwa.resume
 description: Restore context from parked session and continue work seamlessly
 argument-hint: Paste handoff summary from /park
 agent: agent

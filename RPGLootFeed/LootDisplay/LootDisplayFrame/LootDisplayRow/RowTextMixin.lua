@@ -429,8 +429,16 @@ function RLF_RowTextMixin:RecheckSecondaryCoinDisplayAnchor()
 	elseif self.CoinDisplay and self.CoinDisplay:IsShown() then
 		anchorFrame = self.CoinDisplay
 	end
+	-- Anchor direction depends on where the icon sits.  When the icon is on the
+	-- right (RIGHT alignment), the coin display must appear to the LEFT of the
+	-- last text element so it doesn't collide with the icon.
+	local iconOnLeft = self.cachedRowTextAlignment ~= G_RLF.TextAlignment.RIGHT
 	self.SecondaryCoinDisplay:ClearAllPoints()
-	self.SecondaryCoinDisplay:SetPoint("LEFT", anchorFrame, "RIGHT", spacing, 0)
+	if iconOnLeft then
+		self.SecondaryCoinDisplay:SetPoint("LEFT", anchorFrame, "RIGHT", spacing, 0)
+	else
+		self.SecondaryCoinDisplay:SetPoint("RIGHT", anchorFrame, "LEFT", -spacing, 0)
+	end
 end
 
 function RLF_RowTextMixin:ShowItemCountText(itemCount, options)
@@ -1020,9 +1028,17 @@ function RLF_RowTextMixin:UpdateSecondaryCoinDisplay(gold, silver, copper, prefi
 		if onSecondaryRow then
 			-- Secondary row is active: re-layout the secondary line so SecondaryText
 			-- budget accounts for the coin display width, then anchor after it.
+			-- Anchor direction mirrors the text alignment: RIGHT-aligned feeds have
+			-- the icon on the right, so the coin display must sit to the LEFT of
+			-- SecondaryText rather than to its right (which would overlap the icon).
+			local iconOnLeft = self.cachedRowTextAlignment ~= G_RLF.TextAlignment.RIGHT
 			self:LayoutSecondaryLine()
 			local spacing = self.SecondaryLineLayout.spacing or 2
-			scd:SetPoint("LEFT", self.SecondaryText, "RIGHT", spacing, 0)
+			if iconOnLeft then
+				scd:SetPoint("LEFT", self.SecondaryText, "RIGHT", spacing, 0)
+			else
+				scd:SetPoint("RIGHT", self.SecondaryText, "LEFT", -spacing, 0)
+			end
 		else
 			-- Secondary row is not active: fall back to the primary line.
 			-- Re-layout the primary line so PrimaryText budget accounts for the coin

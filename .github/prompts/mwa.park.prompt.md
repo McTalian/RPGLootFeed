@@ -1,5 +1,5 @@
 ---
-name: park
+name: mwa.park
 description: Save session progress and generate handoff summary for context transfer
 agent: agent
 tools: ["vscode", "read", "edit", "search", "todo"]

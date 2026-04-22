@@ -9,6 +9,19 @@ local stub = busted.stub
 
 local MIXIN_FILE = "RPGLootFeed/LootDisplay/LootDisplayFrame/LootDisplayRow/RowTextMixin.lua"
 
+--- Stub a list of method names onto `tbl` using busted stubs.
+--- Mirrors the helper in LootDisplayRowFrame.lua so spec-local mocks
+--- can be built without importing the internal mock module directly.
+local function stubMethods(tbl, names)
+	for _, name in ipairs(names) do
+		if tbl[name] == nil then
+			tbl[name] = function() end
+		end
+		stub(tbl, name)
+	end
+	return tbl
+end
+
 describe("RLF_RowTextMixin", function()
 	local ns, row
 
@@ -645,6 +658,220 @@ describe("RLF_RowTextMixin", function()
 			-- follow-up SetPoint call on the result does not error.
 			RLF_RowTextMixin.CreateTopLeftText(row)
 			assert.stub(row.Icon.CreateFontString).was.called(1)
+		end)
+	end)
+
+	-- ── RecheckSecondaryCoinDisplayAnchor ──────────────────────────────────
+	-- Regression guard for issue #554: anchor must flip to RIGHT/LEFT when
+	-- the feed is right-aligned (icon on right) so the coin display appears to
+	-- the left of the text instead of overlapping the icon.
+
+	describe("RecheckSecondaryCoinDisplayAnchor", function()
+		local function makeScdMock()
+			local scd = {}
+			stubMethods(scd, { "ClearAllPoints", "SetPoint", "SetSize", "Show", "Hide" })
+			scd.IsShown = function()
+				return true
+			end
+			return scd
+		end
+
+		before_each(function()
+			row.PrimaryLineLayout.spacing = 8
+			row.SecondaryLineLayout.IsShown = function()
+				return false
+			end
+		end)
+
+		it("returns early without error when SecondaryCoinDisplay is absent", function()
+			row.SecondaryCoinDisplay = nil
+			RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+		end)
+
+		it("returns early when SecondaryCoinDisplay is hidden", function()
+			local scd = makeScdMock()
+			scd.IsShown = function()
+				return false
+			end
+			row.SecondaryCoinDisplay = scd
+			RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+			assert.stub(scd.SetPoint).was_not.called()
+		end)
+
+		it("returns early when SecondaryLineLayout is shown (SCD already on secondary row)", function()
+			row.SecondaryCoinDisplay = makeScdMock()
+			row.SecondaryLineLayout.IsShown = function()
+				return true
+			end
+			RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+			assert.stub(row.SecondaryCoinDisplay.SetPoint).was_not.called()
+		end)
+
+		describe("when left-aligned (icon on left)", function()
+			before_each(function()
+				row.cachedRowTextAlignment = "LEFT"
+				row.SecondaryCoinDisplay = makeScdMock()
+			end)
+
+			it("anchors SCD with LEFT/RIGHT points (after PrimaryText)", function()
+				local anchor, relPoint
+				stub(row.SecondaryCoinDisplay, "SetPoint", function(_, a, _, p)
+					anchor, relPoint = a, p
+				end)
+				RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+				assert.equal("LEFT", anchor)
+				assert.equal("RIGHT", relPoint)
+			end)
+
+			it("uses PrimaryText as the anchor frame when no count/amount/coin is shown", function()
+				local relFrame
+				stub(row.SecondaryCoinDisplay, "SetPoint", function(_, _, f)
+					relFrame = f
+				end)
+				RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+				assert.equal(row.PrimaryText, relFrame)
+			end)
+
+			it("uses ItemCountText as the anchor frame when ItemCountText is shown", function()
+				row.ItemCountText.IsShown = function()
+					return true
+				end
+				local relFrame
+				stub(row.SecondaryCoinDisplay, "SetPoint", function(_, _, f)
+					relFrame = f
+				end)
+				RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+				assert.equal(row.ItemCountText, relFrame)
+			end)
+		end)
+
+		describe("when right-aligned (icon on right) — issue #554 regression", function()
+			before_each(function()
+				row.cachedRowTextAlignment = "RIGHT"
+				row.SecondaryCoinDisplay = makeScdMock()
+			end)
+
+			it("anchors SCD with RIGHT/LEFT points (before PrimaryText, away from icon)", function()
+				local anchor, relPoint
+				stub(row.SecondaryCoinDisplay, "SetPoint", function(_, a, _, p)
+					anchor, relPoint = a, p
+				end)
+				RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+				assert.equal("RIGHT", anchor)
+				assert.equal("LEFT", relPoint)
+			end)
+
+			it("uses a negative x-offset so SCD clears the text to the left", function()
+				local xOff
+				stub(row.SecondaryCoinDisplay, "SetPoint", function(_, _, _, _, x)
+					xOff = x
+				end)
+				RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+				assert.is_true(xOff < 0)
+			end)
+
+			it("uses PrimaryText as anchor frame when no count/amount/coin is shown", function()
+				local relFrame
+				stub(row.SecondaryCoinDisplay, "SetPoint", function(_, _, f)
+					relFrame = f
+				end)
+				RLF_RowTextMixin.RecheckSecondaryCoinDisplayAnchor(row)
+				assert.equal(row.PrimaryText, relFrame)
+			end)
+		end)
+	end)
+
+	-- ── UpdateSecondaryCoinDisplay — anchor direction ──────────────────────
+	-- Regression guard for issue #554: when the secondary row is active the
+	-- coin display must be anchored on the correct side of SecondaryText.
+
+	describe("UpdateSecondaryCoinDisplay anchor direction (secondary row active)", function()
+		-- Build a minimal SecondaryCoinDisplay mock with denomination groups so
+		-- UpdateSecondaryCoinDisplay can run to completion and reach the anchor code.
+		local function makeDenomGroup()
+			local group = stubMethods({}, { "SetSize", "SetPoint", "ClearAllPoints", "Show", "Hide" })
+			group.amountText = stubMethods({}, {
+				"SetText",
+				"SetPoint",
+				"ClearAllPoints",
+				"SetFont",
+				"SetFontObject",
+				"SetTextColor",
+				"SetWordWrap",
+			})
+			group.amountText.GetUnboundedStringWidth = function()
+				return 20
+			end
+			group.icon = stubMethods({}, { "SetSize", "SetPoint", "ClearAllPoints", "Show", "Hide", "SetAtlas" })
+			return group
+		end
+
+		local function makeFullScdMock()
+			local scd = stubMethods({}, { "SetSize", "SetPoint", "ClearAllPoints", "Show", "Hide" })
+			scd.prefixIcon = stubMethods({}, {
+				"SetAtlas",
+				"SetSize",
+				"SetPoint",
+				"ClearAllPoints",
+				"Show",
+				"Hide",
+			})
+			scd.goldGroup = makeDenomGroup()
+			scd.silverGroup = makeDenomGroup()
+			scd.copperGroup = makeDenomGroup()
+			return scd
+		end
+
+		before_each(function()
+			-- Pre-set SCD so CreateSecondaryCoinDisplay is not called.
+			row.SecondaryCoinDisplay = makeFullScdMock()
+			-- Activate secondary row (so the onSecondaryRow branch is taken).
+			row.SecondaryLineLayout.IsShown = function()
+				return true
+			end
+			row.SecondaryLineLayout.spacing = 8
+			row.cachedSecondaryFontSize = 12
+			-- Stub layout helpers — tested separately.
+			stub(row, "LayoutSecondaryLine")
+			stub(row, "LayoutPrimaryLine")
+			stub(row, "RecheckSecondaryCoinDisplayAnchor")
+			stub(row, "StyleSecondaryCoinDisplay")
+		end)
+
+		it("anchors SCD with LEFT/RIGHT when left-aligned (icon on left)", function()
+			row.cachedRowTextAlignment = "LEFT"
+			local anchor, relPoint
+			stub(row.SecondaryCoinDisplay, "SetPoint", function(_, a, _, p)
+				anchor, relPoint = a, p
+			end)
+			-- Pass 5g so totalWidth > 0 and we reach the anchor code.
+			RLF_RowTextMixin.UpdateSecondaryCoinDisplay(row, 5, 0, 0)
+			assert.equal("LEFT", anchor)
+			assert.equal("RIGHT", relPoint)
+		end)
+
+		it("anchors SCD with RIGHT/LEFT when right-aligned — issue #554 regression", function()
+			row.cachedRowTextAlignment = "RIGHT"
+			local anchor, relPoint
+			stub(row.SecondaryCoinDisplay, "SetPoint", function(_, a, _, p)
+				anchor, relPoint = a, p
+			end)
+			RLF_RowTextMixin.UpdateSecondaryCoinDisplay(row, 5, 0, 0)
+			assert.equal("RIGHT", anchor)
+			assert.equal("LEFT", relPoint)
+		end)
+
+		it("uses SecondaryText as the relative frame for both alignments", function()
+			for _, alignment in ipairs({ "LEFT", "RIGHT" }) do
+				row.cachedRowTextAlignment = alignment
+				row.SecondaryCoinDisplay = makeFullScdMock()
+				local relFrame
+				stub(row.SecondaryCoinDisplay, "SetPoint", function(_, _, f)
+					relFrame = f
+				end)
+				RLF_RowTextMixin.UpdateSecondaryCoinDisplay(row, 5, 0, 0)
+				assert.equal(row.SecondaryText, relFrame, "alignment=" .. alignment)
+			end
 		end)
 	end)
 end)
