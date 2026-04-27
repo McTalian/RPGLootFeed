@@ -35,7 +35,7 @@ WBT_DIR := ../wow-build-tools
 # Target for running the hardcoded string checker
 hardcode_string_check: wbt_setup
 	@uv run --no-project $(WBT_DIR)/scripts/i18n/hardcode_string_check.py \
-	    --ignore-files IntegrationTest.lua SmokeTest.lua \
+	    --ignore-files IntegrationTest.lua SmokeTest.lua ConfigTest.lua \
 		--addon-dir RPGLootFeed
 
 # Target for running the hardcoded string checker
