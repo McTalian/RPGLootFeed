@@ -133,6 +133,12 @@ G_RLF.defaults = {
 				features = {
 					itemLoot = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						itemCountTextEnabled = true,
 						itemCountTextColor = { 0.737, 0.737, 0.737, 1 },
 						itemCountTextWrapChar = 2, -- PARENTHESIS
@@ -174,6 +180,12 @@ G_RLF.defaults = {
 					},
 					partyLoot = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						itemQualityFilter = {
 							[0] = true,
 							[1] = true,
@@ -193,6 +205,12 @@ G_RLF.defaults = {
 					},
 					currency = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						currencyTotalTextEnabled = true,
 						currencyTotalTextColor = { 0.737, 0.737, 0.737, 1 },
 						currencyTotalTextWrapChar = 2, -- PARENTHESIS
@@ -205,6 +223,12 @@ G_RLF.defaults = {
 					},
 					money = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						showMoneyTotal = true,
 						moneyTotalColor = { 0.333, 0.333, 1.0, 1.0 },
 						moneyTextWrapChar = 6, -- BAR
@@ -217,6 +241,12 @@ G_RLF.defaults = {
 					},
 					experience = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						experienceTextColor = { 1, 0, 1, 0.8 },
 						showCurrentLevel = true,
 						currentLevelColor = { 0.749, 0.737, 0.012, 1 },
@@ -225,6 +255,12 @@ G_RLF.defaults = {
 					},
 					reputation = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						defaultRepColor = { 0.5, 0.5, 1 },
 						secondaryTextAlpha = 0.7,
 						enableRepLevel = true,
@@ -234,6 +270,12 @@ G_RLF.defaults = {
 					},
 					profession = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						showSkillChange = true,
 						skillColor = { 0.333, 0.333, 1.0, 1.0 },
 						skillTextWrapChar = 3, -- BRACKET
@@ -241,11 +283,23 @@ G_RLF.defaults = {
 					},
 					travelPoints = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						textColor = { 1, 0.988, 0.498, 1 },
 						enableIcon = true,
 					},
 					transmog = {
 						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						enableTransmogEffect = true,
 						enableBlizzardTransmogSound = true,
 						enableIcon = true,
@@ -334,6 +388,12 @@ G_RLF.defaults = {
 				features = {
 					itemLoot = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						itemCountTextEnabled = true,
 						itemCountTextColor = { 0.737, 0.737, 0.737, 1 },
 						itemCountTextWrapChar = 2, -- PARENTHESIS
@@ -375,6 +435,12 @@ G_RLF.defaults = {
 					},
 					partyLoot = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						itemQualityFilter = {
 							[0] = true,
 							[1] = true,
@@ -394,6 +460,12 @@ G_RLF.defaults = {
 					},
 					currency = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						currencyTotalTextEnabled = true,
 						currencyTotalTextColor = { 0.737, 0.737, 0.737, 1 },
 						currencyTotalTextWrapChar = 2, -- PARENTHESIS
@@ -406,6 +478,12 @@ G_RLF.defaults = {
 					},
 					money = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						showMoneyTotal = true,
 						moneyTotalColor = { 0.333, 0.333, 1.0, 1.0 },
 						moneyTextWrapChar = 6, -- BAR
@@ -418,6 +496,12 @@ G_RLF.defaults = {
 					},
 					experience = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						experienceTextColor = { 1, 0, 1, 0.8 },
 						showCurrentLevel = true,
 						currentLevelColor = { 0.749, 0.737, 0.012, 1 },
@@ -426,6 +510,12 @@ G_RLF.defaults = {
 					},
 					reputation = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						defaultRepColor = { 0.5, 0.5, 1 },
 						secondaryTextAlpha = 0.7,
 						enableRepLevel = true,
@@ -435,6 +525,12 @@ G_RLF.defaults = {
 					},
 					profession = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						showSkillChange = true,
 						skillColor = { 0.333, 0.333, 1.0, 1.0 },
 						skillTextWrapChar = 3, -- BRACKET
@@ -442,11 +538,23 @@ G_RLF.defaults = {
 					},
 					travelPoints = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						textColor = { 1, 0.988, 0.498, 1 },
 						enableIcon = true,
 					},
 					transmog = {
 						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
 						enableTransmogEffect = true,
 						enableBlizzardTransmogSound = true,
 						enableIcon = true,

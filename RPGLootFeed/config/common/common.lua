@@ -292,6 +292,164 @@ function ConfigCommon.CreateGroup(group)
 	return out
 end
 
+---@class RLF_FeatureBackgroundOverrideOptions
+---@field frameId integer
+---@field featureKey string
+---@field order number
+---@field isFeatureEnabled fun(): boolean
+
+--- Build a reusable per-feature background override options group.
+--- The override colors apply to rows produced by the feature when enabled.
+---@param opts RLF_FeatureBackgroundOverrideOptions
+---@return AceConfigGroup
+function ConfigCommon.CreateFeatureBackgroundOverrideGroup(opts)
+	if not opts or not opts.frameId or not opts.featureKey or not opts.isFeatureEnabled then
+		error("CreateFeatureBackgroundOverrideGroup requires frameId, featureKey, and isFeatureEnabled", 2)
+	end
+
+	local function featureDisabled()
+		return not opts.isFeatureEnabled()
+	end
+
+	local function backgroundOverrideDb()
+		local featureConfig = G_RLF.DbAccessor:Feature(opts.frameId, opts.featureKey)
+		if not featureConfig then
+			return nil
+		end
+		return featureConfig.backgroundOverride
+	end
+
+	local function usingGradientBackground()
+		return G_RLF.DbAccessor:Styling(opts.frameId).rowBackgroundType == G_RLF.RowBackground.GRADIENT
+	end
+
+	local function usingTexturedBackground()
+		return G_RLF.DbAccessor:Styling(opts.frameId).rowBackgroundType == G_RLF.RowBackground.TEXTURED
+	end
+
+	local function refreshRows()
+		G_RLF.LootDisplay:UpdateRowStyles(opts.frameId)
+		G_RLF.LootDisplay:RefreshSampleRowsIfShown()
+	end
+
+	return ConfigCommon.CreateGroup({
+		name = G_RLF.L["Background Override"],
+		desc = G_RLF.L["BackgroundOverrideDesc"],
+		inline = true,
+		order = opts.order,
+		disabled = featureDisabled,
+		args = {
+			enabled = ConfigCommon.CreateToggle({
+				name = G_RLF.L["Enable Background Color Override"],
+				desc = G_RLF.L["EnableBackgroundColorOverrideDesc"],
+				width = "double",
+				order = 1,
+				get = function()
+					local db = backgroundOverrideDb()
+					return db and db.enabled or false
+				end,
+				set = function(_, value)
+					local db = backgroundOverrideDb()
+					if not db then
+						return
+					end
+					db.enabled = value
+					refreshRows()
+				end,
+			}),
+			gradientStart = ConfigCommon.CreateColor({
+				name = G_RLF.L["Background Gradient Start"],
+				desc = G_RLF.L["GradientStartDesc"],
+				hasAlpha = true,
+				width = "double",
+				order = 2,
+				hidden = function()
+					return not usingGradientBackground()
+				end,
+				disabled = function()
+					local db = backgroundOverrideDb()
+					return featureDisabled() or not db or not db.enabled
+				end,
+				get = function()
+					local db = backgroundOverrideDb()
+					local color = db and db.gradientStart
+					if not color then
+						color = G_RLF.DbAccessor:Styling(opts.frameId).rowBackgroundGradientStart
+					end
+					return unpack(color)
+				end,
+				set = function(_, r, g, b, a)
+					local db = backgroundOverrideDb()
+					if not db then
+						return
+					end
+					db.gradientStart = { r, g, b, a }
+					refreshRows()
+				end,
+			}),
+			gradientEnd = ConfigCommon.CreateColor({
+				name = G_RLF.L["Background Gradient End"],
+				desc = G_RLF.L["GradientEndDesc"],
+				hasAlpha = true,
+				order = 3,
+				hidden = function()
+					return not usingGradientBackground()
+				end,
+				disabled = function()
+					local db = backgroundOverrideDb()
+					return featureDisabled() or not db or not db.enabled
+				end,
+				get = function()
+					local db = backgroundOverrideDb()
+					local color = db and db.gradientEnd
+					if not color then
+						color = G_RLF.DbAccessor:Styling(opts.frameId).rowBackgroundGradientEnd
+					end
+					return unpack(color)
+				end,
+				set = function(_, r, g, b, a)
+					local db = backgroundOverrideDb()
+					if not db then
+						return
+					end
+					db.gradientEnd = { r, g, b, a }
+					refreshRows()
+				end,
+			}),
+			textureColor = ConfigCommon.CreateColor({
+				name = G_RLF.L["Background Texture Color"],
+				desc = G_RLF.L["BackgroundTextureColorDesc"],
+				hasAlpha = true,
+				width = "double",
+				order = 4,
+				hidden = function()
+					return not usingTexturedBackground()
+				end,
+				disabled = function()
+					local db = backgroundOverrideDb()
+					return featureDisabled() or not db or not db.enabled
+				end,
+				get = function()
+					local db = backgroundOverrideDb()
+					local color = db and db.textureColor
+					if not color then
+						color = G_RLF.DbAccessor:Styling(opts.frameId).rowBackgroundTextureColor
+					end
+					return unpack(color)
+				end,
+				set = function(_, r, g, b, a)
+					local db = backgroundOverrideDb()
+					if not db then
+						return
+					end
+					db.textureColor = { r, g, b, a }
+					refreshRows()
+				end,
+			}),
+		},
+	})
+end
+
 G_RLF.ConfigCommon = ConfigCommon
 
 return ConfigCommon

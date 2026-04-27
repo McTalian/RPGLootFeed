@@ -10,6 +10,7 @@ describe("ItemConfig module", function()
 	setup(function()
 		-- Define the global namespace
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.ConfigFeaturesInit)
+		assert(loadfile("RPGLootFeed/config/common/common.lua"))("TestAddon", ns)
 		functionMocks = require("RPGLootFeed_spec._mocks.WoWGlobals.Functions")
 		-- Load the ItemConfig module before each test
 		assert(loadfile("RPGLootFeed/config/Features/ItemConfig.lua"))("TestAddon", ns)

@@ -249,6 +249,34 @@ local function testDbStructure()
 		runner:assertEqual(featureConfig ~= nil, true, "DB: frames[1].features." .. featureKey .. " exists")
 		if featureConfig then
 			runner:assertEqual(type(featureConfig.enabled), "boolean", "DB: " .. featureKey .. ".enabled is boolean")
+			runner:assertEqual(
+				type(featureConfig.backgroundOverride),
+				"table",
+				"DB: " .. featureKey .. ".backgroundOverride exists"
+			)
+			if type(featureConfig.backgroundOverride) == "table" then
+				local override = featureConfig.backgroundOverride
+				runner:assertEqual(
+					type(override.enabled),
+					"boolean",
+					"DB: " .. featureKey .. ".backgroundOverride.enabled is boolean"
+				)
+				runner:assertEqual(
+					type(override.gradientStart),
+					"table",
+					"DB: " .. featureKey .. ".backgroundOverride.gradientStart exists"
+				)
+				runner:assertEqual(
+					type(override.gradientEnd),
+					"table",
+					"DB: " .. featureKey .. ".backgroundOverride.gradientEnd exists"
+				)
+				runner:assertEqual(
+					type(override.textureColor),
+					"table",
+					"DB: " .. featureKey .. ".backgroundOverride.textureColor exists"
+				)
+			end
 		end
 	end
 end

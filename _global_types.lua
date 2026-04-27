@@ -10,7 +10,14 @@
 ---@class RLF_FeatureConfig
 ---@field enabled boolean
 
+---@class RLF_BackgroundColorOverride
+---@field enabled boolean
+---@field gradientStart number[]
+---@field gradientEnd number[]
+---@field textureColor number[]
+
 ---@class RLF_FeatureConfig_ItemLoot : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field itemCountTextEnabled boolean
 ---@field itemCountTextColor number[]
 ---@field itemCountTextWrapChar WrapCharEnum
@@ -25,6 +32,7 @@
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_PartyLoot : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field itemQualityFilter table
 ---@field hideServerNames boolean
 ---@field onlyEpicAndAboveInRaid boolean
@@ -34,6 +42,7 @@
 ---@field enablePartyAvatar boolean
 
 ---@class RLF_FeatureConfig_Currency : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field currencyTotalTextEnabled boolean
 ---@field currencyTotalTextColor number[]
 ---@field currencyTotalTextWrapChar WrapCharEnum
@@ -45,6 +54,7 @@
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_Money : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field showMoneyTotal boolean
 ---@field moneyTotalColor number[]
 ---@field moneyTextWrapChar WrapCharEnum
@@ -56,6 +66,7 @@
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_Experience : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field experienceTextColor number[]
 ---@field showCurrentLevel boolean
 ---@field currentLevelColor number[]
@@ -63,6 +74,7 @@
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_Reputation : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field defaultRepColor number[]
 ---@field secondaryTextAlpha number
 ---@field enableRepLevel boolean
@@ -71,16 +83,19 @@
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_Profession : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field showSkillChange boolean
 ---@field skillColor number[]
 ---@field skillTextWrapChar WrapCharEnum
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_TravelPoints : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field textColor number[]
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_Transmog : RLF_FeatureConfig
+---@field backgroundOverride RLF_BackgroundColorOverride
 ---@field enableTransmogEffect boolean
 ---@field enableBlizzardTransmogSound boolean
 ---@field enableIcon boolean

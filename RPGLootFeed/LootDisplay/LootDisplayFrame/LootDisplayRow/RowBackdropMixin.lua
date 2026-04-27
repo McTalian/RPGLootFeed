@@ -9,6 +9,56 @@ RLF_RowBackdropMixin = {}
 
 local FALLBACK_BACKGROUND_TEXTURE = "Interface/Buttons/WHITE8X8"
 
+local featureKeyForType = {
+	[G_RLF.FeatureModule.ItemLoot] = "itemLoot",
+	[G_RLF.FeatureModule.PartyLoot] = "partyLoot",
+	[G_RLF.FeatureModule.Currency] = "currency",
+	[G_RLF.FeatureModule.Money] = "money",
+	[G_RLF.FeatureModule.Experience] = "experience",
+	[G_RLF.FeatureModule.Reputation] = "reputation",
+	[G_RLF.FeatureModule.Profession] = "profession",
+	[G_RLF.FeatureModule.TravelPoints] = "travelPoints",
+	[G_RLF.FeatureModule.Transmog] = "transmog",
+}
+
+--- Resolve the row's effective background colors.
+--- Uses frame styling as the baseline, then applies per-feature override
+--- colors when enabled for the row's feature type.
+---@param row RLF_LootDisplayRow
+---@param stylingDb RLF_ConfigStyling
+---@return number[] gradientStart
+---@return number[] gradientEnd
+---@return number[] textureColor
+---@return string|nil featureKey
+local function resolveBackgroundColors(row, stylingDb)
+	local gradientStart = stylingDb.rowBackgroundGradientStart
+	local gradientEnd = stylingDb.rowBackgroundGradientEnd
+	local textureColor = stylingDb.rowBackgroundTextureColor
+
+	local featureKey = featureKeyForType[row.type]
+	if not featureKey then
+		return gradientStart, gradientEnd, textureColor, nil
+	end
+
+	local featureCfg = G_RLF.DbAccessor:Feature(row.frameType, featureKey)
+	local backgroundOverride = featureCfg and featureCfg.backgroundOverride
+	if not backgroundOverride or not backgroundOverride.enabled then
+		return gradientStart, gradientEnd, textureColor, featureKey
+	end
+
+	if backgroundOverride.gradientStart then
+		gradientStart = backgroundOverride.gradientStart
+	end
+	if backgroundOverride.gradientEnd then
+		gradientEnd = backgroundOverride.gradientEnd
+	end
+	if backgroundOverride.textureColor then
+		textureColor = backgroundOverride.textureColor
+	end
+
+	return gradientStart, gradientEnd, textureColor, featureKey
+end
+
 function RLF_RowBackdropMixin:StyleBackground()
 	local stylingDb = G_RLF.DbAccessor:Styling(self.frameType)
 
@@ -18,6 +68,7 @@ function RLF_RowBackdropMixin:StyleBackground()
 		-- re-applies the gradient colors instead of hitting the cache.
 		self.cachedGradientStart = nil
 		self.cachedGradientEnd = nil
+		self.cachedBackgroundFeatureKey = nil
 		return
 	else
 		self.Background:Show()
@@ -33,14 +84,14 @@ function RLF_RowBackdropMixin:StyleBackground()
 	local rightInset = insets.right or 0
 	local bottomInset = insets.bottom or 0
 	local leftInset = insets.left or 0
-	local gradientStart = stylingDb.rowBackgroundGradientStart
-	local gradientEnd = stylingDb.rowBackgroundGradientEnd
+	local gradientStart, gradientEnd, _, featureKey = resolveBackgroundColors(self, stylingDb)
 	local textAlignment = stylingDb.textAlignment
 	local iconOnLeft = textAlignment ~= G_RLF.TextAlignment.RIGHT
 
 	if
 		self.cachedGradientStart ~= gradientStart
 		or self.cachedGradientEnd ~= gradientEnd
+		or self.cachedBackgroundFeatureKey ~= featureKey
 		or self.cachedBackgroundTextAlignment ~= textAlignment
 		or self.cachedTopInset ~= topInset
 		or self.cachedRightInset ~= rightInset
@@ -49,6 +100,7 @@ function RLF_RowBackdropMixin:StyleBackground()
 	then
 		self.cachedGradientStart = gradientStart
 		self.cachedGradientEnd = gradientEnd
+		self.cachedBackgroundFeatureKey = featureKey
 		self.cachedBackgroundTextAlignment = textAlignment
 		self.cachedTopInset = topInset
 		self.cachedRightInset = rightInset
@@ -87,6 +139,7 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 		-- re-applies the backdrop instead of hitting stale cache.
 		self.cachedBackdropTexture = nil
 		self.cachedBorderTexture = nil
+		self.cachedBackdropFeatureKey = nil
 		return
 	end
 
@@ -95,10 +148,11 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 	local borderColor = stylingDb.rowBorderColor
 	local borderTexture = enableRowBorder and stylingDb.rowBorderTexture or "None"
 	local backdropTexture = enableTexturedBackground and stylingDb.rowBackgroundTexture or "None"
-	local backdropColorR = stylingDb.rowBackgroundTextureColor[1]
-	local backdropColorG = stylingDb.rowBackgroundTextureColor[2]
-	local backdropColorB = stylingDb.rowBackgroundTextureColor[3]
-	local backdropColorA = stylingDb.rowBackgroundTextureColor[4] or 1
+	local _, _, textureColor, featureKey = resolveBackgroundColors(self, stylingDb)
+	local backdropColorR = textureColor[1]
+	local backdropColorG = textureColor[2]
+	local backdropColorB = textureColor[3]
+	local backdropColorA = textureColor[4] or 1
 	local topInset = stylingDb.backdropInsets.top or 0
 	local rightInset = stylingDb.backdropInsets.right or 0
 	local bottomInset = stylingDb.backdropInsets.bottom or 0
@@ -111,6 +165,7 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 		or self.cacheClassColors ~= classColors
 		or self.cachedBorderTexture ~= borderTexture
 		or self.cachedBackdropTexture ~= backdropTexture
+		or self.cachedBackdropFeatureKey ~= featureKey
 		or self.cachedBackdropColorR ~= backdropColorR
 		or self.cachedBackdropColorG ~= backdropColorG
 		or self.cachedBackdropColorB ~= backdropColorB
@@ -125,6 +180,7 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 		self.cacheClassColors = classColors
 		self.cachedBorderTexture = borderTexture
 		self.cachedBackdropTexture = backdropTexture
+		self.cachedBackdropFeatureKey = featureKey
 		self.cachedBackdropColorR = backdropColorR
 		self.cachedBackdropColorG = backdropColorG
 		self.cachedBackdropColorB = backdropColorB
@@ -191,7 +247,11 @@ function RLF_RowBackdropMixin:StyleRowBackdrop()
 		end
 	else
 		self:SetBackdropColor(0, 0, 0, 0) -- Transparent background
-		if self.Background then
+		-- Keep the gradient texture visible when gradient mode is active.
+		-- This branch also runs for border-only backdrops where bgFile is the
+		-- transparent fallback, and hiding Background there would remove the row
+		-- background entirely.
+		if self.Background and stylingDb.rowBackgroundType ~= G_RLF.RowBackground.GRADIENT then
 			self.Background:Hide()
 		end
 	end

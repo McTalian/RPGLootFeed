@@ -46,6 +46,14 @@ function G_RLF.BuildMoneyArgs(frameId, order)
 				end,
 				order = 1.1,
 				args = {
+					backgroundOverride = G_RLF.ConfigCommon.CreateFeatureBackgroundOverrideGroup({
+						frameId = frameId,
+						featureKey = "money",
+						order = 0.75,
+						isFeatureEnabled = function()
+							return fc().enabled
+						end,
+					}),
 					showIcon = {
 						type = "toggle",
 						name = G_RLF.L["Show Money Icon"],
