@@ -173,6 +173,8 @@ function RLF:SlashCommand(msg, editBox)
 			)
 		elseif msg == "i" then
 			TestMode:IntegrationTest()
+		elseif msg == "c" then
+			TestMode:ConfigTest()
 		elseif msg == "prof" then
 			TestMode:ProfessionTest()
 		elseif msg == "notif" then
