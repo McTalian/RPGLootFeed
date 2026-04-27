@@ -430,7 +430,7 @@ end
 
 function LootDisplay:OnLootReady(_, element)
 	for id, frame in pairs(lootFrames) do
-		if frame and frame:IsFeatureEnabled(element) then
+		if frame and frame:IsFeatureEnabled(element) and frame:PassesPerFrameFilters(element) then
 			frame._testAcceptCount = (frame._testAcceptCount or 0) + 1
 			processRow(element, id)
 		end

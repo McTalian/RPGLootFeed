@@ -176,6 +176,7 @@ G_RLF.defaults = {
 						textStyleOverrides = {
 							quest = { enabled = false, color = { 1, 1, 0, 1 } },
 						},
+						ignoreItemIds = {},
 						enableIcon = true,
 					},
 					partyLoot = {
@@ -219,6 +220,7 @@ G_RLF.defaults = {
 						lowestColor = { 1, 1, 1, 1 },
 						midColor = { 1, 0.608, 0, 1 },
 						upperColor = { 1, 0, 0, 1 },
+						ignoreCurrencyIds = {},
 						enableIcon = true,
 					},
 					money = {
@@ -431,6 +433,7 @@ G_RLF.defaults = {
 						textStyleOverrides = {
 							quest = { enabled = false, color = { 1, 1, 0, 1 } },
 						},
+						ignoreItemIds = {},
 						enableIcon = true,
 					},
 					partyLoot = {
@@ -474,6 +477,7 @@ G_RLF.defaults = {
 						lowestColor = { 1, 1, 1, 1 },
 						midColor = { 1, 0.608, 0, 1 },
 						upperColor = { 1, 0, 0, 1 },
+						ignoreCurrencyIds = {},
 						enableIcon = true,
 					},
 					money = {

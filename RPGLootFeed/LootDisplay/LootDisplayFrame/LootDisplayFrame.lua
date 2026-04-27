@@ -50,6 +50,63 @@ function LootDisplayFrameMixin:IsFeatureEnabled(element)
 	return featureCfg and featureCfg.enabled or false
 end
 
+--- Check whether the element passes per-frame configuration filters such as
+--- item quality tiers and user-defined deny lists.  Called after IsFeatureEnabled
+--- confirms the feature is turned on for this frame.
+--- @param element RLF_BaseLootElement
+--- @return boolean
+function LootDisplayFrameMixin:PassesPerFrameFilters(element)
+	local featureKey = featureKeyForType[element.type]
+	if not featureKey then
+		-- Non-feature elements carry no filter metadata.
+		return true
+	end
+	local frameConfig = G_RLF.db.global.frames[self.frameType]
+	if not frameConfig then
+		return true
+	end
+	local featureCfg = frameConfig.features[featureKey]
+	if not featureCfg then
+		return true
+	end
+
+	-- ── Item quality tier filter (ItemLoot and PartyLoot) ─────────────────────
+	if element.filterItemQuality ~= nil then
+		if featureKey == "itemLoot" then
+			local qualSettings = (featureCfg.itemQualitySettings or {})[element.filterItemQuality]
+			if not qualSettings or not qualSettings.enabled then
+				return false
+			end
+		elseif featureKey == "partyLoot" then
+			if not (featureCfg.itemQualityFilter or {})[element.filterItemQuality] then
+				return false
+			end
+		end
+	end
+
+	-- ── Item ID deny list (ItemLoot and PartyLoot) ────────────────────────────
+	if element.filterItemId ~= nil then
+		local ignoredIds = featureCfg.ignoreItemIds or {}
+		for _, id in ipairs(ignoredIds) do
+			if tonumber(id) == tonumber(element.filterItemId) then
+				return false
+			end
+		end
+	end
+
+	-- ── Currency ID deny list (Currency) ─────────────────────────────────────
+	if element.filterCurrencyId ~= nil then
+		local ignoredIds = featureCfg.ignoreCurrencyIds or {}
+		for _, id in ipairs(ignoredIds) do
+			if tonumber(id) == tonumber(element.filterCurrencyId) then
+				return false
+			end
+		end
+	end
+
+	return true
+end
+
 function LootDisplayFrameMixin:getFrameHeight()
 	local sizingDb = G_RLF.DbAccessor:Sizing(self.frameType)
 	local padding = sizingDb.padding

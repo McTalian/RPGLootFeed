@@ -323,8 +323,20 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self.customBehavior = element.customBehavior
 	self.amountTextFn = element.amountTextFn
 	local text
-	if element.isSampleRow or (element.showForSeconds ~= nil and element.showForSeconds ~= self.showForSeconds) then
-		self.showForSeconds = element.showForSeconds
+	-- Resolve the effective display duration for this element on this specific frame.
+	-- element.showForSeconds (if set) takes highest priority; otherwise check the
+	-- frame's per-quality duration override for itemLoot rows.
+	local effectiveShowForSeconds = element.showForSeconds
+	if not effectiveShowForSeconds and element.filterItemQuality ~= nil then
+		local frameConfig = G_RLF.db.global.frames[self.frameType]
+		local featureCfg = frameConfig and frameConfig.features and frameConfig.features.itemLoot
+		local qualSettings = featureCfg and (featureCfg.itemQualitySettings or {})[element.filterItemQuality]
+		if qualSettings and qualSettings.duration > 0 then
+			effectiveShowForSeconds = qualSettings.duration
+		end
+	end
+	if element.isSampleRow or (effectiveShowForSeconds ~= nil and effectiveShowForSeconds ~= self.showForSeconds) then
+		self.showForSeconds = effectiveShowForSeconds
 		self.hasElementFadeOverride = not element.isSampleRow
 		self:StyleExitAnimation()
 	end

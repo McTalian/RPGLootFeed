@@ -66,6 +66,13 @@ function G_RLF.LootElementBase:new()
 	element.a = 1
 	element.colorFn = nil
 
+	-- ── Per-frame filter metadata ────────────────────────────────────────────
+	-- Carried forward so LootDisplayFrame:PassesPerFrameFilters can evaluate
+	-- per-frame quality tiers and deny lists without knowing the source module.
+	element.filterItemId = nil -- Item ID for deny list checks (ItemLoot, PartyLoot)
+	element.filterItemQuality = nil -- Quality tier for quality-filter checks
+	element.filterCurrencyId = nil -- Currency ID for deny list checks (Currency)
+
 	-- ── Display timing ─────────────────────────────────────────────────────────
 	-- Left nil so each row reads its own frame's configured delay in Init().
 	-- Feature modules may set payload.showForSeconds for a per-element override.
@@ -204,6 +211,11 @@ function G_RLF.LootElementBase:fromPayload(payload)
 		element.IsEnabled = payload.IsEnabled
 	end
 
+	-- ── Per-frame filter metadata ─────────────────────────────────────────────
+	element.filterItemId = payload.filterItemId
+	element.filterItemQuality = payload.filterItemQuality
+	element.filterCurrencyId = payload.filterCurrencyId
+
 	-- ── Backwards compatibility: keep itemCount for modules not yet migrated ──
 	element.itemCount = payload.itemCount
 
@@ -239,6 +251,9 @@ end
 ---@field sampleTooltipText? string Label shown on row hover in the options preview (sample rows only)
 ---@field customBehavior? fun() Click handler for custom links
 ---@field unit? string Unit token for portrait display
+---@field filterItemId? number Item ID for per-frame deny list filtering (ItemLoot, PartyLoot)
+---@field filterItemQuality? number Item quality for per-frame quality-tier filtering (ItemLoot, PartyLoot)
+---@field filterCurrencyId? number Currency ID for per-frame deny list filtering (Currency)
 ---@field showForSeconds? number Override fade timer
 ---@field isSampleRow? boolean Test mode flag, never expires
 ---@field logFn? fun(text: string, amount: number, new: boolean) Logging hook

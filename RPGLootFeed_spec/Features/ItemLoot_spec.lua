@@ -669,23 +669,6 @@ describe("ItemLoot Module", function()
 			assert.is_nil(payload.icon)
 		end)
 
-		it("sets showForSeconds from quality settings when duration > 0", function()
-			ns.db.global.item.itemQualitySettings[2] = { enabled = true, duration = 7 }
-			local info = makeItemInfo({ itemQuality = 2 })
-			local payload = ItemLoot:BuildPayload(info, 1, nil)
-
-			assert.equals(7, payload.showForSeconds)
-		end)
-
-		it("leaves showForSeconds nil when quality duration is 0 (LootElementBase default preserved)", function()
-			ns.db.global.item.itemQualitySettings[2] = { enabled = true, duration = 0 }
-			local info = makeItemInfo({ itemQuality = 2 })
-			local payload = ItemLoot:BuildPayload(info, 1, nil)
-
-			-- Nil means fromPayload will use the LootElementBase default (animations.exit.fadeOutDelay)
-			assert.is_nil(payload.showForSeconds)
-		end)
-
 		it("sets isLink = true", function()
 			local info = makeItemInfo()
 			local payload = ItemLoot:BuildPayload(info, 1, nil)
@@ -796,21 +779,39 @@ describe("ItemLoot Module", function()
 			end)
 		end)
 
-		describe("quality filter", function()
-			it("returns nil for disabled quality tier", function()
-				ns.db.global.item.itemQualitySettings[2] = { enabled = false, duration = 3 }
-				local info = makeItemInfo({ itemQuality = 2 })
-				local payload = ItemLoot:BuildPayload(info, 1, nil)
-
-				assert.is_nil(payload)
-			end)
-
-			it("returns payload for enabled quality tier", function()
-				ns.db.global.item.itemQualitySettings[2] = { enabled = true, duration = 3 }
+		describe("filter metadata", function()
+			it("includes filterItemQuality in payload", function()
 				local info = makeItemInfo({ itemQuality = 2 })
 				local payload = ItemLoot:BuildPayload(info, 1, nil)
 
 				assert.is_not_nil(payload)
+				assert.equals(2, payload.filterItemQuality)
+			end)
+
+			it("includes filterItemId in payload", function()
+				local info = makeItemInfo({ itemId = 18803, itemQuality = 2 })
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+				assert.is_not_nil(payload)
+				assert.equals(18803, payload.filterItemId)
+			end)
+
+			it("builds payload regardless of quality tier enabled state (filter is per-frame)", function()
+				ns.db.global.item.itemQualitySettings[2] = { enabled = false, duration = 3 }
+				local info = makeItemInfo({ itemQuality = 2 })
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+				-- Quality filtering now happens in LootDisplayFrame:PassesPerFrameFilters
+				assert.is_not_nil(payload)
+			end)
+
+			it("does not set showForSeconds (duration is resolved per-frame in BootstrapFromElement)", function()
+				-- Quality duration overrides are now looked up in the frame's own
+				-- itemQualitySettings at display time, not baked into the payload.
+				local info = makeItemInfo({ itemQuality = 4 })
+				local payload = ItemLoot:BuildPayload(info, 1, nil)
+
+				assert.is_nil(payload.showForSeconds)
 			end)
 		end)
 

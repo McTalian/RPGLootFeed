@@ -63,6 +63,9 @@ function PartyLoot:BuildPayload(info, amount, unit)
 	payload.type = FeatureModule.PartyLoot
 	payload.isLink = true
 	payload.unit = unit
+	-- Filter metadata evaluated per-frame by LootDisplayFrame:PassesPerFrameFilters
+	payload.filterItemId = info.itemId
+	payload.filterItemQuality = info.itemQuality
 
 	payload.icon = info.itemTexture
 	local partyConfig = G_RLF.DbAccessor:AnyFeatureConfig("partyLoot") or {}
@@ -200,28 +203,8 @@ function PartyLoot:OnPartyReadyToShow(info, amount, unit)
 	if onlyEpicPartyLoot and info.itemQuality < ItemQualEnum.Epic then
 		return
 	end
-	local plFilterConfig = G_RLF.DbAccessor:AnyFeatureConfig("partyLoot") or {}
-	-- nil quality filter entry = quality not enabled (treat same as false)
-	if not (plFilterConfig.itemQualityFilter or {})[info.itemQuality] then
-		return
-	end
-	-- Filter by ignored item IDs
-	local ignoredIds = plFilterConfig.ignoreItemIds or {}
-	if #ignoredIds > 0 then
-		for _, id in ipairs(ignoredIds) do
-			if tonumber(id) == tonumber(info.itemId) then
-				LogDebug(
-					info.itemName .. " ignored by item id in party loot",
-					addonName,
-					PartyLoot.moduleName,
-					info.itemId,
-					nil,
-					amount
-				)
-				return
-			end
-		end
-	end
+	-- Quality filter and deny list have moved to LootDisplayFrame:PassesPerFrameFilters
+	-- so they are evaluated per-frame rather than against a single "any" config.
 	self.pendingPartyRequests[info.itemId] = nil
 
 	local payload = PartyLoot:BuildPayload(info, amount, unit)

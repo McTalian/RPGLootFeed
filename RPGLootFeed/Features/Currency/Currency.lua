@@ -171,6 +171,8 @@ function Currency:BuildPayload(currencyLink, currencyInfo, basicInfo)
 		IsEnabled = function()
 			return Currency:IsEnabled()
 		end,
+		-- Filter metadata evaluated per-frame by LootDisplayFrame:PassesPerFrameFilters
+		filterCurrencyId = currencyID,
 	}
 
 	if currencyID == ETHEREAL_STRANDS_CURRENCY_ID then
