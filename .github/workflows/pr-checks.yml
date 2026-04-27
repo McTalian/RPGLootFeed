@@ -22,6 +22,6 @@ jobs:
       addon-name: RPGLootFeed
       rockspec-name: rpglootfeed-1-1.rockspec
       i18n-enabled: true
-      i18n-ignore-files: IntegrationTest.lua SmokeTest.lua
+      i18n-ignore-files: IntegrationTest.lua SmokeTest.lua ConfigTest.lua
       trunk-enabled: true
     secrets: inherit
