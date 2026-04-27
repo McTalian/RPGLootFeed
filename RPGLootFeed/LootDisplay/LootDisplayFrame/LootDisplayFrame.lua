@@ -369,7 +369,7 @@ end
 
 function LootDisplayFrameMixin:InitQueueLabel()
 	if not self.QueueLabel then
-		self.QueueLabel = self:CreateFontString(nil, "OVERLAY")
+		self.QueueLabel = UIParent:CreateFontString(nil, "OVERLAY")
 	end
 	local anchorPoint = self.vertDir .. self.horizDir
 	local relativePoint = self.opposite .. self.horizDir

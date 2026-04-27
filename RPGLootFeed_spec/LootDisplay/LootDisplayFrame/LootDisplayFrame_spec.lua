@@ -74,6 +74,7 @@ describe("LootDisplayFrameMixin", function()
 		local stubSetFrameStrata = stub(frame, "SetFrameStrata")
 		local stubConfigureTestArea = stub(frame, "ConfigureTestArea")
 		local stubCreateTab = stub(frame, "CreateTab")
+		stub(frame, "UpdateOverlayFrameDepth")
 
 		frame:Load(ns.Frames.MAIN)
 
@@ -377,8 +378,10 @@ describe("LootDisplayFrameMixin", function()
 		frame.frameType = ns.Frames.MAIN
 
 		local mockTab = {
+			SetClampedToScreen = spy.new(function() end),
 			SetSize = spy.new(function() end),
 			SetPoint = spy.new(function() end),
+			ClearAllPoints = spy.new(function() end),
 			SetAlpha = spy.new(function() end),
 			Hide = spy.new(function() end),
 			SetScript = spy.new(function() end),
@@ -392,6 +395,7 @@ describe("LootDisplayFrameMixin", function()
 
 		mockGlobalFns.CreateFrame.returns(mockTab)
 		mockStyling.returns({ growUp = true })
+		stub(frame, "UpdateOverlayFrameDepth")
 
 		frame:CreateTab()
 
@@ -419,8 +423,10 @@ describe("LootDisplayFrameMixin", function()
 		frame.frameType = ns.Frames.MAIN
 
 		local mockTab = {
+			SetClampedToScreen = spy.new(function() end),
 			SetSize = spy.new(function() end),
 			SetPoint = spy.new(function() end),
+			ClearAllPoints = spy.new(function() end),
 			SetAlpha = spy.new(function() end),
 			Hide = spy.new(function() end),
 			SetScript = spy.new(function() end),
@@ -434,6 +440,7 @@ describe("LootDisplayFrameMixin", function()
 
 		mockGlobalFns.CreateFrame.returns(mockTab)
 		mockStyling.returns({ growUp = false }) -- Growing down
+		stub(frame, "UpdateOverlayFrameDepth")
 
 		frame:CreateTab()
 
@@ -1021,6 +1028,7 @@ describe("LootDisplayFrameMixin", function()
 			stub(frame, "SetFrameStrata")
 			stub(frame, "ConfigureTestArea")
 			stub(frame, "CreateTab")
+			stub(frame, "UpdateOverlayFrameDepth")
 
 			frame:Load(ns.Frames.MAIN)
 
@@ -1039,6 +1047,7 @@ describe("LootDisplayFrameMixin", function()
 			stub(frame, "SetFrameStrata")
 			stub(frame, "ConfigureTestArea")
 			stub(frame, "CreateTab")
+			stub(frame, "UpdateOverlayFrameDepth")
 
 			frame:Load(ns.Frames.MAIN)
 

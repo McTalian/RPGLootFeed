@@ -189,6 +189,49 @@ describe("LootDisplayRowMixin", function()
 				assert.equal("x7", captures.showAmountText.text)
 				assert.equal(7, row.amount)
 			end)
+
+			it("queues deferred updates and applies all deltas in order", function()
+				local captures
+				row, captures = buildRow()
+				row.amount = 1
+
+				local primaryAlpha = 0
+				row.PrimaryText.GetAlpha = function()
+					return primaryAlpha
+				end
+
+				local function makeElement(qty)
+					return {
+						textFn = function()
+							return "text"
+						end,
+						quantity = qty,
+						itemCount = nil,
+						r = 1,
+						g = 1,
+						b = 1,
+						a = 1,
+						amountTextFn = function(existingQuantity)
+							local effective = (existingQuantity or 0) + qty
+							return "x" .. effective
+						end,
+					}
+				end
+
+				row:UpdateQuantity(makeElement(2))
+				row:UpdateQuantity(makeElement(5))
+
+				assert.is_true(row.updatePending)
+				assert.is_not_nil(row.pendingElement)
+
+				primaryAlpha = 1
+				row:UpdateQuantity(row.pendingElement)
+
+				assert.is_false(row.updatePending)
+				assert.is_nil(row.pendingElement)
+				assert.equal("x8", captures.showAmountText.text)
+				assert.equal(8, row.amount)
+			end)
 		end)
 
 		describe("negative amount coloring", function()
