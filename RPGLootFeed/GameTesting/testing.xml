@@ -4,6 +4,7 @@
   <Script file="GameTestRunner.lua"/>
   <Script file="SmokeTest.lua"/>
   <Script file="IntegrationTest.lua"/>
+  <Script file="ConfigTest.lua"/>
   <Script file="Profiling.lua"/>
   <!--@end-alpha@-->
 </Ui>
