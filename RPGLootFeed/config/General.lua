@@ -154,9 +154,96 @@ G_RLF.options.args.general = {
 						G_RLF.db.global.lootHistory.hideTab = value
 						---@type RLF_LootDisplayFrame
 						local frame = G_RLF.RLF_MainLootFrame
+						frame:UpdateTabAppearance()
 						frame:UpdateTabVisibility()
 					end,
 					order = 3,
+				},
+				tabFreePosition = {
+					type = "toggle",
+					name = G_RLF.L["Free Position Loot History Tab"],
+					desc = G_RLF.L["FreePositionLootHistoryTabDesc"],
+					width = "double",
+					disabled = function()
+						return not G_RLF.db.global.lootHistory.enabled or G_RLF.db.global.lootHistory.hideTab
+					end,
+					get = function()
+						return G_RLF.db.global.lootHistory.tabFreePosition
+					end,
+					set = function(info, value)
+						G_RLF.db.global.lootHistory.tabFreePosition = value
+						---@type RLF_LootDisplayFrame
+						local frame = G_RLF.RLF_MainLootFrame
+						frame:UpdateTabAppearance()
+						frame:UpdateTabVisibility()
+					end,
+					order = 4,
+				},
+				tabSize = {
+					type = "range",
+					name = G_RLF.L["Loot History Tab Size"],
+					desc = G_RLF.L["LootHistoryTabSizeDesc"],
+					disabled = function()
+						return not G_RLF.db.global.lootHistory.enabled or G_RLF.db.global.lootHistory.hideTab
+					end,
+					min = 8,
+					max = 64,
+					step = 1,
+					get = function()
+						return G_RLF.db.global.lootHistory.tabSize
+					end,
+					set = function(info, value)
+						G_RLF.db.global.lootHistory.tabSize = value
+						---@type RLF_LootDisplayFrame
+						local frame = G_RLF.RLF_MainLootFrame
+						frame:UpdateTabAppearance()
+						frame:UpdateTabVisibility()
+					end,
+					order = 5,
+				},
+				tabXOffset = {
+					type = "range",
+					name = G_RLF.L["Loot History Tab X Offset"],
+					desc = G_RLF.L["LootHistoryTabXOffsetDesc"],
+					disabled = function()
+						return not G_RLF.db.global.lootHistory.enabled or G_RLF.db.global.lootHistory.hideTab
+					end,
+					min = -3000,
+					max = 3000,
+					step = 1,
+					get = function()
+						return G_RLF.db.global.lootHistory.tabXOffset
+					end,
+					set = function(info, value)
+						G_RLF.db.global.lootHistory.tabXOffset = value
+						---@type RLF_LootDisplayFrame
+						local frame = G_RLF.RLF_MainLootFrame
+						frame:UpdateTabAppearance()
+						frame:UpdateTabVisibility()
+					end,
+					order = 6,
+				},
+				tabYOffset = {
+					type = "range",
+					name = G_RLF.L["Loot History Tab Y Offset"],
+					desc = G_RLF.L["LootHistoryTabYOffsetDesc"],
+					disabled = function()
+						return not G_RLF.db.global.lootHistory.enabled or G_RLF.db.global.lootHistory.hideTab
+					end,
+					min = -3000,
+					max = 3000,
+					step = 1,
+					get = function()
+						return G_RLF.db.global.lootHistory.tabYOffset
+					end,
+					set = function(info, value)
+						G_RLF.db.global.lootHistory.tabYOffset = value
+						---@type RLF_LootDisplayFrame
+						local frame = G_RLF.RLF_MainLootFrame
+						frame:UpdateTabAppearance()
+						frame:UpdateTabVisibility()
+					end,
+					order = 7,
 				},
 			},
 		},

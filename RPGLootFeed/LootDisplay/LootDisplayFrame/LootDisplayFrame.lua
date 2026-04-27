@@ -127,13 +127,7 @@ end
 -- Create the tab frame and anchor it to the loot frame
 function LootDisplayFrameMixin:CreateTab()
 	self.tab = CreateFrame("Button", nil, UIParent, "UIPanelButtonTemplate") --[[@as Button]]
-	self.tab:SetSize(14, 14)
-	local stylingDb = G_RLF.DbAccessor:Styling(self.frameType)
-	if stylingDb.growUp then
-		self.tab:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", -14, 0)
-	else
-		self.tab:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
-	end
+	self.tab:SetClampedToScreen(true)
 	self.tab:SetAlpha(0.2)
 	self.tab:Hide()
 
@@ -158,6 +152,48 @@ function LootDisplayFrameMixin:CreateTab()
 	self.tab:SetScript("OnClick", function()
 		G_RLF.HistoryService:ToggleHistoryFrame()
 	end)
+
+	self:UpdateOverlayFrameDepth()
+	self:UpdateTabAppearance()
+end
+
+function LootDisplayFrameMixin:UpdateTabAppearance()
+	if not self.tab then
+		return
+	end
+
+	local historyDb = G_RLF.db.global.lootHistory
+	local tabSize = math.max(historyDb.tabSize or 14, 1)
+	local xOffset = historyDb.tabXOffset or 0
+	local yOffset = historyDb.tabYOffset or 0
+
+	self.tab:SetSize(tabSize, tabSize)
+	self.tab:ClearAllPoints()
+
+	if historyDb.tabFreePosition then
+		self.tab:SetPoint("CENTER", UIParent, "CENTER", xOffset, yOffset)
+		return
+	end
+
+	local stylingDb = G_RLF.DbAccessor:Styling(self.frameType)
+	local anchor = stylingDb.growUp and "BOTTOMLEFT" or "TOPLEFT"
+	local xBase = stylingDb.growUp and -tabSize or 0
+	self.tab:SetPoint(anchor, self, anchor, xBase + xOffset, yOffset)
+end
+
+function LootDisplayFrameMixin:UpdateOverlayFrameDepth()
+	local frameLevel = self:GetFrameLevel()
+	if self.tab then
+		self.tab:SetFrameStrata(self:GetFrameStrata())
+		self.tab:SetFrameLevel(frameLevel + 10)
+	end
+	if self.historyFrame then
+		self.historyFrame:SetFrameStrata(self:GetFrameStrata())
+		self.historyFrame:SetFrameLevel(frameLevel + 20)
+	end
+	if self.historyTitle then
+		self.historyTitle:SetDrawLayer("OVERLAY", 7)
+	end
 end
 
 --- Function to update the loot history tab visibility
@@ -180,8 +216,9 @@ function LootDisplayFrameMixin:UpdateTabVisibility()
 
 	local inCombat = UnitAffectingCombat("player")
 	local hasItems = self:getNumberOfRows() > 0
+	local optionsVisible = self.BoundingBox and self.BoundingBox:IsVisible()
 
-	if not inCombat and not hasItems then
+	if not inCombat and (not hasItems or optionsVisible) then
 		self.tab:Show()
 	else
 		G_RLF.HistoryService:HideHistoryFrame()
@@ -326,11 +363,13 @@ function LootDisplayFrameMixin:Load(frame)
 	else
 		self.tab = nil -- No tab for party frame
 	end
+
+	self:UpdateOverlayFrameDepth()
 end
 
 function LootDisplayFrameMixin:InitQueueLabel()
 	if not self.QueueLabel then
-		self.QueueLabel = UIParent:CreateFontString(nil, "OVERLAY")
+		self.QueueLabel = self:CreateFontString(nil, "OVERLAY")
 	end
 	local anchorPoint = self.vertDir .. self.horizDir
 	local relativePoint = self.opposite .. self.horizDir
@@ -346,6 +385,7 @@ function LootDisplayFrameMixin:InitQueueLabel()
 	end
 	self.QueueLabel:ClearAllPoints()
 	self.QueueLabel:SetPoint(anchorPoint, self, relativePoint, 0, 0)
+	self.QueueLabel:SetDrawLayer("OVERLAY", 7)
 	self.QueueLabel:Hide()
 end
 
@@ -441,6 +481,7 @@ function LootDisplayFrameMixin:ShowTestArea()
 	for i, a in ipairs(self.arrows) do
 		a:Show()
 	end
+	self:UpdateTabVisibility()
 end
 
 function LootDisplayFrameMixin:HideTestArea()
@@ -450,6 +491,7 @@ function LootDisplayFrameMixin:HideTestArea()
 	for i, a in ipairs(self.arrows) do
 		a:Hide()
 	end
+	self:UpdateTabVisibility()
 end
 
 function LootDisplayFrameMixin:MakeUnmovable()
@@ -740,19 +782,22 @@ function LootDisplayFrameMixin:UpdateRowPositions()
 end
 
 function LootDisplayFrameMixin:CreateHistoryFrame()
-	self.historyFrame = CreateFrame("ScrollFrame", "LootHistoryFrame", UIParent, "UIPanelScrollFrameTemplate")
+	self.historyFrame = CreateFrame("ScrollFrame", nil, self, "UIPanelScrollFrameTemplate")
 	self.historyFrame:SetSize(self:GetSize())
 	self.historyFrame:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
-	self.historyFrame.title = self.historyFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-	self.historyFrame.title:SetPoint("BOTTOMLEFT", self.historyFrame, "TOPLEFT", 0, 0)
+	if not self.historyTitle then
+		self.historyTitle = UIParent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	end
+	self.historyTitle:ClearAllPoints()
+	self.historyTitle:SetPoint("BOTTOMLEFT", self.historyFrame, "TOPLEFT", 0, 0)
 	local frameName = G_RLF.db.global.frames[self.frameType] and G_RLF.db.global.frames[self.frameType].name or ""
 	local titleText = G_RLF.L["Loot History"] --[[@as string]]
 	if frameName ~= "" then
 		titleText = frameName .. " " .. titleText
 	end
-	self.historyFrame.title:SetText(titleText)
+	self.historyTitle:SetText(titleText)
 
-	self.historyContent = CreateFrame("Frame", "LootHistoryFrameContent", self.historyFrame)
+	self.historyContent = CreateFrame("Frame", nil, self.historyFrame)
 	self.historyContent:SetSize(self:GetSize())
 	self.historyFrame:SetScrollChild(self.historyContent)
 
@@ -770,6 +815,8 @@ function LootDisplayFrameMixin:CreateHistoryFrame()
 	self.historyFrame:SetScript("OnVerticalScroll", function(_, offset)
 		self:UpdateHistoryFrame(offset)
 	end)
+
+	self:UpdateOverlayFrameDepth()
 end
 
 function LootDisplayFrameMixin:UpdateHistoryFrame(offset)
@@ -808,12 +855,18 @@ function LootDisplayFrameMixin:ShowHistoryFrame()
 	end
 	self:UpdateHistoryFrame()
 	self.historyFrame:Show()
+	if self.historyTitle then
+		self.historyTitle:Show()
+	end
 end
 
 function LootDisplayFrameMixin:HideHistoryFrame()
 	if self.historyFrame then
 		self.historyFrame:Hide()
 		self.historyFrame:SetVerticalScroll(0)
+	end
+	if self.historyTitle then
+		self.historyTitle:Hide()
 	end
 end
 

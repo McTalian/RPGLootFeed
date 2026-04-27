@@ -25,6 +25,7 @@ function Styling:SetGrowUp(_, value)
 	G_RLF.DbAccessor:Styling(self.frameId).growUp = value
 	G_RLF.LootDisplay:UpdateRowPositions(self.frameId)
 	G_RLF.LootDisplay:ReInitQueueLabel(self.frameId)
+	G_RLF.LootDisplay:UpdateTabAppearance(self.frameId)
 end
 
 function Styling:GetBackgroundType()

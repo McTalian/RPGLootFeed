@@ -20,6 +20,10 @@ G_RLF.defaults.global.lootHistory = {
 	enabled = true,
 	hideTab = false,
 	historyLimit = 100,
+	tabSize = 14,
+	tabFreePosition = false,
+	tabXOffset = 0,
+	tabYOffset = 0,
 }
 ---@class RLF_ConfigTooltips
 G_RLF.defaults.global.tooltips = {
