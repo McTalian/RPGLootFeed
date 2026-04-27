@@ -1109,6 +1109,32 @@ function G_RLF.BuildItemLootArgs(frameId, order)
 							},
 						},
 					},
+					itemDenyList = {
+						type = "group",
+						name = G_RLF.L["Item Loot Deny List"],
+						inline = true,
+						order = 6,
+						args = {
+							ignoreItemIds = {
+								type = "input",
+								name = G_RLF.L["Ignore Item IDs"],
+								desc = G_RLF.L["IgnoreItemIDsItemLootDesc"],
+								multiline = true,
+								width = "double",
+								get = function()
+									return table.concat(fc().ignoreItemIds, ", ")
+								end,
+								set = function(_, value)
+									local ids = {}
+									for id in value:gmatch("%d+") do
+										table.insert(ids, tonumber(id))
+									end
+									fc().ignoreItemIds = ids
+								end,
+								order = 1,
+							},
+						},
+					},
 				},
 			},
 		},

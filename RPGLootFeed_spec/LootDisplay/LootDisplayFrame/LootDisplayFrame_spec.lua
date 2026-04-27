@@ -25,6 +25,7 @@ describe("LootDisplayFrameMixin", function()
 			assert.is_not_nil(_G.LootDisplayFrameMixin.ReleaseRow)
 			assert.is_not_nil(_G.LootDisplayFrameMixin.UpdateSize)
 			assert.is_not_nil(_G.LootDisplayFrameMixin.IsFeatureEnabled)
+			assert.is_not_nil(_G.LootDisplayFrameMixin.PassesPerFrameFilters)
 		end)
 	end)
 
@@ -551,6 +552,171 @@ describe("LootDisplayFrameMixin", function()
 			}
 			local element = { type = ns.FeatureModule.ItemLoot }
 			assert.is_false(frame:IsFeatureEnabled(element))
+		end)
+	end)
+
+	-- ── PassesPerFrameFilters ───────────────────────────────────────────────────
+
+	describe("PassesPerFrameFilters", function()
+		before_each(function()
+			frame.frameType = ns.Frames.MAIN
+		end)
+
+		it("returns true for non-feature element types", function()
+			local element = { type = "Notifications", filterItemQuality = nil }
+			assert.is_true(frame:PassesPerFrameFilters(element))
+		end)
+
+		it("returns true when frame has no config", function()
+			ns.db.global.frames[ns.Frames.MAIN] = nil
+			local element = { type = ns.FeatureModule.ItemLoot, filterItemQuality = 2 }
+			assert.is_true(frame:PassesPerFrameFilters(element))
+		end)
+
+		describe("ItemLoot quality filter", function()
+			it("returns true when quality tier is enabled", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						itemLoot = {
+							enabled = true,
+							itemQualitySettings = { [2] = { enabled = true, duration = 0 } },
+						},
+					},
+				}
+				local element = { type = ns.FeatureModule.ItemLoot, filterItemQuality = 2 }
+				assert.is_true(frame:PassesPerFrameFilters(element))
+			end)
+
+			it("returns false when quality tier is disabled", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						itemLoot = {
+							enabled = true,
+							itemQualitySettings = { [2] = { enabled = false, duration = 0 } },
+						},
+					},
+				}
+				local element = { type = ns.FeatureModule.ItemLoot, filterItemQuality = 2 }
+				assert.is_false(frame:PassesPerFrameFilters(element))
+			end)
+
+			it("returns false when quality tier is absent from settings", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						itemLoot = { enabled = true, itemQualitySettings = {} },
+					},
+				}
+				local element = { type = ns.FeatureModule.ItemLoot, filterItemQuality = 2 }
+				assert.is_false(frame:PassesPerFrameFilters(element))
+			end)
+		end)
+
+		describe("PartyLoot quality filter", function()
+			it("returns true when quality is in itemQualityFilter", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						partyLoot = { enabled = true, itemQualityFilter = { [4] = true } },
+					},
+				}
+				local element = { type = ns.FeatureModule.PartyLoot, filterItemQuality = 4 }
+				assert.is_true(frame:PassesPerFrameFilters(element))
+			end)
+
+			it("returns false when quality is not in itemQualityFilter", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						partyLoot = { enabled = true, itemQualityFilter = { [4] = true } },
+					},
+				}
+				local element = { type = ns.FeatureModule.PartyLoot, filterItemQuality = 2 }
+				assert.is_false(frame:PassesPerFrameFilters(element))
+			end)
+		end)
+
+		describe("item ID deny list", function()
+			it("returns true when ignoreItemIds is empty", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						itemLoot = {
+							enabled = true,
+							itemQualitySettings = { [2] = { enabled = true } },
+							ignoreItemIds = {},
+						},
+					},
+				}
+				local element = {
+					type = ns.FeatureModule.ItemLoot,
+					filterItemQuality = 2,
+					filterItemId = 18803,
+				}
+				assert.is_true(frame:PassesPerFrameFilters(element))
+			end)
+
+			it("returns false when item ID is in the deny list", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						itemLoot = {
+							enabled = true,
+							itemQualitySettings = { [2] = { enabled = true } },
+							ignoreItemIds = { 18803 },
+						},
+					},
+				}
+				local element = {
+					type = ns.FeatureModule.ItemLoot,
+					filterItemQuality = 2,
+					filterItemId = 18803,
+				}
+				assert.is_false(frame:PassesPerFrameFilters(element))
+			end)
+		end)
+
+		describe("currency ID deny list", function()
+			it("returns true when ignoreCurrencyIds is empty", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						currency = { enabled = true, ignoreCurrencyIds = {} },
+					},
+				}
+				local element = { type = ns.FeatureModule.Currency, filterCurrencyId = 1792 }
+				assert.is_true(frame:PassesPerFrameFilters(element))
+			end)
+
+			it("returns false when currency ID is in the deny list", function()
+				ns.db.global.frames[ns.Frames.MAIN] = {
+					features = {
+						currency = { enabled = true, ignoreCurrencyIds = { 1792 } },
+					},
+				}
+				local element = { type = ns.FeatureModule.Currency, filterCurrencyId = 1792 }
+				assert.is_false(frame:PassesPerFrameFilters(element))
+			end)
+		end)
+
+		it("frame 1 and frame 2 can have independent quality settings", function()
+			ns.db.global.frames[ns.Frames.MAIN] = {
+				features = {
+					itemLoot = {
+						enabled = true,
+						itemQualitySettings = { [2] = { enabled = false } },
+					},
+				},
+			}
+			ns.db.global.frames[2] = {
+				features = {
+					itemLoot = {
+						enabled = true,
+						itemQualitySettings = { [2] = { enabled = true } },
+					},
+				},
+			}
+			local element = { type = ns.FeatureModule.ItemLoot, filterItemQuality = 2 }
+
+			frame.frameType = ns.Frames.MAIN
+			assert.is_false(frame:PassesPerFrameFilters(element))
+
+			frame.frameType = 2
+			assert.is_true(frame:PassesPerFrameFilters(element))
 		end)
 	end)
 

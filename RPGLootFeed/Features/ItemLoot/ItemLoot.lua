@@ -135,20 +135,11 @@ end
 ---@param fromLink? string
 ---@return RLF_ElementPayload|nil
 function ItemLoot:BuildPayload(info, quantity, fromLink)
-	-- Quality filter: return nil when the item's quality tier is disabled
+	-- Quality filter and deny list have moved to LootDisplayFrame:PassesPerFrameFilters
+	-- so they are evaluated per-frame rather than against a single "any" config.
 	local itemConfig = G_RLF.DbAccessor:AnyFeatureConfig("itemLoot") or {}
-	local itemQualitySettings = (itemConfig.itemQualitySettings or {})[info.itemQuality]
-	if not itemQualitySettings or not itemQualitySettings.enabled then
-		LogDebug(
-			tostring(info.itemName) .. " ignored by quality: " .. tostring(ItemLoot:ItemQualityName(info.itemQuality)),
-			addonName,
-			"ItemLoot",
-			"",
-			nil,
-			quantity
-		)
-		return nil
-	end
+	-- Quality duration overrides are resolved per-frame in LootDisplayRow:BootstrapFromElement
+	-- using the frame's own itemQualitySettings, not a single shared config.
 
 	local itemLink = info.itemLink
 	local key = itemLink
@@ -164,11 +155,6 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 	local icon = info.itemTexture
 	if not itemConfig.enableIcon or G_RLF.db.global.misc.hideAllIcons then
 		icon = nil
-	end
-
-	local showForSeconds = nil
-	if itemQualitySettings.duration > 0 then
-		showForSeconds = itemQualitySettings.duration
 	end
 
 	-- Keystone: force display quality to Epic
@@ -240,13 +226,15 @@ function ItemLoot:BuildPayload(info, quantity, fromLink)
 		topLeftColor = topLeftColor,
 		isLink = true,
 		quantity = quantity,
-		showForSeconds = showForSeconds,
 		highlight = highlight,
 		sound = soundPath,
 		r = r,
 		g = g,
 		b = b,
 		a = a,
+		-- Filter metadata evaluated per-frame by LootDisplayFrame:PassesPerFrameFilters
+		filterItemId = info.itemId,
+		filterItemQuality = info.itemQuality,
 		IsEnabled = function()
 			return ItemLoot:IsEnabled()
 		end,

@@ -17,10 +17,15 @@ end
 --#region 1.33.0
 -- L["Background Override"] = "Background Override"
 -- L["BackgroundOverrideDesc"] = "Override row background colors for this loot feed type while using the frame's selected background mode."
+-- L["Currency Deny List"] = "Currency Deny List"
 -- L["Enable Background Color Override"] = "Enable Background Color Override"
 -- L["EnableBackgroundColorOverrideDesc"] = "If enabled, rows from this loot feed use the override colors below instead of the frame's global background colors."
 -- L["Free Position Loot History Tab"] = "Free Position Loot History Tab"
 -- L["FreePositionLootHistoryTabDesc"] = "Detach the loot history tab from the feed corner and position it anywhere on screen using the X and Y offsets."
+-- L["Ignore Currency IDs"] = "Ignore Currency IDs"
+-- L["IgnoreCurrencyIDsDesc"] = "Enter a comma-separated list of currency IDs to ignore in the Currency Feed"
+-- L["IgnoreItemIDsItemLootDesc"] = "Enter a comma-separated list of item IDs to ignore in the Item Loot Feed"
+-- L["Item Loot Deny List"] = "Item Loot Deny List"
 -- L["Loot History Tab Size"] = "Loot History Tab Size"
 -- L["Loot History Tab X Offset"] = "Loot History Tab X Offset"
 -- L["Loot History Tab Y Offset"] = "Loot History Tab Y Offset"
@@ -211,6 +216,8 @@ L["ShowMoneyIconDesc"] = "如果勾选，在拾取信息流中的金钱数额旁
 --#endregion
 
 --#region 1.0.0 - 1.22.0
+-- L["Ignore Item IDs"] = "Ignore Item IDs"
+-- L["IgnoreItemIDsDesc"] = "Enter a comma-separated list of item IDs to ignore in the Party Loot Feed"
 L["Abbreviate Total"] = "缩写总计"
 L["AbbreviateTotalDesc"] = "缩写拾取通报中的金币总额 (金币超过1000时)"
 L["About"] = "关于"
@@ -391,8 +398,6 @@ L["Hover Animation"] = "悬停动画"
 L["HoverAlphaDesc"] = "鼠标悬停时行高亮的透明度。"
 L["HoverAnimationDesc"] = "自定义鼠标悬停在拾取通报某行上时的动画。"
 L["IconSizeDesc"] = "拾取通报中每个物品“行”内图标的大小"
-L["Ignore Item IDs"] = "忽略物品ID"
-L["IgnoreItemIDsDesc"] = "输入以逗号分隔的物品ID列表，以在队伍拾取通报中忽略这些物品"
 L["Issues"] = "请在此报告问题 @ github: McTalian-WoW-Addons/RPGLootFeed"
 L["IssuesAndRequests"] = "您也可以在 GitHub 问题页面报告任何问题或功能请求。"
 L["Item Count Text"] = "物品数量文字"

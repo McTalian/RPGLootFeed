@@ -503,6 +503,135 @@ describe("LootDisplayRowMixin", function()
 				assert.equal(5, row.showForSeconds)
 			end)
 
+			it("does not override showForSeconds when filterItemQuality has no frame config", function()
+				local captures
+				row, captures = buildRow()
+				row.showForSeconds = 5
+				-- frameType [1] has no itemQualitySettings in its itemLoot config
+				ns.db.global.frames[1].features.itemLoot = { enabled = true }
+
+				local element = {
+					key = "ITEM_789",
+					textFn = function()
+						return "Rare Item"
+					end,
+					quantity = 1,
+					quality = 3,
+					r = 0,
+					g = 0.44,
+					b = 0.87,
+					a = 1,
+					highlight = false,
+					filterItemQuality = 3,
+				}
+				row.frameType = ns.Frames.MAIN
+
+				row:BootstrapFromElement(element)
+
+				assert.is_falsy(row.hasElementFadeOverride)
+				assert.equal(5, row.showForSeconds)
+			end)
+
+			it("applies per-frame quality duration override when duration > 0", function()
+				local captures
+				row, captures = buildRow()
+				row.showForSeconds = 5
+				ns.db.global.frames[1].features.itemLoot = {
+					enabled = true,
+					itemQualitySettings = {
+						[4] = { enabled = true, duration = 12 },
+					},
+				}
+
+				local element = {
+					key = "ITEM_EPIC",
+					textFn = function()
+						return "Epic Item"
+					end,
+					quantity = 1,
+					quality = 4,
+					r = 0.64,
+					g = 0.21,
+					b = 0.93,
+					a = 1,
+					highlight = false,
+					filterItemQuality = 4,
+				}
+				row.frameType = ns.Frames.MAIN
+
+				row:BootstrapFromElement(element)
+
+				assert.is_true(row.hasElementFadeOverride)
+				assert.equal(12, row.showForSeconds)
+			end)
+
+			it("does not override showForSeconds when frame quality duration is 0", function()
+				local captures
+				row, captures = buildRow()
+				row.showForSeconds = 5
+				ns.db.global.frames[1].features.itemLoot = {
+					enabled = true,
+					itemQualitySettings = {
+						[2] = { enabled = true, duration = 0 },
+					},
+				}
+
+				local element = {
+					key = "ITEM_UNCOMMON",
+					textFn = function()
+						return "Uncommon Item"
+					end,
+					quantity = 1,
+					quality = 2,
+					r = 0.12,
+					g = 1,
+					b = 0,
+					a = 1,
+					highlight = false,
+					filterItemQuality = 2,
+				}
+				row.frameType = ns.Frames.MAIN
+
+				row:BootstrapFromElement(element)
+
+				assert.is_falsy(row.hasElementFadeOverride)
+				assert.equal(5, row.showForSeconds)
+			end)
+
+			it("element.showForSeconds takes priority over frame quality duration", function()
+				local captures
+				row, captures = buildRow()
+				row.showForSeconds = 5
+				ns.db.global.frames[1].features.itemLoot = {
+					enabled = true,
+					itemQualitySettings = {
+						[5] = { enabled = true, duration = 30 },
+					},
+				}
+
+				local element = {
+					key = "ITEM_LEGENDARY",
+					textFn = function()
+						return "Legendary Item"
+					end,
+					quantity = 1,
+					quality = 5,
+					r = 1,
+					g = 0.5,
+					b = 0,
+					a = 1,
+					highlight = false,
+					filterItemQuality = 5,
+					showForSeconds = 99,
+				}
+				row.frameType = ns.Frames.MAIN
+
+				row:BootstrapFromElement(element)
+
+				assert.is_true(row.hasElementFadeOverride)
+				assert.equal(99, row.showForSeconds)
+			end)
+
 			it("preserves per-element showForSeconds when UpdateFadeoutDelay is called", function()
 				row = buildRow()
 				-- Load the animation mixin so UpdateFadeoutDelay is available

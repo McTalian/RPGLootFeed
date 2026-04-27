@@ -29,6 +29,10 @@ describe("LootDisplay module", function()
 			IsFeatureEnabled = function(self, element)
 				return LootDisplayFrameMixin.IsFeatureEnabled(self, element)
 			end,
+			-- Per-frame filter check (quality tiers, deny lists)
+			PassesPerFrameFilters = function(self, element)
+				return LootDisplayFrameMixin.PassesPerFrameFilters(self, element)
+			end,
 		}
 		return frame, row
 	end
@@ -411,6 +415,9 @@ describe("LootDisplay module", function()
 				UpdateQueueLabel = spy.new(function() end),
 				IsFeatureEnabled = function(self, element)
 					return LootDisplayFrameMixin.IsFeatureEnabled(self, element)
+				end,
+				PassesPerFrameFilters = function(self, element)
+					return LootDisplayFrameMixin.PassesPerFrameFilters(self, element)
 				end,
 			}
 			return frame

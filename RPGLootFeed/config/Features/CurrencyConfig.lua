@@ -129,6 +129,32 @@ function G_RLF.BuildCurrencyArgs(frameId, order)
 							},
 						},
 					},
+					currencyDenyList = {
+						type = "group",
+						name = G_RLF.L["Currency Deny List"],
+						inline = true,
+						order = 3,
+						args = {
+							ignoreCurrencyIds = {
+								type = "input",
+								name = G_RLF.L["Ignore Currency IDs"],
+								desc = G_RLF.L["IgnoreCurrencyIDsDesc"],
+								multiline = true,
+								width = "double",
+								get = function()
+									return table.concat(fc().ignoreCurrencyIds, ", ")
+								end,
+								set = function(_, value)
+									local ids = {}
+									for id in value:gmatch("%d+") do
+										table.insert(ids, tonumber(id))
+									end
+									fc().ignoreCurrencyIds = ids
+								end,
+								order = 1,
+							},
+						},
+					},
 				},
 			},
 		},

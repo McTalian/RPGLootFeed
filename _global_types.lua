@@ -29,6 +29,7 @@
 ---@field auctionHouseIconTexture string
 ---@field sounds table
 ---@field textStyleOverrides table
+---@field ignoreItemIds table
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_PartyLoot : RLF_FeatureConfig
@@ -51,6 +52,7 @@
 ---@field lowestColor number[]
 ---@field midColor number[]
 ---@field upperColor number[]
+---@field ignoreCurrencyIds table
 ---@field enableIcon boolean
 
 ---@class RLF_FeatureConfig_Money : RLF_FeatureConfig
