@@ -243,7 +243,19 @@ function LootDisplay:UpdateStrata(frame)
 	if lootFrames[frame] then
 		local positioningDb = G_RLF.DbAccessor:Positioning(frame)
 		lootFrames[frame]:SetFrameStrata(positioningDb.frameStrata)
+		lootFrames[frame]:UpdateOverlayFrameDepth()
 	end
+end
+
+--- Update loot history tab appearance for the frame.
+--- @param frame? G_RLF.Frames
+function LootDisplay:UpdateTabAppearance(frame)
+	frame = frame or G_RLF.Frames.MAIN
+	if lootFrames[frame] == nil then
+		return
+	end
+
+	lootFrames[frame]:UpdateTabAppearance()
 end
 
 --- Update the size of the frame

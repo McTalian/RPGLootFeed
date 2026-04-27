@@ -16,6 +16,14 @@ L["Background Override"] = "Background Override"
 L["BackgroundOverrideDesc"] = "Override row background colors for this loot feed type while using the frame's selected background mode."
 L["Enable Background Color Override"] = "Enable Background Color Override"
 L["EnableBackgroundColorOverrideDesc"] = "If enabled, rows from this loot feed use the override colors below instead of the frame's global background colors."
+L["Free Position Loot History Tab"] = "Free Position Loot History Tab"
+L["FreePositionLootHistoryTabDesc"] = "Detach the loot history tab from the feed corner and position it anywhere on screen using the X and Y offsets."
+L["Loot History Tab Size"] = "Loot History Tab Size"
+L["Loot History Tab X Offset"] = "Loot History Tab X Offset"
+L["Loot History Tab Y Offset"] = "Loot History Tab Y Offset"
+L["LootHistoryTabSizeDesc"] = "Set the size of the loot history tab button in pixels."
+L["LootHistoryTabXOffsetDesc"] = "Adjust the tab's horizontal position. In free-position mode, this is an absolute offset from screen center."
+L["LootHistoryTabYOffsetDesc"] = "Adjust the tab's vertical position. In free-position mode, this is an absolute offset from screen center."
 --#endregion
 
 --#region 1.32.0
