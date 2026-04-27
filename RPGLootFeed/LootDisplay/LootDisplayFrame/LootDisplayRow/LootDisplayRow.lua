@@ -42,6 +42,15 @@ local G_RLF = ns
 ---@field ExitAnimation RLF_RowExitAnimationGroup
 LootDisplayRowMixin = {}
 
+local function enqueuePendingElement(self, element)
+	if not self.pendingElements then
+		self.pendingElements = {}
+	end
+	table.insert(self.pendingElements, element)
+	self.pendingElement = self.pendingElements[1]
+	self.updatePending = true
+end
+
 local defaultColor = { 1, 1, 1, 1 }
 function LootDisplayRowMixin:Init()
 	self.waiting = false
@@ -49,6 +58,7 @@ function LootDisplayRowMixin:Init()
 		self.waiting = true
 	end
 	self.updatePending = false
+	self.pendingElements = nil
 	self.pendingElement = nil
 	self.quality = nil
 
@@ -119,6 +129,7 @@ function LootDisplayRowMixin:Reset()
 	self.hasElementFadeOverride = false
 	self.sampleTooltipText = nil
 	self.pendingElement = nil
+	self.pendingElements = nil
 	self.updatePending = false
 	self.waiting = false
 	self.isCustomLink = false
@@ -405,21 +416,30 @@ function LootDisplayRowMixin:UpdateStyles()
 end
 
 function LootDisplayRowMixin:UpdateQuantity(element)
-	self.updatePending = false
-	if self.amount == nil then
-		self.updatePending = true
-	elseif self.PrimaryText:GetAlpha() < 1 then
-		self.updatePending = true
-	elseif self.EnterAnimation and self.EnterAnimation:IsPlaying() then
-		self.updatePending = true
-	elseif self.ElementFadeInAnimation and self.ElementFadeInAnimation:IsPlaying() then
-		self.updatePending = true
+	local isProcessingPendingHead = self.pendingElements and self.pendingElements[1] == element
+	if isProcessingPendingHead then
+		table.remove(self.pendingElements, 1)
+		self.pendingElement = self.pendingElements[1]
+		self.updatePending = self.pendingElement ~= nil
 	end
-	if self.updatePending then
-		self.pendingElement = element
+
+	local shouldDefer = false
+	if self.amount == nil then
+		shouldDefer = true
+	elseif self.updatePending and not isProcessingPendingHead then
+		shouldDefer = true
+	elseif self.PrimaryText:GetAlpha() < 1 then
+		shouldDefer = true
+	elseif self.EnterAnimation and self.EnterAnimation:IsPlaying() then
+		shouldDefer = true
+	elseif self.ElementFadeInAnimation and self.ElementFadeInAnimation:IsPlaying() then
+		shouldDefer = true
+	end
+	if shouldDefer then
+		enqueuePendingElement(self, element)
 		return
 	end
-	self.pendingElement = nil
+
 	self.logFn = element.logFn
 	-- Update existing entry
 	local oldAmount = self.amount
@@ -491,6 +511,10 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	end
 
 	self:LogRow(self.logFn, text, false)
+
+	if self.pendingElement ~= nil then
+		self:UpdateQuantity(self.pendingElement)
+	end
 end
 
 function LootDisplayRowMixin:UpdatePosition(frame)
