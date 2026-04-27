@@ -50,6 +50,14 @@ function G_RLF.BuildTravelPointsArgs(frameId, order)
 					return not fc().enabled
 				end,
 				args = {
+					backgroundOverride = G_RLF.ConfigCommon.CreateFeatureBackgroundOverrideGroup({
+						frameId = frameId,
+						featureKey = "travelPoints",
+						order = 0.75,
+						isFeatureEnabled = function()
+							return fc().enabled
+						end,
+					}),
 					showIcon = {
 						type = "toggle",
 						name = G_RLF.L["Show Travel Point Icon"],

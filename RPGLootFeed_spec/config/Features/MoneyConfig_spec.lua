@@ -11,6 +11,7 @@ describe("MoneyConfig module", function()
 		-- Define the global namespace
 		-- MoneyConfig comes after CurrencyConfig in features.xml
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.ConfigFeatureCurrency)
+		assert(loadfile("RPGLootFeed/config/common/common.lua"))("TestAddon", ns)
 		-- Load the MoneyConfig module
 		assert(loadfile("RPGLootFeed/config/Features/MoneyConfig.lua"))("TestAddon", ns)
 	end)

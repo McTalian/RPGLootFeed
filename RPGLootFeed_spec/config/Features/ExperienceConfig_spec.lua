@@ -11,6 +11,7 @@ describe("ExperienceConfig module", function()
 		-- Define the global namespace
 		-- ExperienceConfig comes after MoneyConfig in features.xml
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.ConfigFeatureMoney)
+		assert(loadfile("RPGLootFeed/config/common/common.lua"))("TestAddon", ns)
 		-- Load the ExperienceConfig module
 		assert(loadfile("RPGLootFeed/config/Features/ExperienceConfig.lua"))("TestAddon", ns)
 	end)

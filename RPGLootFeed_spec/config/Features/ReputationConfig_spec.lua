@@ -11,6 +11,7 @@ describe("ReputationConfig module", function()
 		-- Define the global namespace
 		-- ReputationConfig comes after ExperienceConfig in features.xml
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.ConfigFeatureXP)
+		assert(loadfile("RPGLootFeed/config/common/common.lua"))("TestAddon", ns)
 		-- Load the ReputationConfig module
 		assert(loadfile("RPGLootFeed/config/Features/ReputationConfig.lua"))("TestAddon", ns)
 	end)

@@ -11,6 +11,7 @@ describe("TravelPointsConfig module", function()
 		-- Define the global namespace
 		-- TravelPointsConfig comes after ProfessionConfig in features.xml
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.ConfigFeatureSkills)
+		assert(loadfile("RPGLootFeed/config/common/common.lua"))("TestAddon", ns)
 		-- Load the TravelPointsConfig module
 		assert(loadfile("RPGLootFeed/config/Features/TravelPointsConfig.lua"))("TestAddon", ns)
 	end)

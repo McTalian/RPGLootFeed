@@ -47,6 +47,14 @@ function G_RLF.BuildPartyLootArgs(frameId, order)
 				end,
 				order = 2,
 				args = {
+					backgroundOverride = G_RLF.ConfigCommon.CreateFeatureBackgroundOverrideGroup({
+						frameId = frameId,
+						featureKey = "partyLoot",
+						order = 0.75,
+						isFeatureEnabled = function()
+							return fc().enabled
+						end,
+					}),
 					showIcon = {
 						type = "toggle",
 						name = G_RLF.L["Show Item Icon"],

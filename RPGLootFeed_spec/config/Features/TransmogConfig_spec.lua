@@ -11,6 +11,7 @@ describe("TransmogConfig module", function()
 		-- Define the global namespace
 		-- TransmogConfig comes after TravelPointsConfig in features.xml
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.ConfigFeatureTravelPoints)
+		assert(loadfile("RPGLootFeed/config/common/common.lua"))("TestAddon", ns)
 		-- Load the TransmogConfig module
 		assert(loadfile("RPGLootFeed/config/Features/TransmogConfig.lua"))("TestAddon", ns)
 	end)

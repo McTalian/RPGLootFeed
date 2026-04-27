@@ -11,6 +11,7 @@ describe("ProfessionConfig module", function()
 		-- Define the global namespace
 		-- ProfessionConfig comes after ReputationConfig in features.xml
 		ns = nsMocks:unitLoadedAfter(nsMocks.LoadSections.ConfigFeatureRep)
+		assert(loadfile("RPGLootFeed/config/common/common.lua"))("TestAddon", ns)
 		-- Load the ProfessionConfig module
 		assert(loadfile("RPGLootFeed/config/Features/ProfessionConfig.lua"))("TestAddon", ns)
 	end)

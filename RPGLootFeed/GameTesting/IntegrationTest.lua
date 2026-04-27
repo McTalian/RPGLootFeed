@@ -53,6 +53,82 @@ local function runMoneyIntegrationTest()
 	return 1
 end
 
+--- Verifies that money rows resolve and cache per-feature background override
+--- colors for both gradient and textured background modes.
+--- @return integer rowsShown
+--- @return fun() verify
+--- @return fun() cleanup
+local function runMoneyBackgroundOverrideIntegrationTest()
+	local mainFrame = G_RLF.LootDisplay:GetFrame(G_RLF.Frames.MAIN)
+	local noop = function() end
+	if not mainFrame then
+		return 0, noop, noop
+	end
+
+	local stylingDb = G_RLF.DbAccessor:Styling(G_RLF.Frames.MAIN)
+	local moneyCfg = G_RLF.DbAccessor:Feature(G_RLF.Frames.MAIN, "money")
+	if not moneyCfg or not moneyCfg.backgroundOverride then
+		return 0, noop, noop
+	end
+
+	local oldBackgroundType = stylingDb.rowBackgroundType
+	local oldEnabled = moneyCfg.backgroundOverride.enabled
+	local oldGradientStart = moneyCfg.backgroundOverride.gradientStart
+	local oldGradientEnd = moneyCfg.backgroundOverride.gradientEnd
+	local oldTextureColor = moneyCfg.backgroundOverride.textureColor
+
+	local gradientStart = { 0.91, 0.12, 0.20, 0.77 }
+	local gradientEnd = { 0.20, 0.10, 0.81, 0.25 }
+	local textureColor = { 0.14, 0.68, 0.33, 0.59 }
+
+	stylingDb.rowBackgroundType = G_RLF.RowBackground.GRADIENT
+	moneyCfg.backgroundOverride.enabled = true
+	moneyCfg.backgroundOverride.gradientStart = gradientStart
+	moneyCfg.backgroundOverride.gradientEnd = gradientEnd
+	moneyCfg.backgroundOverride.textureColor = textureColor
+
+	local rowsShown = runMoneyIntegrationTest()
+
+	local verify = function()
+		local row = mainFrame.keyRowMap["MONEY_LOOT"]
+		runner:assertEqual(row ~= nil, true, "LootDisplay: Money row exists for background override test")
+		if not row then
+			return
+		end
+
+		runner:assertEqual(row.cachedBackgroundFeatureKey, "money", "LootDisplay: Gradient uses money feature override")
+		runner:assertEqual(
+			row.cachedGradientStart and row.cachedGradientStart[1],
+			gradientStart[1],
+			"LootDisplay: Gradient start override applied"
+		)
+		runner:assertEqual(
+			row.cachedGradientEnd and row.cachedGradientEnd[1],
+			gradientEnd[1],
+			"LootDisplay: Gradient end override applied"
+		)
+
+		stylingDb.rowBackgroundType = G_RLF.RowBackground.TEXTURED
+		row:StyleBackground()
+		row:StyleRowBackdrop()
+		runner:assertEqual(row.cachedBackdropFeatureKey, "money", "LootDisplay: Textured uses money feature override")
+		runner:assertEqual(row.cachedBackdropColorR, textureColor[1], "LootDisplay: Texture override R applied")
+		runner:assertEqual(row.cachedBackdropColorG, textureColor[2], "LootDisplay: Texture override G applied")
+		runner:assertEqual(row.cachedBackdropColorB, textureColor[3], "LootDisplay: Texture override B applied")
+		runner:assertEqual(row.cachedBackdropColorA, textureColor[4], "LootDisplay: Texture override A applied")
+	end
+
+	local cleanup = function()
+		stylingDb.rowBackgroundType = oldBackgroundType
+		moneyCfg.backgroundOverride.enabled = oldEnabled
+		moneyCfg.backgroundOverride.gradientStart = oldGradientStart
+		moneyCfg.backgroundOverride.gradientEnd = oldGradientEnd
+		moneyCfg.backgroundOverride.textureColor = oldTextureColor
+	end
+
+	return rowsShown, verify, cleanup
+end
+
 --- Verifies subscription-based routing using the existing second frame.
 --- Disables Money on Main, enables it on the second frame, fires one Money
 --- element, then asserts via _testAcceptCount that it only landed on the
@@ -377,6 +453,9 @@ function TestMode:IntegrationTest()
 	local newRowsExpected = 0
 	newRowsExpected = newRowsExpected + runExperienceIntegrationTest()
 	newRowsExpected = newRowsExpected + runMoneyIntegrationTest()
+	local backgroundRowsExpected, verifyBackgroundOverride, cleanupBackgroundOverride =
+		runMoneyBackgroundOverrideIntegrationTest()
+	newRowsExpected = newRowsExpected + backgroundRowsExpected
 	if G_RLF:IsRetail() then
 		newRowsExpected = newRowsExpected + runTravelPointsIntegrationTest()
 	end
@@ -410,7 +489,9 @@ function TestMode:IntegrationTest()
 			RunNextFrame(function()
 				RunNextFrame(function()
 					verifyRouting()
+					verifyBackgroundOverride()
 					cleanupRouting()
+					cleanupBackgroundOverride()
 
 					local totalAcceptAfter = 0
 					for id, before in pairs(frameSnapshots) do

@@ -13,6 +13,13 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.33.0
+-- L["Background Override"] = "Background Override"
+-- L["BackgroundOverrideDesc"] = "Override row background colors for this loot feed type while using the frame's selected background mode."
+-- L["Enable Background Color Override"] = "Enable Background Color Override"
+-- L["EnableBackgroundColorOverrideDesc"] = "If enabled, rows from this loot feed use the override colors below instead of the frame's global background colors."
+--#endregion
+
 --#region 1.32.0
 -- L["Disable Mouse Interactions In Combat"] = "Disable Mouse Interactions In Combat"
 -- L["DisableMouseInCombatDesc"] = "When enabled, the loot feed will not capture mouse events during combat, allowing camera rotation and other mouse interactions to pass through."
