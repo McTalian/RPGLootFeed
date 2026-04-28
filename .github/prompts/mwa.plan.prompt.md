@@ -8,6 +8,8 @@ tools:
     "vscode",
     "read",
     "agent",
+    "edit",
+    "execute",
     "search",
     "web",
     "vscode.mermaid-chat-features/renderMermaidDiagram",
