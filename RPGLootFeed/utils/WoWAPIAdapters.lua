@@ -312,4 +312,39 @@ G_RLF.WoWAPI.PartyLoot = {
 	end,
 }
 
+-- ── LootRolls API Adapter ─────────────────────────────────────────────────────
+-- Wraps C_LootHistory (Retail only), RAID_CLASS_COLORS, and Item:CreateFromItemLink
+-- for the LootRolls feature module.  HasLootHistory() guards all callers so the
+-- module degrades gracefully on Classic clients where this API is absent.
+---@class RLF_WoWAPI_LootRolls
+G_RLF.WoWAPI.LootRolls = {
+	HasLootHistory = function()
+		return C_LootHistory ~= nil
+	end,
+	GetSortedInfoForDrop = function(encounterID, lootListID)
+		return C_LootHistory.GetSortedInfoForDrop(encounterID, lootListID)
+	end,
+	GetInfoForEncounter = function(encounterID)
+		-- Returns EncounterLootInfo (encounterName, encounterID, startTime, duration) or nil.
+		if C_LootHistory and C_LootHistory.GetInfoForEncounter then
+			return C_LootHistory.GetInfoForEncounter(encounterID)
+		end
+		return nil
+	end,
+	GetRaidClassColor = function(className)
+		return RAID_CLASS_COLORS and RAID_CLASS_COLORS[className]
+	end,
+	GetItemInfoIcon = function(itemLink)
+		-- Returns the icon FileDataID (10th return value) or nil if not cached.
+		return select(10, C.Item.GetItemInfo(itemLink))
+	end,
+	GetItemInfoQuality = function(itemLink)
+		-- Returns the item quality (3rd return value) or nil if not cached.
+		return select(3, C.Item.GetItemInfo(itemLink))
+	end,
+	CreateItemFromItemLink = function(itemLink)
+		return Item:CreateFromItemLink(itemLink)
+	end,
+}
+
 return G_RLF.WoWAPI

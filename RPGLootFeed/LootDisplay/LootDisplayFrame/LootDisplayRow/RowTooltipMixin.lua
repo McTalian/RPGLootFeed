@@ -37,6 +37,10 @@ function RLF_RowTooltipMixin:SetupTooltip(isHistoryFrame)
 		end
 		GameTooltip:SetOwner(self.ClickableButton, "ANCHOR_RIGHT")
 		GameTooltip:SetHyperlink(self.link) -- Use the item's link to show the tooltip
+		-- Allow feature modules to append custom lines (e.g. roll breakdown).
+		if self.customTooltipFn then
+			self.customTooltipFn()
+		end
 		GameTooltip:Show()
 	end
 

@@ -135,6 +135,7 @@ function LootDisplayRowMixin:Reset()
 	self.waiting = false
 	self.isCustomLink = false
 	self.customBehavior = nil
+	self.customTooltipFn = nil
 	self.amountTextFn = nil
 	self.itemCountFn = nil
 	self.logFn = nil
@@ -323,6 +324,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self.elementSecondaryTextColor = element.secondaryTextColor or nil
 	self.isCustomLink = element.isCustomLink or false
 	self.customBehavior = element.customBehavior
+	self.customTooltipFn = element.customTooltipFn or nil
 	self.amountTextFn = element.amountTextFn
 	local text
 	-- Resolve the effective display duration for this element on this specific frame.
@@ -455,6 +457,26 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	end
 
 	self.logFn = element.logFn
+	-- Refresh state-machine fields on every update so feature modules can
+	-- reflect new state on an existing row without recreating it (e.g.
+	-- LootRolls cycling secondary text + tooltip across pending → resolved).
+	if element.secondaryText ~= nil then
+		self.elementSecondaryText = element.secondaryText
+	end
+	if element.secondaryTextColor ~= nil then
+		self.elementSecondaryTextColor = element.secondaryTextColor
+	end
+	if element.customTooltipFn ~= nil then
+		self.customTooltipFn = element.customTooltipFn
+	end
+	-- Refresh fade-out duration when the element provides a new override
+	-- (e.g. LootRolls anchors pending rows to Blizzard's roll-window expiry,
+	-- then hands resolved rows back to the configured default).
+	if element.showForSeconds ~= nil and element.showForSeconds ~= self.showForSeconds then
+		self.showForSeconds = element.showForSeconds
+		self.hasElementFadeOverride = true
+		self:StyleExitAnimation()
+	end
 	-- Update existing entry
 	local oldAmount = self.amount
 	local text = element.textFn(oldAmount, self.link)

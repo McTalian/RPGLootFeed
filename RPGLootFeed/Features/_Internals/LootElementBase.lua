@@ -216,6 +216,12 @@ function G_RLF.LootElementBase:fromPayload(payload)
 	element.filterItemQuality = payload.filterItemQuality
 	element.filterCurrencyId = payload.filterCurrencyId
 
+	-- ── Custom tooltip augmentation ──────────────────────────────────────────
+	-- Optional callback for feature modules that need extra GameTooltip lines
+	-- beyond the standard item/currency hyperlink (e.g. LootRolls roll data).
+	-- Called inside RowTooltipMixin:SetupTooltip after SetHyperlink, before Show.
+	element.customTooltipFn = payload.customTooltipFn or nil
+
 	-- ── Backwards compatibility: keep itemCount for modules not yet migrated ──
 	element.itemCount = payload.itemCount
 
@@ -250,6 +256,7 @@ end
 ---@field isCustomLink? boolean Custom tooltip behavior flag
 ---@field sampleTooltipText? string Label shown on row hover in the options preview (sample rows only)
 ---@field customBehavior? fun() Click handler for custom links
+---@field customTooltipFn? fun() Called after SetHyperlink to add extra GameTooltip lines (e.g. roll data)
 ---@field unit? string Unit token for portrait display
 ---@field filterItemId? number Item ID for per-frame deny list filtering (ItemLoot, PartyLoot)
 ---@field filterItemQuality? number Item quality for per-frame quality-tier filtering (ItemLoot, PartyLoot)

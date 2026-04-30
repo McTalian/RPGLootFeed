@@ -80,6 +80,7 @@ G_RLF.FeatureModule = {
 	Profession = "Professions",
 	TravelPoints = "TravelPoints",
 	Transmog = "Transmog",
+	LootRolls = "LootRolls",
 }
 
 ---@enum G_RLF.BlizzModule
@@ -153,6 +154,8 @@ G_RLF.DefaultIcons = {
 	PROFESSION = 133740,
 	TRAVELPOINTS = 4635200,
 	TRANSMOG = 3889767,
+	-- Dice / roll icon used as the default loot roll feed icon.
+	LOOTROLLS = 132319,
 }
 
 G_RLF.RowBackground = {

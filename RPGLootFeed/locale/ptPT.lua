@@ -15,6 +15,24 @@ end
 --- You may translate these comments, but do not translate "region" or "endregion" as they are used by the localization tool to determine where to place the translations.
 --- To add translations, simply uncomment the line(s) and replace the English text after the equal sign (=) with the translated value.
 
+--#region 1.35.0
+-- L["All Passed"] = "All Passed"
+-- L["Enable Loot Rolls in Feed"] = "Enable Loot Rolls in Feed"
+-- L["EnableLootRollsDesc"] = "Show completed group loot roll results in the feed. Displays the winner and roll value for each item. Retail only."
+-- L["Loot Rolls"] = "Loot Rolls"
+-- L["Loot Rolls Config"] = "Loot Rolls Config"
+-- L["Loot Rolls Options"] = "Loot Rolls Options"
+-- L["LootRolls_CurrentLeaderFmt"] = "Leading: %s rolled %d"
+-- L["LootRolls_TiedFmt"] = "Tied at %d"
+-- L["LootRolls_WaitingForRolls"] = "Waiting for rolls"
+-- L["LootRolls_WaitingOn"] = "Waiting on:"
+-- L["LootRolls_WinnerWithSelfFmt"] = "%s  |  You: rolled %d"
+-- L["LootRolls_WonByFmt"] = "Won by %s %s %d"
+-- L["LootRolls_WonByNoRollFmt"] = "Won by %s"
+-- L["Show Loot Roll Icon"] = "Show Loot Roll Icon"
+-- L["ShowLootRollIconDesc"] = "Show the item icon next to each loot roll result."
+--#endregion
+
 --#region 1.34.0
 -- L["Close History"] = "Close History"
 -- L["Double Scroll Required"] = "Double Scroll Required"

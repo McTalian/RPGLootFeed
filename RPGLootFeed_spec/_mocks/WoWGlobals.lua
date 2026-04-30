@@ -459,4 +459,6 @@ _G.CreateColor = function(r, g, b, a)
 end
 --#endregion
 
+_G.SECONDS_FLOAT = "%.1f |4Second:Seconds;"
+
 return wowGlobals
