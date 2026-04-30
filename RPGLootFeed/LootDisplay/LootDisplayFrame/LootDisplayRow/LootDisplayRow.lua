@@ -4,7 +4,7 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
----@class RLF_LootDisplayRow: BackdropTemplate, RLF_RowAnimationMixin, RLF_RowTooltipMixin, RLF_RowTextMixin, RLF_RowBackdropMixin, RLF_RowScriptedEffectsMixin, RLF_RowIconMixin, RLF_RowUnitPortraitMixin
+---@class RLF_LootDisplayRow: BackdropTemplate, RLF_RowAnimationMixin, RLF_RowTooltipMixin, RLF_RowTextMixin, RLF_RowBackdropMixin, RLF_RowScriptedEffectsMixin, RLF_RowIconMixin, RLF_RowUnitPortraitMixin, RLF_LootRollsButtonsMixin
 ---@field key string
 ---@field frameType G_RLF.Frames
 ---@field amount number
@@ -135,6 +135,7 @@ function LootDisplayRowMixin:Reset()
 	self.waiting = false
 	self.isCustomLink = false
 	self.customBehavior = nil
+	self.customTooltipFn = nil
 	self.amountTextFn = nil
 	self.itemCountFn = nil
 	self.logFn = nil
@@ -212,6 +213,8 @@ function LootDisplayRowMixin:Reset()
 	self.ClickableButton:SetScript("OnLeave", nil)
 	self.ClickableButton:SetScript("OnMouseUp", nil)
 	self.ClickableButton:SetScript("OnEvent", nil)
+
+	self:ResetButtons()
 end
 
 --- Enable or disable mouse interaction on this row and its interactive children.
@@ -255,15 +258,6 @@ end
 --- Phase 2's FLIP repositioning when nearby rows exit.
 --- @param frame RLF_LootDisplayFrame
 function LootDisplayRowMixin:PinPosition(frame)
-	G_RLF:LogDebug(
-		"[PIN] PinPosition: key="
-			.. tostring(self.key)
-			.. " isPinned="
-			.. tostring(self.isPinned)
-			.. " pinOnHover="
-			.. tostring(G_RLF.db.global.interactions.pinOnHover),
-		addonName
-	)
 	if self.isPinned then
 		return
 	end
@@ -280,10 +274,6 @@ function LootDisplayRowMixin:PinPosition(frame)
 
 	self.isPinned = true
 	frame.hasPinnedRow = true
-	G_RLF:LogDebug(
-		"[PIN] PinPosition: PINNED key=" .. tostring(self.key) .. " offset=" .. tostring(self.pinnedFrameOffset),
-		addonName
-	)
 end
 
 function LootDisplayRowMixin:Styles()
@@ -323,6 +313,7 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 	self.elementSecondaryTextColor = element.secondaryTextColor or nil
 	self.isCustomLink = element.isCustomLink or false
 	self.customBehavior = element.customBehavior
+	self.customTooltipFn = element.customTooltipFn or nil
 	self.amountTextFn = element.amountTextFn
 	local text
 	-- Resolve the effective display duration for this element on this specific frame.
@@ -412,6 +403,11 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 		self:UpdateItemCount()
 	end)
 	self:LogRow(self.logFn, text, true)
+
+	-- Loot roll action buttons: show/update when payload type is LootRolls.
+	if element.type == G_RLF.FeatureModule.LootRolls then
+		self:UpdateLootRollButtons(element)
+	end
 end
 
 function LootDisplayRowMixin:LogRow(logFn, text, new)
@@ -455,6 +451,38 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	end
 
 	self.logFn = element.logFn
+	-- Refresh state-machine fields on every update so feature modules can
+	-- reflect new state on an existing row without recreating it (e.g.
+	-- LootRolls cycling secondary text + tooltip across pending → resolved).
+	if element.secondaryText ~= nil then
+		self.elementSecondaryText = element.secondaryText
+	end
+	if element.secondaryTextColor ~= nil then
+		self.elementSecondaryTextColor = element.secondaryTextColor
+	end
+	if element.customTooltipFn ~= nil then
+		self.customTooltipFn = element.customTooltipFn
+	end
+	-- Refresh fade-out duration when the element provides a new override
+	-- (e.g. LootRolls anchors pending rows to Blizzard's roll-window expiry,
+	-- then hands resolved rows back to the configured default).
+	if element.showForSeconds ~= nil and element.showForSeconds ~= self.showForSeconds then
+		if self.type == G_RLF.FeatureModule.LootRolls and self._lootRollRollState == "pending" then
+			-- If the roll is still pending, the original showForSeconds represents the time
+			-- until the roll expires.  Do not override it until the roll resolves, at which
+			-- point the element should provide a new showForSeconds representing the
+			-- post-resolution display duration
+		else
+			self.showForSeconds = element.showForSeconds
+			self.hasElementFadeOverride = true
+			self:StyleExitAnimation()
+		end
+	elseif element.showForSeconds == nil and self.hasElementFadeOverride then
+		-- Element cleared the override — reset to the configured default.
+		self.showForSeconds = G_RLF.DbAccessor:Animations(self.frameType).exit.fadeOutDelay
+		self.hasElementFadeOverride = false
+		self:StyleExitAnimation()
+	end
 	-- Update existing entry
 	local oldAmount = self.amount
 	local text = element.textFn(oldAmount, self.link)
@@ -513,19 +541,33 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 		self:HideSecondaryCoinDisplay()
 	end
 
-	if not G_RLF.DbAccessor:Animations(self.frameType).update.disableHighlight then
+	-- Restart the highlight animation on quantity update if enabled, to visually indicate the change.
+	-- Do not play the highlight animation for loot rolls as those events fire frequently.
+	if
+		not G_RLF.DbAccessor:Animations(self.frameType).update.disableHighlight
+		and self.type ~= G_RLF.FeatureModule.LootRolls
+	then
 		self.HighlightAnimation:Stop()
 		self.HighlightAnimation:Play()
 	end
 	-- Do not restart the exit animation while the row is pinned (user hovering).
 	-- PinPosition stops the animation; it will be resumed when the mouse leaves.
-	if not self.isPinned and self.ExitAnimation:IsPlaying() then
+	if
+		not self.isPinned
+		and self.ExitAnimation:IsPlaying()
+		and (self.type ~= G_RLF.FeatureModule.LootRolls or self._lootRollRollState == G_RLF.RollStates.RESOLVED)
+	then
 		self.ExitAnimation:Stop()
 		self.ExitAnimation:Play()
 		self:StartTimerBar()
 	end
 
 	self:LogRow(self.logFn, text, false)
+
+	-- Loot roll action buttons: update state after quantity update.
+	if self.type == G_RLF.FeatureModule.LootRolls then
+		self:UpdateLootRollButtons(element)
+	end
 
 	if self.pendingElement ~= nil then
 		self:UpdateQuantity(self.pendingElement)

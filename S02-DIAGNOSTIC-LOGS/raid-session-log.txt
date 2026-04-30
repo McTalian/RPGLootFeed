@@ -1,0 +1,15 @@
+S02 Raid Session Log — Live Validation Placeholder
+===================================================
+Date: $(date)
+Status: PENDING — This task requires a live WoW raid session.
+
+Instructions:
+  Follow S02-RAID-INSTRUCTIONS.md in the addon worktree.
+  Complete S02-VALIDATION-CHECKLIST.md (V1–V10) during the session.
+  Replace this file with actual session output after completing the raid.
+
+Expected entries (replace with real observations):
+  [session start] click NEED on row 1 — button submitted, result appeared
+  [session mid]   result row shows player selection: You: NEED (88)
+  [session mid]   selection field displayed correctly in result row
+  [session end]   all 10 checklist items verified — no UI artifacts observed

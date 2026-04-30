@@ -42,6 +42,9 @@ lint:
         - "*_spec/**"
         - .scripts/**
         - RPGLootFeed/GameTesting/GameTestRunner.lua
+    - linters: [shfmt]
+      paths:
+        - .scripts/**
   enabled:
     - oxipng@9.1.4
     - taplo@0.9.3

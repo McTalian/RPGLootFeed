@@ -317,6 +317,19 @@ G_RLF.defaults = {
 						enableBlizzardTransmogSound = true,
 						enableIcon = true,
 					},
+					-- Loot Rolls: off by default; Retail-only feature.
+					lootRolls = {
+						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
+						enableIcon = true,
+						enableLootRollActions = false,
+						disableLootRollFrame = false,
+					},
 				},
 			},
 			["**"] = {
@@ -581,6 +594,19 @@ G_RLF.defaults = {
 						enableTransmogEffect = true,
 						enableBlizzardTransmogSound = true,
 						enableIcon = true,
+					},
+					-- Loot Rolls: off by default; Retail-only feature.
+					lootRolls = {
+						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
+						enableIcon = true,
+						enableLootRollActions = false,
+						disableLootRollFrame = false,
 					},
 				},
 			},

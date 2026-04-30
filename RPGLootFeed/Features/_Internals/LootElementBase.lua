@@ -216,8 +216,24 @@ function G_RLF.LootElementBase:fromPayload(payload)
 	element.filterItemQuality = payload.filterItemQuality
 	element.filterCurrencyId = payload.filterCurrencyId
 
+	-- ── Custom tooltip augmentation ──────────────────────────────────────────
+	-- Optional callback for feature modules that need extra GameTooltip lines
+	-- beyond the standard item/currency hyperlink (e.g. LootRolls roll data).
+	-- Called inside RowTooltipMixin:SetupTooltip after SetHyperlink, before Show.
+	element.customTooltipFn = payload.customTooltipFn or nil
+
 	-- ── Backwards compatibility: keep itemCount for modules not yet migrated ──
 	element.itemCount = payload.itemCount
+
+	-- ── LootRolls action button fields ───────────────────────────────────────
+	-- These are used by RLF_LootRollsButtonsMixin to render and submit roll
+	-- actions from the row UI.
+	element.encounterID = payload.encounterID
+	element.lootListID = payload.lootListID
+	element.rollState = payload.rollState
+	element.rowPhase = payload.rowPhase
+	element.buttonValidity = payload.buttonValidity
+	element.playerSelection = payload.playerSelection
 
 	return element
 end
@@ -250,6 +266,7 @@ end
 ---@field isCustomLink? boolean Custom tooltip behavior flag
 ---@field sampleTooltipText? string Label shown on row hover in the options preview (sample rows only)
 ---@field customBehavior? fun() Click handler for custom links
+---@field customTooltipFn? fun() Called after SetHyperlink to add extra GameTooltip lines (e.g. roll data)
 ---@field unit? string Unit token for portrait display
 ---@field filterItemId? number Item ID for per-frame deny list filtering (ItemLoot, PartyLoot)
 ---@field filterItemQuality? number Item quality for per-frame quality-tier filtering (ItemLoot, PartyLoot)
@@ -259,6 +276,12 @@ end
 ---@field logFn? fun(text: string, amount: number, new: boolean) Logging hook
 ---@field IsEnabled? fun(): boolean Permission gate
 ---@field itemCount? number Backwards compat: raw count for non-migrated modules
+---@field encounterID? number LootRolls: encounter ID for roll actions
+---@field lootListID? number LootRolls: loot list ID for roll actions
+---@field rollState? G_RLF.RollStates LootRolls: current roll state for button visibility
+---@field rowPhase? string LootRolls: row display lifecycle phase ("pending"|"result"|"resolved"|"cancelled") for dismiss gating
+---@field buttonValidity? table LootRolls: table of valid actions for each button (e.g. { canNeed = true, canGreed = true, canTransmog = false, canPass = false })
+---@field playerSelection? string LootRolls: player's current roll selection ("need", "greed", "pass")
 
 --- Union of all concrete loot element types used by the LootDisplay engine.
 --- @alias RLF_LootElement RLF_BaseLootElement

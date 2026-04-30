@@ -247,9 +247,9 @@ How will we validate this works?
 - Mock coverage for events?
 - Configuration validation?
 
-#### Rollout Strategy
+#### RolLoot Strategy
 
-- Feature flag for gradual rollout?
+- Feature flag for gradual rolLoot?
 - Beta testers?
 - Rollback plan if issues emerge?
 

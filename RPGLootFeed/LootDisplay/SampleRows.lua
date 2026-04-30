@@ -424,6 +424,31 @@ function LootDisplay:CreateSampleRows(frame)
 			}):Show()
 		end
 	end
+
+	-- ── Loot Rolls (Retail only) ───────────────────────────────────────────────
+	if features.lootRolls and features.lootRolls.enabled then
+		local lootRollsModule = G_RLF.RLF:GetModule(FeatureModule.LootRolls)
+		if lootRollsModule and lootRollsModule:IsEnabled() then
+			local lrFeature = G_RLF.DbAccessor:Feature(frame, "lootRolls") or {}
+			LootElementBase:fromPayload({
+				key = "sample_loot_rolls",
+				type = FeatureModule.LootRolls,
+				isLink = true,
+				icon = (lrFeature.enableIcon and not G_RLF.db.global.misc.hideAllIcons) and DefaultIcons.LOOTROLLS
+					or nil,
+				quality = ItemQualEnum.Epic,
+				textFn = function(_, truncatedLink)
+					return truncatedLink or SAMPLE_ITEM_LINK
+				end,
+				secondaryText = "Won by Arthas (Need, 87)",
+				isSampleRow = true,
+				sampleTooltipText = G_RLF.L["Loot Rolls"],
+				IsEnabled = function()
+					return true
+				end,
+			}):Show()
+		end
+	end
 end
 
 return {}

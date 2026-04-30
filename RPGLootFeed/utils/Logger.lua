@@ -58,6 +58,7 @@ local Profession = G_RLF.FeatureModule.Profession
 local PartyLoot = G_RLF.FeatureModule.PartyLoot
 local TravelPoints = G_RLF.FeatureModule.TravelPoints
 local Transmog = G_RLF.FeatureModule.Transmog
+local LootRolls = G_RLF.FeatureModule.LootRolls
 local eventType = {
 	[ItemLoot] = true,
 	[Currency] = true,
@@ -68,6 +69,7 @@ local eventType = {
 	[PartyLoot] = true,
 	[TravelPoints] = true,
 	[Transmog] = true,
+	[LootRolls] = true,
 }
 local function OnEventTypeChange(_, _, k, v)
 	eventType[k] = v
@@ -198,6 +200,7 @@ function Logger:createFilterBarComponents()
 				[PartyLoot] = PartyLoot,
 				[TravelPoints] = TravelPoints,
 				[Transmog] = Transmog,
+				[LootRolls] = LootRolls,
 			})
 			fB.logTypes:SetCallback("OnValueChanged", OnEventTypeChange)
 			for k, v in pairs(eventType) do
@@ -285,6 +288,7 @@ local function getType(logEntry)
 		[PartyLoot] = "|cFF00FFFF[PRTY]|r", -- Cyan for party loot
 		[TravelPoints] = "|cFF8A2BE2[TRVL]|r", -- BlueViolet for travel points
 		[Transmog] = "|cFFFF69B4[TMOG]|r", -- Pink for transmog
+		[LootRolls] = "|cFFCC5500[ROLL]|r", -- Orange for loot rolls
 	}
 
 	-- Return an empty string for "General" and the corresponding value for others
@@ -319,7 +323,7 @@ local function getAmount(logEntry)
 	if logEntry.amount == "" then
 		return ""
 	end
-	return format(" (tot: %s)", logEntry.amount)
+	return format(" (tot: %s)", tostring(logEntry.amount))
 end
 
 local function isUpdatedRow(logEntry)
@@ -428,11 +432,31 @@ function Logger:addLogEntry(level, message, source, type, id, content, amount, i
 		return
 	end
 	table.insert(logTable, entry)
+
+	-- In alpha, I want my chat to light up with warnings and errors so I can see them
+	-- and fix them before release.
+	--@alpha@
+	if level == G_RLF.LogLevel.warn or level == G_RLF.LogLevel.error then
+		G_RLF:Print(
+			string.format(
+				"[%s] %s: %s",
+				level:upper(),
+				type or "General",
+				tostring(message) .. " " .. tostring(content)
+			)
+		)
+	end
+	--@end-alpha@
+
+	-- In alpha, I want as many logs as possible to identify issues.
+	-- In release, I want to limit the log size to prevent excessive memory usage,
+	-- but I still want recent logs for debugging.
 	--[===[@non-alpha@
 	while #logTable > 100 do
 		table.remove(logTable, 1)
 	end
 	--@end-non-alpha@]===]
+
 	if self.frame and self.frame:IsShown() then
 		updateContent()
 	end

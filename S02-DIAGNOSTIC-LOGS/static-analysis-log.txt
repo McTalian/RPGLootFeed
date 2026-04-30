@@ -1,0 +1,108 @@
+S02 Static Analysis & Automated Test Diagnostic Log
+======================================================
+Generated: T04 execution (automated)
+Worktree: /home/mctalian/code/RPGLootFeed/.gsd/worktrees/M004
+
+PURPOSE
+-------
+This log captures code-level evidence for validation items that could be
+verified via static analysis and automated tests before or instead of a live
+raid session. Items V1–V4 and V6–V10 that have code-level proof are documented
+here. Items requiring live runtime observation (V1 button UI, V2 result display,
+V5 multi-drop, V9 visual artifacts) are flagged as requiring live session.
+
+=============================================================
+AUTOMATED TEST RESULTS (make test)
+=============================================================
+Result: 1683 successes / 3 failures / 0 errors / 0 pending
+Runtime: ~4.5 seconds
+
+Failures (pre-existing, unrelated to playerSelection display):
+  - LootRolls_s06_single_drop_spec.lua:329  — S06 Part 2: LOOT_HISTORY_UPDATE_DROP match (requires S03 work)
+  - LootRolls_s06_single_drop_spec.lua:519  — S06 Part 3: _pendingActions consumed (requires S03)
+  - LootRolls_s06_single_drop_spec.lua:568  — S06 Part 4: payload.playerSelection from matched action (requires S03)
+
+These 3 failures are in the S03/S06 work-in-progress spec (MatchActionToResult
+cross-session wiring not yet implemented). They do NOT affect the playerSelection
+field being set on the action-submission path, which has its own passing tests.
+
+=============================================================
+playerSelection FIELD WIRING — CODE EVIDENCE
+=============================================================
+File: RPGLootFeed/Features/LootRolls/LootRolls.lua
+
+Line 1323: -- Also set playerSelection so payload builders can render "You: Need | Waiting..."
+Line 1336: dsEntry.playerSelection = rollType
+
+Line 398-399: BuildPayload (Retail path):
+  if dropEntry and dropEntry.playerSelection then
+    payload.playerSelection = dropEntry.playerSelection
+
+Line 1085-1086: BuildPayload (Classic path):
+  if dropEntry and dropEntry.playerSelection then
+    payload.playerSelection = dropEntry.playerSelection
+
+Line 325-328: Multi-drop path (dropEntry2):
+  local playerSelection = dropEntry2 and dropEntry2.playerSelection
+  if playerSelection then
+    local selectionLabel = G_RLF.L["LootRolls_YouSelected_" .. playerSelection] or playerSelection
+
+Line 349-350: Multi-drop path (dropEntry2a):
+  local selLabel = dropEntry2a.playerSelection
+    and (G_RLF.L["LootRolls_YouSelected_" .. dropEntry2a.playerSelection] or dropEntry2a.playerSelection)
+
+Line 1053-1054: Classic multi-drop path:
+  local selLabel = classicDropEntry.playerSelection
+    and (G_RLF.L["LootRolls_YouSelected_" .. classicDropEntry.playerSelection] or classicDropEntry.playerSelection)
+
+VERDICT: playerSelection is set on action submission and propagated through all
+BuildPayload branches (Retail single, Retail multi-drop, Classic single, Classic multi-drop).
+
+=============================================================
+DISMISS GATING — CODE EVIDENCE
+=============================================================
+File: RPGLootFeed/Features/LootRolls/LootRolls.lua
+
+Line 46:   -- used by S04 dismiss gating (dismiss disabled while phase is "pending" or "result").
+Line 184:  local oldPhase = entry.phase or "pending"
+Line 200:  entry.phase = newPhase
+Line 412:  payload.rowPhase = dropEntryForPhase and dropEntryForPhase.phase or "pending"
+Line 415:  (Retail BuildPayload sets rowPhase on every payload)
+Line 1095: (Classic BuildPayload also sets rowPhase)
+Line 855:  local function ReleaseDismissLock(dropKey)
+Line 871:  "Row %s dismiss lock released (phase=cancelled/resolved)"
+Line 929:  ReleaseDismissLock(dropKey)  -- called after resolution
+Line 947:  ReleaseDismissLock(classicKey)  -- classic path
+
+Phase state machine: pending → result → resolved|cancelled
+  pending:   dismiss LOCKED (rowPhase="pending")
+  result:    dismiss LOCKED (rowPhase="result")
+  resolved:  dismiss UNLOCKED via ReleaseDismissLock
+  cancelled: dismiss UNLOCKED via ReleaseDismissLock
+
+VERDICT: Dismiss gating is fully implemented for all phases and both game clients.
+
+=============================================================
+FILES WITH playerSelection COVERAGE IN SPEC SUITE
+=============================================================
+RPGLootFeed_spec/Features/LootRolls_spec.lua
+RPGLootFeed_spec/Features/LootRolls_e2e_spec.lua
+RPGLootFeed_spec/Features/LootRolls_s06_e2e_spec.lua
+RPGLootFeed_spec/Features/LootRolls_s06_single_drop_spec.lua
+RPGLootFeed_spec/Features/LootRolls_integration_spec.lua
+RPGLootFeed_spec/Features/LootRolls_button_submit_spec.lua
+
+=============================================================
+LIVE RAID SESSION STATUS
+=============================================================
+Status: PENDING — No live raid session was executed during T03.
+T03 produced placeholder scaffold files at /tmp/S02_raid_session_log.txt and
+/tmp/S02_user_observations.txt. These files contain structured templates, not
+real session output.
+
+Items V1 (button submission UI), V2 (result row visual), V5 (multi-drop visual
+confirmation), V9 (UI artifact observation) require a live WoW raid session to
+fully confirm. They are marked PENDING in S02-VALIDATION-RESULTS.md.
+
+Instructions for live validation are in S02-RAID-INSTRUCTIONS.md.
+Checklist is in S02-VALIDATION-CHECKLIST.md.

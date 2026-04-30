@@ -52,7 +52,7 @@ end
 --- Returns the first match's config table, falling back to frame 1.
 --- This is a transitional helper for code that builds frame-agnostic payloads
 --- (feature modules) and cannot receive a frame ID.
---- @param featureKey string  One of: itemLoot, partyLoot, currency, money, experience, reputation, profession, travelPoints, transmog
+--- @param featureKey string  One of: itemLoot, partyLoot, currency, money, experience, reputation, profession, travelPoints, transmog, lootRolls
 --- @return RLF_FeatureConfig?
 function DbAccessor:AnyFeatureConfig(featureKey)
 	local frames = G_RLF.db.global.frames
@@ -90,10 +90,11 @@ local featureKeyToModule = {
 	profession = "Professions",
 	travelPoints = "TravelPoints",
 	transmog = "Transmog",
+	lootRolls = "LootRolls",
 }
 
 --- Check whether at least one frame has the given feature enabled.
---- @param featureKey string  One of: itemLoot, partyLoot, currency, money, experience, reputation, profession, travelPoints, transmog
+--- @param featureKey string  One of: itemLoot, partyLoot, currency, money, experience, reputation, profession, travelPoints, transmog, lootRolls
 --- @return boolean
 function DbAccessor:IsFeatureNeededByAnyFrame(featureKey)
 	local frames = G_RLF.db.global.frames
@@ -110,7 +111,7 @@ end
 
 --- Enable or disable a feature module based on whether any frame needs it.
 --- Call this from config enable toggles after changing a per-frame feature flag.
---- @param featureKey string  One of: itemLoot, partyLoot, currency, money, experience, reputation, profession, travelPoints, transmog
+--- @param featureKey string  One of: itemLoot, partyLoot, currency, money, experience, reputation, profession, travelPoints, transmog, lootRolls
 function DbAccessor:UpdateFeatureModuleState(featureKey)
 	local moduleName = featureKeyToModule[featureKey]
 	if not moduleName then

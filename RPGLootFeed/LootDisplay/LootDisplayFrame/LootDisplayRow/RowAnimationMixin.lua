@@ -803,10 +803,6 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 	self:SetScript("OnEnter", function()
 		---@type RLF_ConfigAnimations
 		local animationsDb = G_RLF.DbAccessor:Animations(self.frameType)
-		G_RLF:LogDebug(
-			"[PIN] Row:OnEnter key=" .. tostring(self.key) .. " hasMouseOver=" .. tostring(self.hasMouseOver),
-			addonName
-		)
 		if self.hasMouseOver then
 			return
 		end
@@ -850,15 +846,6 @@ function RLF_RowAnimationMixin:SetUpHoverEffect()
 	self:SetScript("OnLeave", function()
 		-- Prevent OnLeave from firing if the mouse is still over the row or any of its children
 		local overSelfOrChildren = isMouseOverSelfOrChildren(self)
-		G_RLF:LogDebug(
-			"[PIN] Row:OnLeave key="
-				.. tostring(self.key)
-				.. " hasMouseOver="
-				.. tostring(self.hasMouseOver)
-				.. " overSelfOrChildren="
-				.. tostring(overSelfOrChildren),
-			addonName
-		)
 		if overSelfOrChildren or not self.hasMouseOver then
 			return
 		end

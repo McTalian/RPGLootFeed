@@ -4,6 +4,8 @@
 ..\FrameXML\UI.xsd">
     <Script file="retryHook.lua"/>
     <Script file="BossBanner.lua"/>
+    <Script file="GroupLootFrameOverride.lua"/>
+    <Script file="LootHistoryFrame.lua"/>
     <Script file="LootToasts.lua"/>
     <Script file="MoneyAlerts.lua"/>
 </Ui>

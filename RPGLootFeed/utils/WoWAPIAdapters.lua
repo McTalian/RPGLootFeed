@@ -312,4 +312,136 @@ G_RLF.WoWAPI.PartyLoot = {
 	end,
 }
 
+-- ── LootRolls API Adapter ─────────────────────────────────────────────────────
+-- Wraps C_LootHistory (Retail only), RAID_CLASS_COLORS, and Item:CreateFromItemLink
+-- for the LootRolls feature module.  HasLootHistory() guards all callers so the
+-- module degrades gracefully on Classic clients where this API is absent.
+---@class RLF_WoWAPI_LootRolls
+G_RLF.WoWAPI.LootRolls = {
+	HasLootHistory = function()
+		return C_LootHistory ~= nil
+	end,
+	GetSortedInfoForDrop = function(encounterID, lootListID)
+		return C_LootHistory.GetSortedInfoForDrop(encounterID, lootListID)
+	end,
+	GetInfoForEncounter = function(encounterID)
+		-- Returns EncounterLootInfo (encounterName, encounterID, startTime, duration) or nil.
+		if C_LootHistory and C_LootHistory.GetInfoForEncounter then
+			return C_LootHistory.GetInfoForEncounter(encounterID)
+		end
+		return nil
+	end,
+	GetRaidClassColor = function(className)
+		return RAID_CLASS_COLORS and RAID_CLASS_COLORS[className]
+	end,
+	GetItemInfoIcon = function(itemLink)
+		-- Returns the icon FileDataID (10th return value) or nil if not cached.
+		return select(10, C.Item.GetItemInfo(itemLink))
+	end,
+	GetItemInfoQuality = function(itemLink)
+		-- Returns the item quality (3rd return value) or nil if not cached.
+		return select(3, C.Item.GetItemInfo(itemLink))
+	end,
+	CreateItemFromItemLink = function(itemLink)
+		return Item:CreateFromItemLink(itemLink)
+	end,
+
+	-- ── Classic-only methods ──────────────────────────────────────────────────
+
+	--- Returns true when the START_LOOT_ROLL event is available (Classic clients).
+	--- Used by OnEnable to decide which event path to register.
+	HasStartLootRollEvent = function()
+		if G_RLF:IsRetail() then
+			return false
+		end
+		-- START_LOOT_ROLL exists on all Classic flavors (Vanilla, TBC, Wrath, Cata).
+		-- We detect it by checking for GetLootRollItemInfo which is always present
+		-- alongside START_LOOT_ROLL on Classic clients.
+		return GetLootRollItemInfo ~= nil
+	end,
+
+	--- Wraps GetLootRollItemInfo (Classic) per-item roll data.
+	--- Returns table { texture, name, count, quality, canNeed, canGreed,
+	--- canDisenchant, itemLink } or nil when rollID is invalid/expired.
+	---@param rollID number
+	---@return table|nil
+	GetClassicRollItemInfo = function(rollID)
+		if G_RLF:IsRetail() then
+			return nil
+		end
+		if not GetLootRollItemInfo then
+			return nil
+		end
+		local texture, name, count, quality, canNeed, canGreed, canDisenchant = GetLootRollItemInfo(rollID)
+		if not texture then
+			return nil
+		end
+		local itemLink = GetLootRollItemLink and GetLootRollItemLink(rollID) or nil
+		return {
+			texture = texture,
+			name = name,
+			count = count or 1,
+			quality = quality,
+			canNeed = canNeed,
+			canGreed = canGreed,
+			canDisenchant = canDisenchant,
+			itemLink = itemLink,
+		}
+	end,
+
+	--- Returns the item hyperlink for a Retail group loot roll frame.
+	--- GetLootRollItemLink(rollID) is valid while the roll frame is open.
+	--- Returns nil when the API is unavailable or the rollID is invalid/expired.
+	---@param rollID number
+	---@return string|nil
+	GetRetailRollItemLink = function(rollID)
+		if not rollID then
+			return nil
+		end
+		if not GetLootRollItemLink then
+			return nil
+		end
+		return GetLootRollItemLink(rollID) or nil
+	end,
+
+	--- Gets button validity state for a loot roll.
+	---@param rollID number
+	---@return table { canNeed, canGreed, canTransmog, canPass, itemLink }
+	GetRollButtonValidity = function(rollID)
+		if not C_LootHistory then
+			-- Classic path — handled by GetClassicRollItemInfo instead.
+			G_RLF:LogDebug("GetRollButtonValidity: C_LootHistory not available, likely Classic client; returning nil")
+			return nil
+		end
+
+		if rollID == nil then
+			G_RLF:LogDebug("GetRollButtonValidity: rollID is nil, returning nil")
+			return nil
+		end
+
+		-- Retail: GetLootRollItemInfo signature (13 values):
+		-- texture, name, count, quality, bindOnPickUp,
+		-- canNeed, canGreed, canDisenchant,
+		-- reasonNeed, reasonGreed, reasonDisenchant, deSkillRequired,
+		-- canTransmog
+		G_RLF:LogDebug(string.format("GetRollButtonValidity: rollID=%d", rollID))
+		local _texture, _name, _count, _quality, _bindOnPickUp, canNeed, canGreed, _canDisenchant, _reasonNeed, _reasonGreed, _reasonDisenchant, _deSkillRequired, canTransmog =
+			GetLootRollItemInfo(rollID)
+
+		-- If the API returned nothing the roll frame may not be active yet.
+		-- Return nil so the caller can decide to skip caching rather than
+		-- storing a table of all-false values.
+		if canNeed == nil and canGreed == nil and canTransmog == nil then
+			return nil
+		end
+
+		return {
+			canNeed = canNeed or false,
+			canGreed = canGreed or false,
+			canTransmog = canTransmog or false,
+			canPass = true,
+		}
+	end,
+}
+
 return G_RLF.WoWAPI

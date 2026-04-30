@@ -142,6 +142,10 @@ function RLF:OnInitialize()
 	end
 
 	TestMode = self:GetModule(G_RLF.SupportModule.TestMode) --[[@as RLF_TestMode]]
+
+	hooksecurefunc("RollOnLoot", function(rollID, rollType)
+		G_RLF:LogDebug("RollOnLoot called with rollID: " .. tostring(rollID) .. " and rollType: " .. tostring(rollType))
+	end)
 end
 
 function RLF:SlashCommand(msg, editBox)

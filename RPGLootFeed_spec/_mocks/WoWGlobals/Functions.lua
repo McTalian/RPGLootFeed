@@ -83,5 +83,11 @@ functions.CreateAtlasMarkup = stub(_G, "CreateAtlasMarkup", function(atlas, w, h
 	return "<AtlasMarkup:" .. tostring(atlas) .. ">"
 end)
 functions.SetPortraitTexture = stub(_G, "SetPortraitTexture")
+functions.SetDesaturation = stub(_G, "SetDesaturation")
+
+functions.hooksecurefunc = stub(_G, "hooksecurefunc", function(funcName, hookFunc)
+	-- For testing purposes, we can call the hook function immediately
+	hookFunc()
+end)
 
 return functions

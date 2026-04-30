@@ -908,6 +908,7 @@ describe("LootDisplayRowMixin", function()
 			stub(row, "StopScriptedEffects")
 			stub(row, "HideCoinDisplay")
 			stub(row, "HideSecondaryCoinDisplay")
+			stub(row, "ResetButtons")
 
 			row.TopBorder = noopEl()
 			row.RightBorder = noopEl()
