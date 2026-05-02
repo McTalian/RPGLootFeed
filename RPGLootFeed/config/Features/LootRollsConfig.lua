@@ -88,6 +88,20 @@ function G_RLF.BuildLootRollsArgs(frameId, order)
 						end,
 						order = 3,
 					},
+					enableLootRollResults = {
+						type = "toggle",
+						name = G_RLF.L["Enable Loot Roll Results"],
+						desc = G_RLF.L["EnableLootRollResultsDesc"],
+						width = "double",
+						get = function()
+							return fc().enableLootRollResults
+						end,
+						set = function(_, value)
+							fc().enableLootRollResults = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
+						end,
+						order = 5,
+					},
 					disableLootRollFrame = {
 						type = "toggle",
 						name = G_RLF.L["Disable Built-in Roll Frame"],

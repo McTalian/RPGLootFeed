@@ -1,0 +1,38 @@
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+143 successes / 0 failures / 0 errors / 0 pending : 0.168387 seconds
+
+=== Outcome Event State Isolation Pattern ===
+
+Pattern: Seed both _actionRowStates and _dropStates, fire outcome event, verify only intended state table changed.
+
+Tests verified (in T04 describe block, line 3146):
+
+1. MAIN_SPEC_NEED_ROLL independence (line 3359):
+   - Seeds _dropStates["70_4"] = { state="pending" }
+   - Seeds _actionRowStates[201] = { state="pending" }
+   - Fires MAIN_SPEC_NEED_ROLL(201)
+   - Asserts: _actionRowStates[201] == nil (cleared)
+   - Asserts: _dropStates["70_4"] == { state="pending" } (untouched)
+
+2. CANCEL_LOOT_ROLL independence (line 3403):
+   - Seeds _dropStates["80_5"] and ["80_6"]
+   - Seeds _actionRowStates[301]
+   - Fires CANCEL_LOOT_ROLL(301)
+   - Asserts: _actionRowStates[301] == nil (cleared)
+   - Asserts: _dropStates["80_5"] and ["80_6"] still present
+
+3. CANCEL_ALL_LOOT_ROLLS independence (line 3444):
+   - Seeds _actionRowStates[401], [402]
+   - Seeds _dropStates["90_1"], ["90_2"]
+   - Fires CANCEL_ALL_LOOT_ROLLS()
+   - Asserts: _actionRowStates[401],[402] == nil (all cleared)
+   - Asserts: _dropStates["90_1"],["90_2"] still present
+
+4. Cross-config "no cross-module state leakage" test (line 2746):
+   - Config: actions=true, results=false
+   - Seeds action row via START_LOOT_ROLL(999)
+   - Fires LOOT_HISTORY_UPDATE_DROP(99, 9) — suppressed by results=false
+   - Asserts: _dropStates["99_9"] == nil (no orphaned state)
+   - Asserts: _actionRowStates[999] still intact
+
+Result: 143 successes / 0 failures — all cross-module isolation verified.

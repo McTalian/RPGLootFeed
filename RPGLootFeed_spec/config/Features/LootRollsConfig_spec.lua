@@ -32,6 +32,7 @@ describe("LootRollsConfig module", function()
 			enableIcon = defaults.enableIcon,
 			enableLootRollActions = defaults.enableLootRollActions,
 			disableLootRollFrame = defaults.disableLootRollFrame,
+			enableLootRollResults = defaults.enableLootRollResults,
 			backgroundOverride = {
 				enabled = false,
 				gradientStart = { 0.1, 0.1, 0.1, 0.8 },
@@ -58,6 +59,12 @@ describe("LootRollsConfig module", function()
 			local defaults = ns.defaults.global.frames["**"].features.lootRolls
 			assert.is_boolean(defaults.disableLootRollFrame)
 			assert.is_false(defaults.disableLootRollFrame)
+		end)
+
+		it("includes enableLootRollResults defaulting to true", function()
+			local defaults = ns.defaults.global.frames["**"].features.lootRolls
+			assert.is_boolean(defaults.enableLootRollResults)
+			assert.is_true(defaults.enableLootRollResults)
 		end)
 	end)
 
@@ -181,6 +188,50 @@ describe("LootRollsConfig module", function()
 				local group = ns.BuildLootRollsArgs(1, 11)
 				group.args.lootRollsOptions.args.disableLootRollFrame.set(nil, false)
 				assert.is_false(lootRollsDb.disableLootRollFrame)
+			end)
+		end)
+
+		describe("enableLootRollResults toggle", function()
+			it("is present in lootRollsOptions args", function()
+				local group = ns.BuildLootRollsArgs(1, 11)
+				local toggle = group.args.lootRollsOptions.args.enableLootRollResults
+				assert.is_table(toggle)
+				assert.equal("toggle", toggle.type)
+			end)
+
+			it("has order 5", function()
+				local group = ns.BuildLootRollsArgs(1, 11)
+				assert.equal(5, group.args.lootRollsOptions.args.enableLootRollResults.order)
+			end)
+
+			it("get returns true by default (backward compat)", function()
+				local group = ns.BuildLootRollsArgs(1, 11)
+				local toggle = group.args.lootRollsOptions.args.enableLootRollResults
+				assert.is_true(toggle.get())
+			end)
+
+			it("set writes to db and calls RefreshSampleRowsIfShown", function()
+				local refreshCalled = false
+				ns.LootDisplay.RefreshSampleRowsIfShown = function()
+					refreshCalled = true
+				end
+				local group = ns.BuildLootRollsArgs(1, 11)
+				group.args.lootRollsOptions.args.enableLootRollResults.set(nil, false)
+				assert.is_false(lootRollsDb.enableLootRollResults)
+				assert.is_true(refreshCalled)
+			end)
+
+			it("get reflects value set in db", function()
+				lootRollsDb.enableLootRollResults = false
+				local group = ns.BuildLootRollsArgs(1, 11)
+				assert.is_false(group.args.lootRollsOptions.args.enableLootRollResults.get())
+			end)
+
+			it("set toggles back on correctly", function()
+				lootRollsDb.enableLootRollResults = false
+				local group = ns.BuildLootRollsArgs(1, 11)
+				group.args.lootRollsOptions.args.enableLootRollResults.set(nil, true)
+				assert.is_true(lootRollsDb.enableLootRollResults)
 			end)
 		end)
 	end)

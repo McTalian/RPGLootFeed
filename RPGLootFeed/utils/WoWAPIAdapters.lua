@@ -429,6 +429,17 @@ G_RLF.WoWAPI.LootRolls = {
 		end
 		return label
 	end,
+	--- Returns the item hyperlink for a loot roll (Retail + Classic).
+	--- GetLootRollItemLink is available on all WoW clients since 3.0.
+	---@param rollID number
+	---@return string|nil  item hyperlink, or nil when rollID is invalid/expired
+	GetRollItemLink = function(rollID)
+		if not GetLootRollItemLink then
+			return nil
+		end
+		return GetLootRollItemLink(rollID)
+	end,
+
 	--- Gets button validity state for a loot roll.
 	---@param rollID number
 	---@return table { canNeed, canGreed, canTransmog, canPass, itemLink }

@@ -1798,3 +1798,1678 @@ describe("LootRolls Classic integration", function()
 		end
 	)
 end)
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- S01 Retail Action Row Integration Tests
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- These tests exercise the Retail-specific action row code paths introduced in S01:
+--   LootRolls.START_LOOT_ROLL (Retail) → _actionRowStates populated → action row dispatched
+--   LootRolls.SubmitActionRoll → SubmitLootRoll called → row updates to submitted
+--   CANCEL_LOOT_ROLL → matching action row hidden (resolved dispatch)
+--   CANCEL_ALL_LOOT_ROLLS → all pending action rows hidden
+--   MAIN_SPEC_NEED_ROLL → action row hidden on outcome
+--   Multiple concurrent rollIDs → independent state entries
+--   Config toggle off → no action row on START_LOOT_ROLL
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+describe("LootRolls Retail Action Row integration (S01)", function()
+	local _ = match._
+	---@type RLF_LootRolls
+	local LootRolls, ns, sendMessageSpy
+
+	local ACTION_ITEM_LINK = "|cff0070dditem:77777|r"
+
+	before_each(function()
+		sendMessageSpy = spy.new(function() end)
+
+		ns = {
+			LootElementBase = nil,
+			ItemQualEnum = { Uncommon = 2, Epic = 4 },
+			DefaultIcons = { LOOTROLLS = 132319 },
+			FeatureModule = { LootRolls = "LootRolls" },
+			LogDebug = spy.new(function() end),
+			LogInfo = spy.new(function() end),
+			LogWarn = spy.new(function() end),
+			LogError = spy.new(function() end),
+			IsRetail = function()
+				return true
+			end,
+			SendMessage = sendMessageSpy,
+			TooltipBuilders = nil,
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					misc = { hideAllIcons = false },
+				},
+			},
+			WoWAPI = { LootRolls = {} },
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "lootRolls" then
+						return { enableIcon = true }
+					end
+					return nil
+				end,
+			},
+			L = {
+				["All Passed"] = "All Passed",
+				["LootRolls_WaitingForRolls"] = "Waiting for rolls",
+				["LootRolls_TiedFmt"] = "Tied at %d",
+				["LootRolls_CurrentLeaderFmt"] = "Leading: %s rolled %d",
+				["LootRolls_WonByFmt"] = "Won by %s %s %d",
+				["LootRolls_WonByNoRollFmt"] = "Won by %s",
+				["LootRolls_YouSelected_NEED"] = "You: Need",
+				["LootRolls_YouSelected_GREED"] = "You: Greed",
+				["LootRolls_YouSelected_TRANSMOG"] = "You: Transmog",
+				["LootRolls_YouSelected_PASS"] = "You: Pass",
+				["LootRolls_WinnerWithSelfFmt"] = "%s  |  You: rolled %d",
+				["LootRolls_WinnerWithSelfAndSelectionFmt"] = "%s  |  %s, rolled %d",
+			},
+		}
+
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterAllEvents = function() end,
+				}
+			end,
+		}
+
+		LootRolls = assert(loadfile("RPGLootFeed/Features/LootRolls/LootRolls.lua"))("TestAddon", ns)
+		assert.is_not_nil(LootRolls)
+		ns.LootRolls = LootRolls
+
+		-- Retail adapter stubs (action row path).
+		LootRolls._lootRollsAdapter = {
+			HasLootHistory = function()
+				return true
+			end,
+			HasStartLootRollEvent = function()
+				return true
+			end,
+			GetRollButtonValidity = function(_rollID)
+				return { canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+			end,
+			GetRollItemLink = function(_rollID)
+				return ACTION_ITEM_LINK
+			end,
+			SubmitLootRoll = function(_rollID, _rollType)
+				return true
+			end,
+			DecodeRollType = function(name)
+				local map = { NEED = 1, GREED = 2, PASS = 0, TRANSMOG = 3 }
+				local v = map[name]
+				if v == nil then
+					return nil, "unknown roll type: " .. tostring(name)
+				end
+				return v
+			end,
+			-- Classic stubs — unused on Retail path.
+			GetClassicRollItemInfo = function()
+				return nil
+			end,
+			ClassicRollOnLoot = function()
+				return false, "not Classic"
+			end,
+			DecodeClassicRollType = function()
+				return nil
+			end,
+			GetItemInfoIcon = function()
+				return 12345
+			end,
+			GetItemInfoQuality = function()
+				return 4
+			end,
+			GetSortedInfoForDrop = function()
+				return nil
+			end,
+			GetInfoForEncounter = function()
+				return nil
+			end,
+			GetRaidClassColor = function()
+				return nil
+			end,
+		}
+
+		LootRolls._actionRowStates = {}
+		LootRolls._buttonValidityCache = {}
+		LootRolls._rollValidityStaging = {}
+
+		_G.GetTime = function()
+			return 2000
+		end
+	end)
+
+	after_each(function()
+		_G.GetTime = nil
+	end)
+
+	-- ── Scenario 1: START_LOOT_ROLL → action row appears ─────────────────────
+
+	describe("Scenario 1: START_LOOT_ROLL fires → action row cached and dispatched", function()
+		it("Retail START_LOOT_ROLL populates _actionRowStates with state=pending", function()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 101, 60)
+			local entry = LootRolls._actionRowStates[101]
+			assert.is_not_nil(entry)
+			assert.are.equal("pending", entry.state)
+		end)
+
+		it("Retail START_LOOT_ROLL stores buttonValidity in _actionRowStates entry", function()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 101, 60)
+			local entry = LootRolls._actionRowStates[101]
+			assert.is_not_nil(entry.buttonValidity)
+			assert.is_true(entry.buttonValidity.canNeed)
+			assert.is_true(entry.buttonValidity.canGreed)
+			assert.is_false(entry.buttonValidity.canTransmog)
+			assert.is_true(entry.buttonValidity.canPass)
+		end)
+
+		it("Retail START_LOOT_ROLL stores itemLink from GetRollItemLink in entry", function()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 101, 60)
+			local entry = LootRolls._actionRowStates[101]
+			assert.are.equal(ACTION_ITEM_LINK, entry.itemLink)
+		end)
+
+		it("Retail START_LOOT_ROLL dispatches action row payload via SendMessage", function()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 101, 60)
+			assert.spy(sendMessageSpy).was.called(1)
+		end)
+
+		it("action row payload key uses LAR_ prefix", function()
+			local capturedPayload
+			ns.SendMessage = function(_, msg, payload)
+				capturedPayload = payload
+			end
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 102, 60)
+			assert.is_not_nil(capturedPayload)
+			assert.are.equal("LAR_102", capturedPayload.key)
+		end)
+
+		it("action row payload has rollState=pending", function()
+			local capturedPayload
+			ns.SendMessage = function(_, msg, payload)
+				capturedPayload = payload
+			end
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 103, 60)
+			assert.is_not_nil(capturedPayload)
+			assert.are.equal("pending", capturedPayload.rollState)
+		end)
+
+		it("duplicate START_LOOT_ROLL for same rollID does not re-cache or re-dispatch", function()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 104, 60)
+			sendMessageSpy:clear()
+			-- Fire again for the same rollID — should be a no-op.
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 104, 60)
+			assert.spy(sendMessageSpy).was_not_called()
+		end)
+	end)
+
+	-- ── Scenario 2: GetRollButtonValidity nil → no action row ────────────────
+
+	describe("Scenario 2: GetRollButtonValidity returns nil → no action row", function()
+		it("no _actionRowStates entry when validity is nil", function()
+			LootRolls._lootRollsAdapter.GetRollButtonValidity = function()
+				return nil
+			end
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 105, 60)
+			assert.is_nil(LootRolls._actionRowStates[105])
+		end)
+
+		it("no SendMessage when validity is nil", function()
+			LootRolls._lootRollsAdapter.GetRollButtonValidity = function()
+				return nil
+			end
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 105, 60)
+			assert.spy(sendMessageSpy).was_not_called()
+		end)
+	end)
+
+	-- ── Scenario 3: SubmitActionRoll (Pass) → SubmitLootRoll called, row submitted ──
+
+	describe("Scenario 3: SubmitActionRoll(PASS) → SubmitLootRoll called → row dispatched as submitted", function()
+		it("SubmitActionRoll calls SubmitLootRoll with correct rollID and rollType=0 (PASS)", function()
+			LootRolls._actionRowStates[110] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+
+			local capturedRollID, capturedRollType
+			LootRolls._lootRollsAdapter.SubmitLootRoll = function(rollID, rollType)
+				capturedRollID = rollID
+				capturedRollType = rollType
+				return true
+			end
+
+			LootRolls:SubmitActionRoll(110, "PASS")
+
+			assert.are.equal(110, capturedRollID)
+			assert.are.equal(0, capturedRollType) -- PASS = 0
+		end)
+
+		it("SubmitActionRoll records playerSelection=PASS in _actionRowStates entry", function()
+			LootRolls._actionRowStates[110] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:SubmitActionRoll(110, "PASS")
+			assert.are.equal("PASS", LootRolls._actionRowStates[110].playerSelection)
+		end)
+
+		it("SubmitActionRoll re-dispatches action row as submitted via SendMessage", function()
+			LootRolls._actionRowStates[110] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			sendMessageSpy:clear()
+			LootRolls:SubmitActionRoll(110, "PASS")
+			assert.spy(sendMessageSpy).was.called(1)
+		end)
+	end)
+
+	-- ── Scenario 4: CANCEL_LOOT_ROLL → matching action row hidden ────────────
+
+	describe("Scenario 4: CANCEL_LOOT_ROLL(rollID) → action row for that rollID hidden", function()
+		it("CANCEL_LOOT_ROLL dispatches resolved payload for the matching rollID", function()
+			LootRolls._actionRowStates[120] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+
+			local capturedPayload
+			ns.SendMessage = function(_, msg, payload)
+				capturedPayload = payload
+			end
+
+			LootRolls:CANCEL_LOOT_ROLL("CANCEL_LOOT_ROLL", 120)
+
+			assert.is_not_nil(capturedPayload)
+			assert.are.equal("LAR_120", capturedPayload.key)
+			assert.are.equal("resolved", capturedPayload.rollState)
+		end)
+
+		it("CANCEL_LOOT_ROLL clears _actionRowStates entry for the cancelled rollID", function()
+			LootRolls._actionRowStates[120] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:CANCEL_LOOT_ROLL("CANCEL_LOOT_ROLL", 120)
+			assert.is_nil(LootRolls._actionRowStates[120])
+		end)
+
+		it("CANCEL_LOOT_ROLL does NOT affect unrelated rollIDs", function()
+			LootRolls._actionRowStates[121] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls._actionRowStates[122] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:CANCEL_LOOT_ROLL("CANCEL_LOOT_ROLL", 121)
+			assert.is_nil(LootRolls._actionRowStates[121])
+			assert.is_not_nil(LootRolls._actionRowStates[122])
+		end)
+	end)
+
+	-- ── Scenario 5: Multiple concurrent rollIDs → independent state ──────────
+
+	describe("Scenario 5: multiple concurrent START_LOOT_ROLLs → each rollID independent", function()
+		it("two concurrent rollIDs create two independent _actionRowStates entries", function()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 130, 60)
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 131, 60)
+			assert.is_not_nil(LootRolls._actionRowStates[130])
+			assert.is_not_nil(LootRolls._actionRowStates[131])
+		end)
+
+		it("SubmitActionRoll on rollID=130 does not affect rollID=131 entry", function()
+			LootRolls._actionRowStates[130] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls._actionRowStates[131] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:SubmitActionRoll(130, "NEED")
+			-- 130 has playerSelection; 131 is untouched
+			assert.are.equal("NEED", LootRolls._actionRowStates[130].playerSelection)
+			assert.is_nil(LootRolls._actionRowStates[131].playerSelection)
+		end)
+
+		it("CANCEL_LOOT_ROLL on rollID=130 does not affect rollID=131", function()
+			LootRolls._actionRowStates[130] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls._actionRowStates[131] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:CANCEL_LOOT_ROLL("CANCEL_LOOT_ROLL", 130)
+			assert.is_nil(LootRolls._actionRowStates[130])
+			assert.is_not_nil(LootRolls._actionRowStates[131])
+		end)
+
+		it("two dispatches emitted on two concurrent START_LOOT_ROLLs", function()
+			sendMessageSpy:clear()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 132, 60)
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 133, 60)
+			assert.spy(sendMessageSpy).was.called(2)
+		end)
+	end)
+
+	-- ── Scenario 6: CANCEL_ALL_LOOT_ROLLS → all action rows hidden ───────────
+
+	describe("Scenario 6: CANCEL_ALL_LOOT_ROLLS → all pending action rows hidden", function()
+		it("CANCEL_ALL_LOOT_ROLLS clears all _actionRowStates entries", function()
+			LootRolls._actionRowStates[140] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls._actionRowStates[141] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:CANCEL_ALL_LOOT_ROLLS("CANCEL_ALL_LOOT_ROLLS")
+			assert.is_nil(LootRolls._actionRowStates[140])
+			assert.is_nil(LootRolls._actionRowStates[141])
+		end)
+
+		it("CANCEL_ALL_LOOT_ROLLS dispatches resolved payload for each pending rollID", function()
+			LootRolls._actionRowStates[142] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls._actionRowStates[143] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			sendMessageSpy:clear()
+			LootRolls:CANCEL_ALL_LOOT_ROLLS("CANCEL_ALL_LOOT_ROLLS")
+			-- Two action rows → two resolved dispatches
+			assert.spy(sendMessageSpy).was.called(2)
+		end)
+
+		it("CANCEL_ALL_LOOT_ROLLS leaves _actionRowStates empty after call", function()
+			LootRolls._actionRowStates[144] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:CANCEL_ALL_LOOT_ROLLS("CANCEL_ALL_LOOT_ROLLS")
+			local count = 0
+			for _ in pairs(LootRolls._actionRowStates) do
+				count = count + 1
+			end
+			assert.are.equal(0, count)
+		end)
+	end)
+
+	-- ── Scenario 7: MAIN_SPEC_NEED_ROLL → action row hidden ──────────────────
+
+	describe("Scenario 7: MAIN_SPEC_NEED_ROLL fires → action row for that rollID hidden", function()
+		it("MAIN_SPEC_NEED_ROLL dispatches resolved payload for the matching rollID", function()
+			LootRolls._actionRowStates[150] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+
+			local capturedPayload
+			ns.SendMessage = function(_, msg, payload)
+				capturedPayload = payload
+			end
+
+			LootRolls:MAIN_SPEC_NEED_ROLL("MAIN_SPEC_NEED_ROLL", 150)
+
+			assert.is_not_nil(capturedPayload)
+			assert.are.equal("LAR_150", capturedPayload.key)
+			assert.are.equal("resolved", capturedPayload.rollState)
+		end)
+
+		it("MAIN_SPEC_NEED_ROLL clears _actionRowStates entry for that rollID", function()
+			LootRolls._actionRowStates[150] = {
+				state = "pending",
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+				itemLink = ACTION_ITEM_LINK,
+				rollTime = 60,
+			}
+			LootRolls:MAIN_SPEC_NEED_ROLL("MAIN_SPEC_NEED_ROLL", 150)
+			assert.is_nil(LootRolls._actionRowStates[150])
+		end)
+	end)
+
+	-- ── Full Retail E2E: START_LOOT_ROLL → click Need → CANCEL_LOOT_ROLL ─────
+
+	describe("Full Retail E2E: START_LOOT_ROLL → SubmitActionRoll(NEED) → CANCEL_LOOT_ROLL", function()
+		it("complete Retail action row lifecycle", function()
+			-- Step 1: Roll starts.
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 200, 60)
+			assert.is_not_nil(LootRolls._actionRowStates[200])
+			assert.are.equal("pending", LootRolls._actionRowStates[200].state)
+			assert.spy(sendMessageSpy).was.called(1)
+
+			-- Step 2: Player submits NEED.
+			local capturedRollID, capturedRollType
+			LootRolls._lootRollsAdapter.SubmitLootRoll = function(rollID, rollType)
+				capturedRollID = rollID
+				capturedRollType = rollType
+				return true
+			end
+			sendMessageSpy:clear()
+			LootRolls:SubmitActionRoll(200, "NEED")
+			assert.are.equal(200, capturedRollID)
+			assert.are.equal(1, capturedRollType) -- NEED = 1
+			assert.are.equal("NEED", LootRolls._actionRowStates[200].playerSelection)
+			assert.spy(sendMessageSpy).was.called(1) -- submitted re-dispatch
+
+			-- Step 3: Roll is cancelled (e.g. loot master intervenes).
+			sendMessageSpy:clear()
+			LootRolls:CANCEL_LOOT_ROLL("CANCEL_LOOT_ROLL", 200)
+			assert.spy(sendMessageSpy).was.called(1) -- resolved dispatch
+			assert.is_nil(LootRolls._actionRowStates[200]) -- state cleared
+		end)
+	end)
+end)
+
+-- ─── S02: Result Row Module — enableLootRollResults toggling ─────────────────
+
+describe("Result Row Module (S02: enableLootRollResults toggling)", function()
+	---@type RLF_LootRolls
+	local LootRolls, ns, sendMessageSpy
+
+	local function makeConfig(actions, results)
+		return {
+			enableIcon = true,
+			enableLootRollActions = actions,
+			enableLootRollResults = results,
+		}
+	end
+
+	before_each(function()
+		sendMessageSpy = spy.new(function() end)
+
+		ns = {
+			LootElementBase = nil,
+			ItemQualEnum = { Uncommon = 2, Epic = 4 },
+			DefaultIcons = { LOOTROLLS = 132319 },
+			FeatureModule = { LootRolls = "LootRolls" },
+			LogDebug = spy.new(function() end),
+			LogInfo = spy.new(function() end),
+			LogWarn = spy.new(function() end),
+			LogError = spy.new(function() end),
+			IsRetail = function()
+				return true
+			end,
+			SendMessage = sendMessageSpy,
+			TooltipBuilders = nil,
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					misc = { hideAllIcons = false },
+				},
+			},
+			WoWAPI = { LootRolls = {} },
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "lootRolls" then
+						return makeConfig(true, true)
+					end
+					return nil
+				end,
+			},
+			L = {
+				["All Passed"] = "All Passed",
+				["LootRolls_WaitingForRolls"] = "Waiting for rolls",
+				["LootRolls_TiedFmt"] = "Tied at %d",
+				["LootRolls_CurrentLeaderFmt"] = "Leading: %s rolled %d",
+				["LootRolls_WonByFmt"] = "Won by %s %s %d",
+				["LootRolls_WonByNoRollFmt"] = "Won by %s",
+				["LootRolls_YouSelected_NEED"] = "You: Need",
+				["LootRolls_YouSelected_GREED"] = "You: Greed",
+				["LootRolls_YouSelected_TRANSMOG"] = "You: Transmog",
+				["LootRolls_YouSelected_PASS"] = "You: Pass",
+				["LootRolls_WinnerWithSelfFmt"] = "%s  |  You: rolled %d",
+				["LootRolls_WinnerWithSelfAndSelectionFmt"] = "%s  |  %s, rolled %d",
+			},
+		}
+
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterAllEvents = function() end,
+				}
+			end,
+		}
+
+		LootRolls = assert(loadfile("RPGLootFeed/Features/LootRolls/LootRolls.lua"))("TestAddon", ns)
+		assert.is_not_nil(LootRolls)
+		ns.LootRolls = LootRolls
+
+		LootRolls._lootRollsAdapter = {
+			HasLootHistory = function()
+				return true
+			end,
+			GetSortedInfoForDrop = function()
+				return nil
+			end,
+			GetInfoForEncounter = function()
+				return nil
+			end,
+			GetRaidClassColor = function()
+				return nil
+			end,
+			GetItemInfoIcon = function()
+				return 12345
+			end,
+			GetItemInfoQuality = function()
+				return 4
+			end,
+			GetRollButtonValidity = function(_rollID)
+				return { canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+			end,
+			SubmitLootRoll = function(_rollID, _rollType)
+				return true
+			end,
+			DecodeRollType = function(name)
+				local map = { NEED = 1, GREED = 2, PASS = 0, TRANSMOG = 3 }
+				local v = map[name]
+				if v == nil then
+					return nil, "unknown roll type: " .. tostring(name)
+				end
+				return v
+			end,
+		}
+
+		LootRolls._dropStates = {}
+		LootRolls._buttonValidityCache = {}
+
+		-- START_LOOT_ROLL uses GetTime() to timestamp the action row.
+		_G.GetTime = function()
+			return 1000
+		end
+	end)
+
+	after_each(function()
+		_G.GetTime = nil
+	end)
+
+	-- ── 1: enableLootRollResults=true dispatches result rows ─────────────────
+
+	describe("1: enableLootRollResults=true (default)", function()
+		it("LOOT_HISTORY_UPDATE_DROP dispatches payload when enableLootRollResults=true", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 10, 1)
+
+			assert.spy(sendMessageSpy).was.called(1)
+		end)
+
+		it("BuildPayload returns non-nil with correct key when enableLootRollResults=true", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._dropStates["10_1"] = { state = "pending" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, makePendingDrop(), "pending")
+
+			assert.is_not_nil(payload)
+			assert.are.equal("LR_10_1", payload.key)
+		end)
+
+		it("result row populates _dropStates when enableLootRollResults=true", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 10, 1)
+
+			assert.is_not_nil(LootRolls._dropStates["10_1"])
+			assert.are.equal("pending", LootRolls._dropStates["10_1"].state)
+		end)
+	end)
+
+	-- ── 2: enableLootRollResults=false suppresses result rows ─────────────────
+
+	describe("2: enableLootRollResults=false", function()
+		it("LOOT_HISTORY_UPDATE_DROP dispatches nothing when enableLootRollResults=false", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 10, 1)
+
+			assert.spy(sendMessageSpy).was_not.called()
+		end)
+
+		it("BuildPayload returns nil when enableLootRollResults=false", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._dropStates["10_1"] = { state = "pending" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, makePendingDrop(), "pending")
+
+			assert.is_nil(payload)
+		end)
+	end)
+
+	-- ── 4: No orphaned state when toggling off ─────────────────────────────────
+
+	describe("4: No orphaned state when enableLootRollResults=false", function()
+		it("_dropStates remains empty after LOOT_HISTORY_UPDATE_DROP with results=false", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 20, 3)
+
+			assert.is_nil(LootRolls._dropStates["20_3"])
+		end)
+
+		it("repeated fires with results=false never accumulate state", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 20, 3)
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 20, 3)
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 20, 3)
+
+			local count = 0
+			for _ in pairs(LootRolls._dropStates) do
+				count = count + 1
+			end
+			assert.are.equal(0, count)
+			assert.spy(sendMessageSpy).was_not.called()
+		end)
+	end)
+
+	-- ── 3: All 4 config permutations ──────────────────────────────────────────
+
+	describe("3: All 4 config permutations (actions x results)", function()
+		it("actions=true, results=true: both action and result rows dispatch", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			sendMessageSpy:clear()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 300, 60)
+			local actionCalls = #sendMessageSpy.calls
+
+			sendMessageSpy:clear()
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 30, 1)
+			local resultCalls = #sendMessageSpy.calls
+
+			assert.is_true(actionCalls >= 1)
+			assert.is_true(resultCalls >= 1)
+		end)
+
+		it("actions=true, results=false: action rows dispatch, result rows suppressed", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			sendMessageSpy:clear()
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 301, 60)
+			local actionCalls = #sendMessageSpy.calls
+
+			sendMessageSpy:clear()
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 31, 1)
+			local resultCalls = #sendMessageSpy.calls
+
+			assert.is_true(actionCalls >= 1)
+			assert.are.equal(0, resultCalls)
+		end)
+
+		it("actions=false, results=true: result rows dispatch independently", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(false, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			sendMessageSpy:clear()
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 32, 1)
+			local resultCalls = #sendMessageSpy.calls
+
+			assert.is_true(resultCalls >= 1)
+		end)
+
+		it("actions=false, results=false: no dispatch, no state", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(false, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 33, 1)
+
+			assert.spy(sendMessageSpy).was_not.called()
+			assert.is_nil(LootRolls._dropStates["33_1"])
+		end)
+	end)
+
+	-- ── 5: Outcome events respect enableLootRollResults ───────────────────────
+
+	describe("5: Outcome events clean up per config", function()
+		it("resolved drop dispatches when enableLootRollResults=true", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makeResolvedDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 40, 2)
+
+			assert.spy(sendMessageSpy).was.called(1)
+			assert.are.equal("resolved", LootRolls._dropStates["40_2"].state)
+		end)
+
+		it("resolved drop suppressed when enableLootRollResults=false", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makeResolvedDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 40, 2)
+
+			assert.spy(sendMessageSpy).was_not.called()
+			assert.is_nil(LootRolls._dropStates["40_2"])
+		end)
+
+		it("allPassed drop dispatches when enableLootRollResults=true", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop({ allPassed = true })
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 41, 3)
+
+			assert.spy(sendMessageSpy).was.called(1)
+			assert.are.equal("allPassed", LootRolls._dropStates["41_3"].state)
+		end)
+
+		it("allPassed drop suppressed when enableLootRollResults=false", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop({ allPassed = true })
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 41, 3)
+
+			assert.spy(sendMessageSpy).was_not.called()
+			assert.is_nil(LootRolls._dropStates["41_3"])
+		end)
+
+		it("terminal state is idempotent: second fire after resolved is ignored", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makeResolvedDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 50, 5)
+			sendMessageSpy:clear()
+			-- Second fire — terminal state should block re-dispatch.
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 50, 5)
+
+			assert.spy(sendMessageSpy).was_not.called()
+			assert.are.equal("resolved", LootRolls._dropStates["50_5"].state)
+		end)
+
+		it("no cross-module state leakage: action row state unaffected when results=false", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			-- Fire action row event.
+			LootRolls:START_LOOT_ROLL("START_LOOT_ROLL", 999, 60)
+			assert.is_not_nil(LootRolls._actionRowStates[999])
+
+			-- Fire result row event — should be suppressed without touching action state.
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 99, 9)
+
+			assert.is_nil(LootRolls._dropStates["99_9"])
+			-- Action row state still intact.
+			assert.is_not_nil(LootRolls._actionRowStates[999])
+		end)
+	end)
+end)
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- T03: Result Row Tooltip Rendering and Winner Display
+-- ─────────────────────────────────────────────────────────────────────────────
+
+describe("T03: Result Row Tooltip Rendering and Winner Display", function()
+	---@type RLF_LootRolls
+	local LootRolls, ns
+
+	local function makeConfig(actions, results)
+		return {
+			enableIcon = true,
+			enableLootRollActions = actions,
+			enableLootRollResults = results,
+		}
+	end
+
+	before_each(function()
+		ns = {
+			LootElementBase = nil,
+			ItemQualEnum = { Uncommon = 2, Epic = 4 },
+			DefaultIcons = { LOOTROLLS = 132319 },
+			FeatureModule = { LootRolls = "LootRolls" },
+			LogDebug = spy.new(function() end),
+			LogInfo = spy.new(function() end),
+			LogWarn = spy.new(function() end),
+			LogError = spy.new(function() end),
+			IsRetail = function()
+				return true
+			end,
+			SendMessage = function() end,
+			TooltipBuilders = nil,
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					misc = { hideAllIcons = false },
+				},
+			},
+			WoWAPI = { LootRolls = {} },
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "lootRolls" then
+						return makeConfig(true, true)
+					end
+					return nil
+				end,
+			},
+			L = {
+				["All Passed"] = "All Passed",
+				["LootRolls_WaitingForRolls"] = "Waiting for rolls",
+				["LootRolls_TiedFmt"] = "Tied at %d",
+				["LootRolls_CurrentLeaderFmt"] = "Leading: %s rolled %d",
+				["LootRolls_WonByFmt"] = "Won by %s %s %d",
+				["LootRolls_WonByNoRollFmt"] = "Won by %s",
+				["LootRolls_YouSelected_NEED"] = "You: Need",
+				["LootRolls_YouSelected_GREED"] = "You: Greed",
+				["LootRolls_YouSelected_TRANSMOG"] = "You: Transmog",
+				["LootRolls_YouSelected_PASS"] = "You: Pass",
+				["LootRolls_WinnerWithSelfFmt"] = "%s  |  You: rolled %d",
+				["LootRolls_WinnerWithSelfAndSelectionFmt"] = "%s  |  %s, rolled %d",
+			},
+		}
+
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterAllEvents = function() end,
+				}
+			end,
+		}
+
+		LootRolls = assert(loadfile("RPGLootFeed/Features/LootRolls/LootRolls.lua"))("TestAddon", ns)
+		assert.is_not_nil(LootRolls)
+		ns.LootRolls = LootRolls
+
+		LootRolls._lootRollsAdapter = {
+			HasLootHistory = function()
+				return true
+			end,
+			GetSortedInfoForDrop = function()
+				return nil
+			end,
+			GetInfoForEncounter = function()
+				return nil
+			end,
+			GetRaidClassColor = function()
+				return nil
+			end,
+			GetItemInfoIcon = function()
+				return 12345
+			end,
+			GetItemInfoQuality = function()
+				return 4
+			end,
+			GetRollButtonValidity = function()
+				return { canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+			end,
+			SubmitLootRoll = function()
+				return true
+			end,
+			DecodeRollType = function(name)
+				local map = { NEED = 1, GREED = 2, PASS = 0, TRANSMOG = 3 }
+				local v = map[name]
+				if v == nil then
+					return nil, "unknown roll type: " .. tostring(name)
+				end
+				return v
+			end,
+		}
+
+		LootRolls._dropStates = {}
+		LootRolls._buttonValidityCache = {}
+
+		_G.GetTime = function()
+			return 1000
+		end
+	end)
+
+	after_each(function()
+		_G.GetTime = nil
+	end)
+
+	-- ── 1: customTooltipFn structure ────────────────────────────────────────
+
+	describe("1: customTooltipFn invokes TooltipBuilders when available", function()
+		it("customTooltipFn calls TooltipBuilders:LootRolls with fresh dropInfo and state", function()
+			local tooltipSpy = spy.new(function() end)
+			ns.TooltipBuilders = { LootRolls = tooltipSpy }
+
+			local resolvedDrop = makeResolvedDrop()
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return resolvedDrop
+			end
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, resolvedDrop, "resolved")
+			assert.is_not_nil(payload)
+			assert.is_function(payload.customTooltipFn)
+
+			-- Invoke the closure.
+			payload.customTooltipFn()
+
+			assert.spy(tooltipSpy).was.called(1)
+		end)
+
+		it("customTooltipFn does NOT error when TooltipBuilders is nil", function()
+			ns.TooltipBuilders = nil
+
+			local resolvedDrop = makeResolvedDrop()
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, resolvedDrop, "resolved")
+			assert.is_not_nil(payload)
+
+			-- Should not throw.
+			assert.has_no.errors(function()
+				payload.customTooltipFn()
+			end)
+		end)
+
+		it("customTooltipFn passes 'resolved' state when drop has a winner", function()
+			local capturedState
+			local tooltipSpy = spy.new(function(_, _, _, state)
+				capturedState = state
+			end)
+			ns.TooltipBuilders = { LootRolls = tooltipSpy }
+
+			local resolvedDrop = makeResolvedDrop()
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return resolvedDrop
+			end
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, resolvedDrop, "resolved")
+			payload.customTooltipFn()
+
+			assert.are.equal("resolved", capturedState)
+		end)
+	end)
+
+	-- ── 2: secondaryText winner display ─────────────────────────────────────
+
+	describe("2: secondaryText winner display in resolved state", function()
+		it("winner with roll: secondaryText contains roll number", function()
+			local resolvedDrop = makeResolvedDrop({ roll = 94 })
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, resolvedDrop, "resolved")
+
+			assert.is_not_nil(payload.secondaryText)
+			assert.is_truthy(string.find(payload.secondaryText, "94"))
+		end)
+
+		it("winner without roll: secondaryText uses WonByNoRollFmt (no trailing roll number)", function()
+			-- Construct drop explicitly — makeResolvedDrop can't pass nil through pairs().
+			local noRollWinner = {
+				playerName = "Warrior",
+				playerClass = "WARRIOR",
+				roll = nil,
+				state = 0,
+				isSelf = false,
+				isWinner = true,
+			}
+			local noRollDrop = {
+				itemHyperlink = "|cff0070dditem:12345|r",
+				winner = noRollWinner,
+				allPassed = false,
+				isTied = false,
+				currentLeader = nil,
+				rollInfos = {},
+				playerRollState = nil,
+			}
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, noRollDrop, "resolved")
+
+			assert.is_not_nil(payload.secondaryText)
+			-- Should match "Won by <name>" without a trailing roll number.
+			assert.is_truthy(string.find(payload.secondaryText, "Won by"))
+			-- No trailing " <number>" at the end.
+			assert.is_nil(string.match(payload.secondaryText, " %d+$"))
+		end)
+
+		it("self is winner: secondaryText does NOT append self-roll context", function()
+			local selfWinner = {
+				playerName = "Me",
+				playerClass = "PRIEST",
+				roll = 77,
+				state = 0,
+				isSelf = true,
+				isWinner = true,
+			}
+			local rollInfos = { selfWinner }
+			local dropWithSelfWin = {
+				itemHyperlink = "|cff0070dditem:99999|r",
+				winner = selfWinner,
+				allPassed = false,
+				isTied = false,
+				currentLeader = nil,
+				rollInfos = rollInfos,
+				playerRollState = 0,
+			}
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, dropWithSelfWin, "resolved")
+
+			-- No self-roll context appended when self is the winner.
+			assert.is_not_nil(payload.secondaryText)
+			assert.is_truthy(string.find(payload.secondaryText, "Won by") or string.find(payload.secondaryText, "77"))
+			assert.is_nil(string.find(payload.secondaryText, "You: rolled"))
+		end)
+	end)
+
+	-- ── 3: all-passed case ───────────────────────────────────────────────────
+
+	describe("3: all-passed case", function()
+		it("allPassed drop: secondaryText is 'All Passed'", function()
+			local allPassedDrop = makePendingDrop({ allPassed = true })
+			LootRolls._dropStates["10_1"] = { state = "allPassed" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, allPassedDrop, "allPassed")
+
+			assert.are.equal("All Passed", payload.secondaryText)
+		end)
+	end)
+
+	-- ── 4: tied rolls ────────────────────────────────────────────────────────
+
+	describe("4: tied rolls in pending state", function()
+		it("tied pending drop: secondaryText contains tied roll value", function()
+			local tiedDrop = makePendingDrop({
+				isTied = true,
+				currentLeader = { playerName = "Rogue", playerClass = "ROGUE", roll = 50 },
+			})
+			LootRolls._dropStates["10_1"] = { state = "pending" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, tiedDrop, "pending")
+
+			assert.is_not_nil(payload.secondaryText)
+			assert.is_truthy(string.find(payload.secondaryText, "Tied"))
+			assert.is_truthy(string.find(payload.secondaryText, "50"))
+		end)
+	end)
+
+	-- ── 5: solo pass ────────────────────────────────────────────────────────
+
+	describe("5: solo pass (single player who passed)", function()
+		it("drop with allPassed=true and single rollInfo: secondaryText is 'All Passed'", function()
+			local soloPassDrop = makePendingDrop({
+				allPassed = true,
+				rollInfos = {
+					{ playerName = "Solo", playerClass = "MAGE", roll = nil, state = 5, isSelf = true },
+				},
+			})
+			LootRolls._dropStates["10_1"] = { state = "allPassed" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, soloPassDrop, "allPassed")
+
+			assert.are.equal("All Passed", payload.secondaryText)
+		end)
+	end)
+
+	-- ── 6: payload structural integrity (T03 regression) ────────────────────
+
+	describe("6: BuildPayload structural integrity for result rows", function()
+		it("resolved payload has correct key format 'LR_<enc>_<loot>'", function()
+			local resolvedDrop = makeResolvedDrop()
+			LootRolls._dropStates["77_3"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["77_3"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(77, 3, resolvedDrop, "resolved")
+
+			assert.are.equal("LR_77_3", payload.key)
+		end)
+
+		it("resolved payload always includes customTooltipFn", function()
+			local resolvedDrop = makeResolvedDrop()
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+			LootRolls._buttonValidityCache["10_1"] =
+				{ canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+
+			local payload = LootRolls:BuildPayload(10, 1, resolvedDrop, "resolved")
+
+			assert.is_function(payload.customTooltipFn)
+		end)
+
+		it("BuildPayload returns nil when enableLootRollResults=false regardless of state", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			local resolvedDrop = makeResolvedDrop()
+			LootRolls._dropStates["10_1"] = { state = "resolved" }
+
+			local payload = LootRolls:BuildPayload(10, 1, resolvedDrop, "resolved")
+
+			assert.is_nil(payload)
+		end)
+	end)
+end)
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- T04: Outcome Event Handling with Independent Result Row Toggle
+-- ─────────────────────────────────────────────────────────────────────────────
+
+describe("T04: Outcome event handling with independent result row toggle", function()
+	---@type RLF_LootRolls
+	local LootRolls, ns, sendMessageSpy
+
+	local function makeConfig(actions, results)
+		return {
+			enableIcon = true,
+			enableLootRollActions = actions,
+			enableLootRollResults = results,
+		}
+	end
+
+	before_each(function()
+		sendMessageSpy = spy.new(function() end)
+
+		ns = {
+			LootElementBase = nil,
+			ItemQualEnum = { Uncommon = 2, Epic = 4 },
+			DefaultIcons = { LOOTROLLS = 132319 },
+			FeatureModule = { LootRolls = "LootRolls" },
+			LogDebug = spy.new(function() end),
+			LogInfo = spy.new(function() end),
+			LogWarn = spy.new(function() end),
+			LogError = spy.new(function() end),
+			IsRetail = function()
+				return true
+			end,
+			SendMessage = sendMessageSpy,
+			TooltipBuilders = nil,
+			db = {
+				global = {
+					animations = { exit = { fadeOutDelay = 3 } },
+					misc = { hideAllIcons = false },
+				},
+			},
+			WoWAPI = { LootRolls = {} },
+			DbAccessor = {
+				IsFeatureNeededByAnyFrame = function()
+					return true
+				end,
+				AnyFeatureConfig = function(_, featureKey)
+					if featureKey == "lootRolls" then
+						return makeConfig(true, true)
+					end
+					return nil
+				end,
+			},
+			L = {
+				["All Passed"] = "All Passed",
+				["LootRolls_WaitingForRolls"] = "Waiting for rolls",
+				["LootRolls_TiedFmt"] = "Tied at %d",
+				["LootRolls_CurrentLeaderFmt"] = "Leading: %s rolled %d",
+				["LootRolls_WonByFmt"] = "Won by %s %s %d",
+				["LootRolls_WonByNoRollFmt"] = "Won by %s",
+				["LootRolls_YouSelected_NEED"] = "You: Need",
+				["LootRolls_YouSelected_GREED"] = "You: Greed",
+				["LootRolls_YouSelected_TRANSMOG"] = "You: Transmog",
+				["LootRolls_YouSelected_PASS"] = "You: Pass",
+				["LootRolls_WinnerWithSelfFmt"] = "%s  |  You: rolled %d",
+				["LootRolls_WinnerWithSelfAndSelectionFmt"] = "%s  |  %s, rolled %d",
+			},
+		}
+
+		assert(loadfile("RPGLootFeed/Features/_Internals/LootElementBase.lua"))("TestAddon", ns)
+
+		ns.FeatureBase = {
+			new = function(_, name)
+				return {
+					moduleName = name,
+					Enable = function() end,
+					Disable = function() end,
+					IsEnabled = function()
+						return true
+					end,
+					RegisterEvent = function() end,
+					UnregisterAllEvents = function() end,
+				}
+			end,
+		}
+
+		LootRolls = assert(loadfile("RPGLootFeed/Features/LootRolls/LootRolls.lua"))("TestAddon", ns)
+		assert.is_not_nil(LootRolls)
+		ns.LootRolls = LootRolls
+
+		LootRolls._lootRollsAdapter = {
+			HasLootHistory = function()
+				return true
+			end,
+			GetSortedInfoForDrop = function()
+				return nil
+			end,
+			GetInfoForEncounter = function()
+				return nil
+			end,
+			GetRaidClassColor = function()
+				return nil
+			end,
+			GetItemInfoIcon = function()
+				return 12345
+			end,
+			GetItemInfoQuality = function()
+				return 4
+			end,
+			GetRollButtonValidity = function(_rollID)
+				return { canNeed = true, canGreed = true, canTransmog = false, canPass = true }
+			end,
+			SubmitLootRoll = function(_rollID, _rollType)
+				return true
+			end,
+			DecodeRollType = function(name)
+				local map = { NEED = 1, GREED = 2, PASS = 0, TRANSMOG = 3 }
+				local v = map[name]
+				if v == nil then
+					return nil, "unknown roll type: " .. tostring(name)
+				end
+				return v
+			end,
+		}
+
+		LootRolls._dropStates = {}
+		LootRolls._buttonValidityCache = {}
+
+		_G.GetTime = function()
+			return 1000
+		end
+	end)
+
+	after_each(function()
+		_G.GetTime = nil
+	end)
+
+	-- ── 1: LOOT_HISTORY_UPDATE_DROP with pending state ───────────────────────
+
+	describe("1: LOOT_HISTORY_UPDATE_DROP with pending state creates entry", function()
+		it("pending drop (no winner) creates _dropStates entry with state='pending'", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 60, 1)
+
+			assert.is_not_nil(LootRolls._dropStates["60_1"])
+			assert.are.equal("pending", LootRolls._dropStates["60_1"].state)
+		end)
+
+		it("pending drop dispatches payload to the feed", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 60, 1)
+
+			assert.spy(sendMessageSpy).was.called(1)
+		end)
+
+		it("pending drop with enableLootRollResults=false: no _dropStates entry created", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, false)
+				end
+			end
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 60, 1)
+
+			assert.is_nil(LootRolls._dropStates["60_1"])
+			assert.spy(sendMessageSpy).was_not.called()
+		end)
+	end)
+
+	-- ── 2: pending → resolved state transition ───────────────────────────────
+
+	describe("2: pending to resolved state transition via LOOT_HISTORY_UPDATE_DROP", function()
+		it("second LOOT_HISTORY_UPDATE_DROP with winner transitions _dropStates from pending to resolved", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			-- First event: pending (no winner yet)
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makePendingDrop()
+			end
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 61, 2)
+			assert.are.equal("pending", LootRolls._dropStates["61_2"].state)
+
+			sendMessageSpy:clear()
+
+			-- Second event: resolved (winner determined)
+			LootRolls._lootRollsAdapter.GetSortedInfoForDrop = function()
+				return makeResolvedDrop()
+			end
+			LootRolls:LOOT_HISTORY_UPDATE_DROP("LOOT_HISTORY_UPDATE_DROP", 61, 2)
+
+			assert.are.equal("resolved", LootRolls._dropStates["61_2"].state)
+			assert.spy(sendMessageSpy).was.called(1)
+		end)
+	end)
+
+	-- ── 3: MAIN_SPEC_NEED_ROLL does NOT affect _dropStates ───────────────────
+
+	describe("3: MAIN_SPEC_NEED_ROLL independence from result row state", function()
+		it("MAIN_SPEC_NEED_ROLL does not clear _dropStates entries", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			-- Seed a result row state entry.
+			LootRolls._dropStates["70_4"] = { state = "pending" }
+
+			-- Fire MAIN_SPEC_NEED_ROLL (action row outcome event).
+			LootRolls:MAIN_SPEC_NEED_ROLL("MAIN_SPEC_NEED_ROLL", 200)
+
+			-- Result row entry must be unaffected.
+			assert.is_not_nil(LootRolls._dropStates["70_4"])
+			assert.are.equal("pending", LootRolls._dropStates["70_4"].state)
+		end)
+
+		it("MAIN_SPEC_NEED_ROLL clears _actionRowStates but leaves _dropStates intact", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			-- Seed both states independently.
+			LootRolls._actionRowStates = LootRolls._actionRowStates or {}
+			LootRolls._actionRowStates[201] = {
+				state = "pending",
+				itemLink = "|cff0070dditem:999|r",
+				rollTime = 1060,
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+			}
+			LootRolls._dropStates["70_4"] = { state = "pending" }
+
+			LootRolls:MAIN_SPEC_NEED_ROLL("MAIN_SPEC_NEED_ROLL", 201)
+
+			-- Action row cleared, result row untouched.
+			assert.is_nil(LootRolls._actionRowStates[201])
+			assert.is_not_nil(LootRolls._dropStates["70_4"])
+		end)
+	end)
+
+	-- ── 4: CANCEL_LOOT_ROLL does NOT affect _dropStates ──────────────────────
+
+	describe("4: CANCEL_LOOT_ROLL independence from result row state", function()
+		it("CANCEL_LOOT_ROLL does not clear _dropStates entries", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._dropStates["80_5"] = { state = "pending" }
+
+			LootRolls:CANCEL_LOOT_ROLL("CANCEL_LOOT_ROLL", 300)
+
+			assert.is_not_nil(LootRolls._dropStates["80_5"])
+			assert.are.equal("pending", LootRolls._dropStates["80_5"].state)
+		end)
+
+		it("CANCEL_LOOT_ROLL clears matching _actionRowStates but leaves all _dropStates intact", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._actionRowStates = LootRolls._actionRowStates or {}
+			LootRolls._actionRowStates[301] = {
+				state = "pending",
+				itemLink = "|cff0070dditem:888|r",
+				rollTime = 1060,
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+			}
+			LootRolls._dropStates["80_5"] = { state = "pending" }
+			LootRolls._dropStates["80_6"] = { state = "resolved" }
+
+			LootRolls:CANCEL_LOOT_ROLL("CANCEL_LOOT_ROLL", 301)
+
+			assert.is_nil(LootRolls._actionRowStates[301])
+			assert.is_not_nil(LootRolls._dropStates["80_5"])
+			assert.is_not_nil(LootRolls._dropStates["80_6"])
+		end)
+	end)
+
+	-- ── 5: CANCEL_ALL_LOOT_ROLLS does NOT affect _dropStates ─────────────────
+
+	describe("5: CANCEL_ALL_LOOT_ROLLS leaves _dropStates entirely intact", function()
+		it("CANCEL_ALL_LOOT_ROLLS clears all action rows but does not touch _dropStates", function()
+			ns.DbAccessor.AnyFeatureConfig = function(_, key)
+				if key == "lootRolls" then
+					return makeConfig(true, true)
+				end
+			end
+			LootRolls._actionRowStates = LootRolls._actionRowStates or {}
+			LootRolls._actionRowStates[401] = {
+				state = "pending",
+				itemLink = "|cff0070dditem:777|r",
+				rollTime = 1060,
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+			}
+			LootRolls._actionRowStates[402] = {
+				state = "pending",
+				itemLink = "|cff0070dditem:776|r",
+				rollTime = 1060,
+				buttonValidity = { canNeed = true, canGreed = true, canTransmog = false, canPass = true },
+			}
+			LootRolls._dropStates["90_1"] = { state = "pending" }
+			LootRolls._dropStates["90_2"] = { state = "resolved" }
+
+			LootRolls:CANCEL_ALL_LOOT_ROLLS("CANCEL_ALL_LOOT_ROLLS")
+
+			assert.is_nil(LootRolls._actionRowStates[401])
+			assert.is_nil(LootRolls._actionRowStates[402])
+			assert.is_not_nil(LootRolls._dropStates["90_1"])
+			assert.is_not_nil(LootRolls._dropStates["90_2"])
+		end)
+	end)
+end)

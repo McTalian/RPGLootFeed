@@ -1,0 +1,26 @@
+++++++++++++++++++++++++++++++++++++++******++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+1484 successes / 0 failures / 6 errors / 0 pending : 4.397754 seconds
+
+Error -> RPGLootFeed_spec/Core_spec.lua @ 38
+Core module functionality addon initialization should initialize correctly
+RPGLootFeed/Core.lua:146: attempt to call a nil value (global 'hooksecurefunc')
+
+Error -> RPGLootFeed_spec/Core_spec.lua @ 45
+Core module functionality addon initialization DbMigrations (new install) seeds migrationVersion to latestMigrationVersion on fresh install
+RPGLootFeed/Core.lua:146: attempt to call a nil value (global 'hooksecurefunc')
+
+Error -> RPGLootFeed_spec/Core_spec.lua @ 61
+Core module functionality addon initialization DbMigrations (new install) calls no migration run functions
+RPGLootFeed/Core.lua:146: attempt to call a nil value (global 'hooksecurefunc')
+
+Error -> RPGLootFeed_spec/Core_spec.lua @ 77
+Core module functionality addon initialization DbMigrations (new install) does not skip migrations when migrationVersion > 0
+RPGLootFeed/Core.lua:146: attempt to call a nil value (global 'hooksecurefunc')
+
+Error -> RPGLootFeed_spec/Core_spec.lua @ 96
+Core module functionality OnSlashCommand should handle test mode command correctly
+RPGLootFeed/Core.lua:146: attempt to call a nil value (global 'hooksecurefunc')
+
+Error -> RPGLootFeed_spec/Core_spec.lua @ 112
+Core module functionality OnSlashCommand should handle unknown command correctly
+RPGLootFeed/Core.lua:146: attempt to call a nil value (global 'hooksecurefunc')

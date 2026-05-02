@@ -296,6 +296,30 @@ end
 
 --- Called when a roll button is clicked.
 function RLF_LootRollsButtonsMixin:OnButtonClick(rollKey)
+	local lr = self._lootRollsFeature
+
+	-- Action rows (Retail START_LOOT_ROLL) use rollID directly.
+	if self._lootRollIsActionRow then
+		G_RLF:LogDebug(
+			"LootRollsButtonsMixin:OnButtonClick(action) key="
+				.. tostring(rollKey)
+				.. " rollID="
+				.. tostring(self._lootRollRollID),
+			addonName
+		)
+		if not self._lootRollRollID then
+			G_RLF:LogWarn("LootRollsButtonsMixin:OnButtonClick(action) — missing rollID", addonName)
+			return
+		end
+		if lr and lr.SubmitActionRoll then
+			lr:SubmitActionRoll(self._lootRollRollID, rollKey)
+		else
+			G_RLF:LogWarn("LootRollsButtonsMixin:OnButtonClick(action) — SubmitActionRoll not found", addonName)
+		end
+		return
+	end
+
+	-- Result rows (C_LootHistory) use encounterID + lootListID.
 	G_RLF:LogDebug(
 		"LootRollsButtonsMixin:OnButtonClick key="
 			.. tostring(rollKey)
@@ -317,7 +341,6 @@ function RLF_LootRollsButtonsMixin:OnButtonClick(rollKey)
 		return
 	end
 
-	local lr = self._lootRollsFeature
 	if lr and lr[submitMethod] then
 		lr[submitMethod](lr, self._lootRollEncounterID, self._lootRollLootListID)
 	else
@@ -361,6 +384,10 @@ function RLF_LootRollsButtonsMixin:UpdateLootRollButtons(payload)
 
 	self:InitializeButtons()
 
+	-- Store IDs depending on row type.
+	-- Action rows (isActionRow=true) use rollID; result rows use encounterID+lootListID.
+	self._lootRollIsActionRow = payload.isActionRow or false
+	self._lootRollRollID = payload.rollID
 	self._lootRollEncounterID = payload.encounterID
 	self._lootRollLootListID = payload.lootListID
 	self._lootRollRollState = payload.rollState
@@ -378,6 +405,8 @@ end
 
 --- Called from LootDisplayRow:Reset().
 function RLF_LootRollsButtonsMixin:ResetButtons()
+	self._lootRollIsActionRow = nil
+	self._lootRollRollID = nil
 	self._lootRollEncounterID = nil
 	self._lootRollLootListID = nil
 	self._lootRollRollState = nil

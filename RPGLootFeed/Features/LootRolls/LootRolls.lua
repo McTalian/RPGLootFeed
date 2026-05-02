@@ -51,6 +51,13 @@ LootRolls._buttonValidityCache = {}
 -- Staging cache keyed by rollID alone (populated from START_LOOT_ROLL before
 -- encounterID is known; absorbed into _buttonValidityCache on LOOT_HISTORY_UPDATE_DROP).
 LootRolls._rollValidityStaging = {}
+
+-- Action row state cache keyed by rollID (Retail + Classic).
+-- Each entry: { state = "pending"|"submitted", buttonValidity = {...},
+--               itemLink = "...", startTime = n, rollTime = n }
+-- Independent from _dropStates — action rows live on rollID, not encounterID_lootListID.
+-- Entries are created on START_LOOT_ROLL and cleared when the roll concludes.
+LootRolls._actionRowStates = {}
 -- Inline atlas markup for roll-state icons (matches Blizzard's LootHistory icons).
 -- Width/height of 14 keeps the icon visually balanced with adjacent text.
 -- Maps EncounterLootDropRollState numeric values → atlas markup.
@@ -143,6 +150,121 @@ local function GetSelfRoll(dropInfo)
 	return nil
 end
 
+--- Builds a payload for a Retail action row, keyed by rollID.
+--- Action rows are independent from result rows (no encounterID/lootListID).
+--- Returns nil when the module is disabled.
+---@param rollID number
+---@param rollTime number  seconds until roll auto-closes (from START_LOOT_ROLL)
+---@param itemLink string|nil
+---@param buttonValidity table  { canNeed, canGreed, canTransmog, canPass }
+---@param state "pending"|"submitted"
+---@return RLF_ElementPayload?
+function LootRolls:BuildActionRowPayload(rollID, rollTime, itemLink, buttonValidity, state)
+	if not LootRolls:IsEnabled() then
+		return nil
+	end
+
+	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
+	local payload = {}
+
+	-- Action row key uses "LAR_" prefix to distinguish from result rows ("LR_").
+	payload.key = "LAR_" .. rollID
+	payload.type = FeatureModule.LootRolls
+	payload.isLink = true
+	-- quantity = 0 — rows are state machines, not stacking counts.
+	payload.quantity = 0
+
+	-- Icon from item link cache; fall back to default LOOTROLLS icon.
+	if lootRollsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
+		if itemLink and itemLink ~= "" then
+			payload.icon = LootRolls._lootRollsAdapter.GetItemInfoIcon(itemLink) or DefaultIcons.LOOTROLLS
+		else
+			payload.icon = DefaultIcons.LOOTROLLS
+		end
+	end
+
+	-- Quality from item link cache; default to Uncommon when unavailable.
+	if itemLink and itemLink ~= "" then
+		payload.quality = LootRolls._lootRollsAdapter.GetItemInfoQuality(itemLink) or ItemQualEnum.Uncommon
+	else
+		payload.quality = ItemQualEnum.Uncommon
+	end
+
+	-- Primary text: item hyperlink (clickable link) or fallback.
+	local link = itemLink or ""
+	payload.textFn = function(_, truncatedLink)
+		if not truncatedLink or truncatedLink == "" then
+			return link
+		end
+		return truncatedLink
+	end
+
+	-- Secondary text: pending state shows waiting message; submitted shows selection.
+	local actionRowEntry = LootRolls._actionRowStates[rollID]
+	if state == "submitted" and actionRowEntry and actionRowEntry.playerSelection then
+		local selectionLabel = G_RLF.L["LootRolls_YouSelected_" .. actionRowEntry.playerSelection]
+			or actionRowEntry.playerSelection
+		payload.secondaryText = selectionLabel
+	else
+		payload.secondaryText = G_RLF.L["LootRolls_WaitingForRolls"]
+	end
+
+	-- Exit timer anchored to rollTime so the row drains in sync with the roll window.
+	if rollTime and rollTime > 0 then
+		payload.showForSeconds = rollTime + PENDING_EXIT_BUFFER
+	end
+
+	-- Tooltip: minimal for action rows (no encounter context).
+	payload.customTooltipFn = function()
+		-- Action rows don't have encounter context; skip detailed tooltip.
+	end
+
+	-- Button validity for the row's button mixin.
+	if buttonValidity then
+		payload.buttonValidity = {
+			canNeed = buttonValidity.canNeed or false,
+			canGreed = buttonValidity.canGreed or false,
+			canTransmog = buttonValidity.canTransmog or false,
+			canDisenchant = buttonValidity.canDisenchant or false,
+			canPass = buttonValidity.canPass ~= false, -- default true
+		}
+	end
+
+	-- Player selection from action row state.
+	if actionRowEntry and actionRowEntry.playerSelection then
+		payload.playerSelection = actionRowEntry.playerSelection
+	end
+
+	-- Store rollID so buttons can call SubmitActionRoll directly.
+	payload.rollID = rollID
+	payload.rollState = state
+	payload.isActionRow = true
+	-- Pass self so mixin can call SubmitActionRoll without a global lookup.
+	payload.lootRollsFeature = LootRolls
+
+	payload.IsEnabled = function()
+		return LootRolls:IsEnabled()
+	end
+
+	return payload
+end
+
+--- Pushes an action row payload onto the message bus.
+---@param rollID number
+---@param rollTime number
+---@param itemLink string|nil
+---@param buttonValidity table
+---@param state "pending"|"submitted"
+function LootRolls:DispatchActionRowPayload(rollID, rollTime, itemLink, buttonValidity, state)
+	local payload = self:BuildActionRowPayload(rollID, rollTime, itemLink, buttonValidity, state)
+	if not payload then
+		return
+	end
+	LogDebug("DispatchActionRowPayload", addonName, self.moduleName, rollID, state)
+	local element = LootElementBase:fromPayload(payload)
+	element:Show()
+end
+
 --- Builds a uniform payload table for a loot roll drop in any state.
 --- Returns nil when the module is disabled.
 ---
@@ -161,6 +283,18 @@ function LootRolls:BuildPayload(encounterID, lootListID, dropInfo, state)
 	local itemHyperlink = dropInfo.itemHyperlink
 	local key = "LR_" .. encounterID .. "_" .. lootListID
 	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
+
+	-- Result row feature gate: checked at dispatch time (second gate).
+	if lootRollsConfig.enableLootRollResults == false then
+		LogDebug(
+			"enableLootRollResults disabled — skipping result row",
+			addonName,
+			self.moduleName,
+			encounterID,
+			lootListID
+		)
+		return nil
+	end
 
 	local payload = {}
 
@@ -326,7 +460,15 @@ function LootRolls:OnEnable()
 		-- START_LOOT_ROLL fires on Retail too — use it to cache button validity
 		-- at the exact moment GetLootRollItemInfo(rollID) is guaranteed valid.
 		self:RegisterEvent("START_LOOT_ROLL")
-		LogDebug("Registered LOOT_HISTORY_UPDATE_DROP + START_LOOT_ROLL (Retail)", addonName, self.moduleName)
+		-- Action row lifecycle: hide rows when the roll concludes.
+		self:RegisterEvent("MAIN_SPEC_NEED_ROLL")
+		self:RegisterEvent("CANCEL_LOOT_ROLL")
+		self:RegisterEvent("CANCEL_ALL_LOOT_ROLLS")
+		LogDebug(
+			"Registered LOOT_HISTORY_UPDATE_DROP + START_LOOT_ROLL + outcome events (Retail)",
+			addonName,
+			self.moduleName
+		)
 	else
 		-- Classic path: START_LOOT_ROLL / LOOT_ROLLS_COMPLETE drive the state machine.
 		if
@@ -348,6 +490,7 @@ function LootRolls:OnDisable()
 	LootRolls._dropStates = {}
 	LootRolls._buttonValidityCache = {}
 	LootRolls._rollValidityStaging = {}
+	LootRolls._actionRowStates = {}
 end
 
 --- Fired whenever a specific drop entry changes — new roll cast, winner decided,
@@ -360,6 +503,19 @@ end
 --- refresh the secondary text and reset the timer.
 function LootRolls:LOOT_HISTORY_UPDATE_DROP(eventName, encounterID, lootListID)
 	LogInfo(eventName, "WOWEVENT", self.moduleName, encounterID, lootListID)
+
+	-- Result row feature gate: checked at state population time (first gate).
+	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
+	if lootRollsConfig.enableLootRollResults == false then
+		LogDebug(
+			"enableLootRollResults disabled — skipping LOOT_HISTORY_UPDATE_DROP",
+			addonName,
+			self.moduleName,
+			encounterID,
+			lootListID
+		)
+		return
+	end
 
 	local dropInfo = LootRolls._lootRollsAdapter.GetSortedInfoForDrop(encounterID, lootListID)
 	if not dropInfo then
@@ -443,10 +599,12 @@ function LootRolls:START_LOOT_ROLL(eventName, rollID, rollTime)
 	if IsRetail() then
 		-- On Retail, START_LOOT_ROLL fires when a GroupLootFrame roll opens.
 		-- Cache button validity now — GetLootRollItemInfo(rollID) is valid here.
-		-- LOOT_HISTORY_UPDATE_DROP will absorb this staging entry once it knows encounterID.
+		-- 1. Stage validity for LOOT_HISTORY_UPDATE_DROP (result row path).
+		-- 2. Cache in _actionRowStates and dispatch action row immediately.
 		if LootRolls._lootRollsAdapter.GetRollButtonValidity then
 			local validity = LootRolls._lootRollsAdapter.GetRollButtonValidity(rollID)
 			if validity then
+				-- Stage for result row absorption.
 				LootRolls._rollValidityStaging[rollID] = validity
 				LogDebug(
 					"Staged Retail button validity",
@@ -457,6 +615,40 @@ function LootRolls:START_LOOT_ROLL(eventName, rollID, rollTime)
 					validity.canGreed,
 					validity.canTransmog
 				)
+
+				-- Cache in _actionRowStates for the independent action row path.
+				local existing = LootRolls._actionRowStates[rollID]
+				if not existing then
+					-- Fetch item link for the action row display.
+					local itemLink = LootRolls._lootRollsAdapter.GetRollItemLink
+							and LootRolls._lootRollsAdapter.GetRollItemLink(rollID)
+						or nil
+
+					LootRolls._actionRowStates[rollID] = {
+						state = "pending",
+						buttonValidity = validity,
+						itemLink = itemLink,
+						startTime = GetTime(),
+						rollTime = rollTime,
+					}
+					LogInfo(
+						"START_LOOT_ROLL action row cached",
+						addonName,
+						self.moduleName,
+						rollID,
+						"canNeed=" .. tostring(validity.canNeed),
+						"canGreed=" .. tostring(validity.canGreed),
+						"canTransmog=" .. tostring(validity.canTransmog),
+						"rollTime=" .. tostring(rollTime)
+					)
+
+					-- Dispatch action row to the feed immediately.
+					self:DispatchActionRowPayload(rollID, rollTime, itemLink, validity, "pending")
+				else
+					LogDebug("Action row already cached for rollID", addonName, self.moduleName, rollID)
+				end
+			else
+				LogWarn("GetRollButtonValidity returned nil for rollID", addonName, self.moduleName, rollID)
 			end
 		end
 		return
@@ -699,6 +891,102 @@ local function submitRollAction(encounterID, lootListID, rollTypeName)
 		if currentDropInfo then
 			LootRolls:DispatchPayload(encounterID, lootListID, currentDropInfo, entry.state or "pending")
 		end
+	end
+end
+
+--- Submits a Retail action-row roll via rollID (independent of encounterID/lootListID).
+---@param rollID number  The rollID from START_LOOT_ROLL
+---@param rollTypeName string  "NEED"|"GREED"|"TRANSMOG"|"PASS"
+function LootRolls:SubmitActionRoll(rollID, rollTypeName)
+	if not rollID then
+		LogWarn("SubmitActionRoll: rollID is nil", addonName, self.moduleName)
+		return
+	end
+
+	if not LootRolls._lootRollsAdapter.DecodeRollType then
+		LogWarn("DecodeRollType not available", addonName, self.moduleName)
+		return
+	end
+	local rollType, decodeErr = LootRolls._lootRollsAdapter.DecodeRollType(rollTypeName)
+	if not rollType then
+		LogWarn("SubmitActionRoll: invalid rollType", addonName, self.moduleName, rollTypeName, decodeErr)
+		return
+	end
+
+	if not LootRolls._lootRollsAdapter.SubmitLootRoll then
+		LogWarn("SubmitLootRoll not available", addonName, self.moduleName)
+		return
+	end
+
+	LogInfo("SubmitActionRoll", "ACTION", self.moduleName, rollID, rollTypeName)
+	local ok, submitErr = LootRolls._lootRollsAdapter.SubmitLootRoll(rollID, rollType)
+	if not ok then
+		LogWarn("SubmitActionRoll failed", addonName, self.moduleName, rollTypeName, submitErr)
+		return
+	end
+
+	-- Record player selection and re-dispatch as submitted.
+	local entry = LootRolls._actionRowStates[rollID]
+	if entry then
+		entry.playerSelection = rollTypeName
+		LogDebug("Action row player selection recorded", addonName, self.moduleName, rollID, rollTypeName)
+		self:DispatchActionRowPayload(rollID, entry.rollTime or 0, entry.itemLink, entry.buttonValidity, "submitted")
+	end
+end
+
+-- ── Action row lifecycle: hide on outcome events ──────────────────────────────
+
+--- Hides a pending action row by dispatching a "resolved" payload and clearing
+--- the state entry.  Called from outcome-event handlers to ensure no orphaned
+--- action rows remain after the roll window closes.
+---@param rollID number
+local function hideActionRow(rollID)
+	local entry = LootRolls._actionRowStates[rollID]
+	if not entry then
+		LogDebug("hideActionRow: no entry for rollID (already gone)", addonName, LootRolls.moduleName, rollID)
+		return
+	end
+	LogInfo("Action row hide", "ACTION", LootRolls.moduleName, rollID, "state=" .. tostring(entry.state))
+	-- Dispatch as "resolved" so the row's exit animation fires.
+	LootRolls:DispatchActionRowPayload(rollID, 0, entry.itemLink, entry.buttonValidity, "resolved")
+	-- Clear state — no orphaned entries.
+	LootRolls._actionRowStates[rollID] = nil
+	LogDebug("Action row state cleared for rollID", addonName, LootRolls.moduleName, rollID)
+end
+
+--- MAIN_SPEC_NEED_ROLL fires on Retail when the player (or another player) wins
+--- the roll via a GroupLootFrame Need button.  rollID uniquely identifies which
+--- roll concluded so we can target the correct action row.
+---@param eventName string
+---@param rollID number
+function LootRolls:MAIN_SPEC_NEED_ROLL(eventName, rollID)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, rollID)
+	hideActionRow(rollID)
+end
+
+--- CANCEL_LOOT_ROLL fires on Retail when a specific roll is cancelled (e.g.
+--- timeout, player disconnects, or item no longer available for the roll).
+---@param eventName string
+---@param rollID number
+function LootRolls:CANCEL_LOOT_ROLL(eventName, rollID)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, rollID)
+	hideActionRow(rollID)
+end
+
+--- CANCEL_ALL_LOOT_ROLLS fires on Retail when all pending rolls are cancelled
+--- simultaneously (e.g. zone transition, encounter ends prematurely).
+--- Hides every action row that is still pending.
+---@param eventName string
+function LootRolls:CANCEL_ALL_LOOT_ROLLS(eventName)
+	LogInfo(eventName, "WOWEVENT", self.moduleName)
+	-- Collect rollIDs first to avoid mutating the table while iterating.
+	local pending = {}
+	for rollID, _ in pairs(LootRolls._actionRowStates) do
+		table.insert(pending, rollID)
+	end
+	LogDebug("CANCEL_ALL_LOOT_ROLLS hiding", addonName, self.moduleName, #pending, "action rows")
+	for _, rollID in ipairs(pending) do
+		hideActionRow(rollID)
 	end
 end
 
