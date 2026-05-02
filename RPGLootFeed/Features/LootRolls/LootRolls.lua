@@ -45,6 +45,12 @@ LootRolls._lootRollsAdapter = G_RLF.WoWAPI.LootRolls
 -- and to detect state transitions across LOOT_HISTORY_UPDATE_DROP fires.
 LootRolls._dropStates = {}
 
+-- Button validity cache keyed by "encounterID_lootListID".
+LootRolls._buttonValidityCache = {}
+
+-- Staging cache keyed by rollID alone (populated from START_LOOT_ROLL before
+-- encounterID is known; absorbed into _buttonValidityCache on LOOT_HISTORY_UPDATE_DROP).
+LootRolls._rollValidityStaging = {}
 -- Inline atlas markup for roll-state icons (matches Blizzard's LootHistory icons).
 -- Width/height of 14 keeps the icon visually balanced with adjacent text.
 -- Maps EncounterLootDropRollState numeric values → atlas markup.
@@ -198,8 +204,20 @@ function LootRolls:BuildPayload(encounterID, lootListID, dropInfo, state)
 		end
 		-- Append personal roll context when the local player rolled and didn't win.
 		local selfRoll = GetSelfRoll(dropInfo)
+		local dropEntry2 = LootRolls._dropStates[encounterID .. "_" .. lootListID]
+		local playerSelection = dropEntry2 and dropEntry2.playerSelection
 		if selfRoll and not selfRoll.isWinner and selfRoll.roll and selfRoll.state ~= ROLL_STATE_NO_ROLL then
-			payload.secondaryText = string.format(G_RLF.L["LootRolls_WinnerWithSelfFmt"], winnerText, selfRoll.roll)
+			if playerSelection then
+				local selectionLabel = G_RLF.L["LootRolls_YouSelected_" .. playerSelection] or playerSelection
+				payload.secondaryText = string.format(
+					G_RLF.L["LootRolls_WinnerWithSelfAndSelectionFmt"],
+					winnerText,
+					selectionLabel,
+					selfRoll.roll
+				)
+			else
+				payload.secondaryText = string.format(G_RLF.L["LootRolls_WinnerWithSelfFmt"], winnerText, selfRoll.roll)
+			end
 		else
 			payload.secondaryText = winnerText
 		end
@@ -239,6 +257,33 @@ function LootRolls:BuildPayload(encounterID, lootListID, dropInfo, state)
 		end
 	end
 
+	-- Button validity from cache.
+	local dropKey = encounterID .. "_" .. lootListID
+	local cached = LootRolls._buttonValidityCache[dropKey]
+	if cached then
+		payload.buttonValidity = {
+			canNeed = cached.canNeed,
+			canGreed = cached.canGreed,
+			canTransmog = cached.canTransmog,
+			canDisenchant = cached.canDisenchant,
+			canPass = cached.canPass,
+		}
+	end
+
+	-- Player selection from drop state.
+	local dropEntry = LootRolls._dropStates[dropKey]
+	if dropEntry and dropEntry.playerSelection then
+		payload.playerSelection = dropEntry.playerSelection
+	end
+
+	-- Store encounterID/lootListID/rollState so buttons can call Submit* methods.
+	payload.encounterID = encounterID
+	payload.lootListID = lootListID
+	payload.rollState = state
+	-- Pass self so the mixin can call SubmitNeed/SubmitGreed etc. directly
+	-- without a global G_RLF.LootRolls lookup (LootRolls is a module-local).
+	payload.lootRollsFeature = LootRolls
+
 	payload.IsEnabled = function()
 		return LootRolls:IsEnabled()
 	end
@@ -271,23 +316,38 @@ end
 function LootRolls:OnEnable()
 	LogDebug("OnEnable", addonName, self.moduleName)
 
-	-- LOOT_HISTORY_UPDATE_DROP is Retail-only; guard before registering.
-	if not IsRetail() then
-		LogDebug("Skipping LootRolls registration — not Retail", addonName, self.moduleName)
-		return
+	if IsRetail() then
+		-- Retail path: C_LootHistory drives the state machine.
+		if not LootRolls._lootRollsAdapter.HasLootHistory() then
+			LogWarn("C_LootHistory not available; LootRolls disabled", addonName, self.moduleName)
+			return
+		end
+		self:RegisterEvent("LOOT_HISTORY_UPDATE_DROP")
+		-- START_LOOT_ROLL fires on Retail too — use it to cache button validity
+		-- at the exact moment GetLootRollItemInfo(rollID) is guaranteed valid.
+		self:RegisterEvent("START_LOOT_ROLL")
+		LogDebug("Registered LOOT_HISTORY_UPDATE_DROP + START_LOOT_ROLL (Retail)", addonName, self.moduleName)
+	else
+		-- Classic path: START_LOOT_ROLL / LOOT_ROLLS_COMPLETE drive the state machine.
+		if
+			not LootRolls._lootRollsAdapter.HasStartLootRollEvent
+			or not LootRolls._lootRollsAdapter.HasStartLootRollEvent()
+		then
+			LogWarn("START_LOOT_ROLL not available; LootRolls disabled on Classic", addonName, self.moduleName)
+			return
+		end
+		self:RegisterEvent("START_LOOT_ROLL")
+		self:RegisterEvent("LOOT_ROLLS_COMPLETE")
+		LogDebug("Registered START_LOOT_ROLL + LOOT_ROLLS_COMPLETE (Classic)", addonName, self.moduleName)
 	end
-	if not LootRolls._lootRollsAdapter.HasLootHistory() then
-		LogWarn("C_LootHistory not available; LootRolls disabled", addonName, self.moduleName)
-		return
-	end
-
-	self:RegisterEvent("LOOT_HISTORY_UPDATE_DROP")
 end
 
 function LootRolls:OnDisable()
 	self:UnregisterAllEvents()
 	-- Reset state so re-enabling presents fresh data.
 	LootRolls._dropStates = {}
+	LootRolls._buttonValidityCache = {}
+	LootRolls._rollValidityStaging = {}
 end
 
 --- Fired whenever a specific drop entry changes — new roll cast, winner decided,
@@ -325,6 +385,341 @@ function LootRolls:LOOT_HISTORY_UPDATE_DROP(eventName, encounterID, lootListID)
 		entry.state = newState
 	end
 
+	-- Absorb staged validity (set by START_LOOT_ROLL before encounterID was known).
+	if newState == "pending" and not LootRolls._buttonValidityCache[dropKey] then
+		local staged = LootRolls._rollValidityStaging[lootListID]
+		if staged then
+			LootRolls._buttonValidityCache[dropKey] = staged
+			LootRolls._rollValidityStaging[lootListID] = nil
+			LogDebug(
+				"Absorbed staged validity for",
+				addonName,
+				self.moduleName,
+				dropKey,
+				staged.canNeed,
+				staged.canGreed,
+				staged.canTransmog
+			)
+		else
+			-- Fallback: try calling directly (may return nil if roll already closed).
+			if LootRolls._lootRollsAdapter.GetRollButtonValidity then
+				local validity = LootRolls._lootRollsAdapter.GetRollButtonValidity(lootListID)
+				if validity then
+					LootRolls._buttonValidityCache[dropKey] = validity
+				end
+			end
+		end
+	end
+
 	-- Dispatch the current snapshot to the feed.
 	self:DispatchPayload(encounterID, lootListID, dropInfo, newState)
 end
+
+-- ── Classic roll state machine ────────────────────────────────────────────────
+
+--- Builds a simplified dropInfo table from Classic GetClassicRollItemInfo data.
+---@param rollID number
+---@param rollTime number  seconds until roll auto-closes
+---@param itemInfo table  result from GetClassicRollItemInfo
+---@return table
+local function BuildClassicDropInfo(rollID, rollTime, itemInfo)
+	return {
+		itemHyperlink = itemInfo.itemLink or "",
+		winner = nil,
+		allPassed = false,
+		isTied = false,
+		currentLeader = nil,
+		rollInfos = {},
+		startTime = GetTime(),
+		duration = rollTime,
+		_classicRollID = rollID,
+	}
+end
+
+--- Fired on Classic when a new group loot roll begins.
+function LootRolls:START_LOOT_ROLL(eventName, rollID, rollTime)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, rollID, rollTime)
+
+	if IsRetail() then
+		-- On Retail, START_LOOT_ROLL fires when a GroupLootFrame roll opens.
+		-- Cache button validity now — GetLootRollItemInfo(rollID) is valid here.
+		-- LOOT_HISTORY_UPDATE_DROP will absorb this staging entry once it knows encounterID.
+		if LootRolls._lootRollsAdapter.GetRollButtonValidity then
+			local validity = LootRolls._lootRollsAdapter.GetRollButtonValidity(rollID)
+			if validity then
+				LootRolls._rollValidityStaging[rollID] = validity
+				LogDebug(
+					"Staged Retail button validity",
+					addonName,
+					self.moduleName,
+					rollID,
+					validity.canNeed,
+					validity.canGreed,
+					validity.canTransmog
+				)
+			end
+		end
+		return
+	end
+
+	local itemInfo = LootRolls._lootRollsAdapter.GetClassicRollItemInfo(rollID)
+	if not itemInfo or not itemInfo.itemLink then
+		LogDebug("GetClassicRollItemInfo returned nil or no itemLink — skipping", addonName, self.moduleName, rollID)
+		return
+	end
+
+	local dropKey = rollID .. "_" .. rollID
+	local entry = LootRolls._dropStates[dropKey]
+
+	if entry and (entry.state == "resolved" or entry.state == "allPassed") then
+		LogDebug("Classic drop already terminal, skipping", addonName, self.moduleName, rollID)
+		return
+	end
+
+	if not entry then
+		entry = { state = "pending", _isClassic = true, _rollID = rollID }
+		LootRolls._dropStates[dropKey] = entry
+	else
+		entry.state = "pending"
+	end
+	LogDebug("Classic drop state → pending", addonName, self.moduleName, rollID)
+
+	if not LootRolls._buttonValidityCache[dropKey] then
+		local validity = {
+			canNeed = itemInfo.canNeed,
+			canGreed = itemInfo.canGreed,
+			canTransmog = false,
+			canDisenchant = itemInfo.canDisenchant,
+			canPass = true,
+			isCached = true,
+		}
+		LootRolls._buttonValidityCache[dropKey] = validity
+		LogDebug(
+			"Cached Classic button validity",
+			addonName,
+			self.moduleName,
+			dropKey,
+			validity.canNeed,
+			validity.canGreed,
+			validity.canDisenchant
+		)
+	end
+
+	local dropInfo = BuildClassicDropInfo(rollID, rollTime, itemInfo)
+	entry._dropInfo = dropInfo
+	self:DispatchClassicPayload(rollID, dropInfo, "pending", itemInfo)
+end
+
+--- Fired on Classic when all rolls for a loot item have concluded.
+function LootRolls:LOOT_ROLLS_COMPLETE(eventName, lootHandle)
+	LogInfo(eventName, "WOWEVENT", self.moduleName, lootHandle)
+
+	for dropKey, entry in pairs(LootRolls._dropStates) do
+		if entry.state == "pending" and entry._isClassic then
+			entry.state = "allPassed"
+			LogDebug("Classic drop state → allPassed via LOOT_ROLLS_COMPLETE", addonName, self.moduleName, dropKey)
+
+			LootRolls._buttonValidityCache[dropKey] = nil
+
+			local cachedDropInfo = entry._dropInfo
+			if cachedDropInfo then
+				cachedDropInfo.allPassed = true
+				self:DispatchClassicPayload(entry._rollID, cachedDropInfo, "allPassed", nil)
+			end
+		end
+	end
+end
+
+--- Dispatches a Classic roll payload onto the feed.
+function LootRolls:DispatchClassicPayload(rollID, dropInfo, state, itemInfo)
+	local payload = self:BuildClassicPayload(rollID, dropInfo, state, itemInfo)
+	if not payload then
+		return
+	end
+	local element = LootElementBase:fromPayload(payload)
+	element:Show()
+end
+
+--- Builds a payload for a Classic loot roll.
+---@return RLF_ElementPayload?
+function LootRolls:BuildClassicPayload(rollID, dropInfo, state, itemInfo)
+	if not LootRolls:IsEnabled() then
+		return nil
+	end
+
+	local dropKey = rollID .. "_" .. rollID
+	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
+
+	local payload = {}
+
+	payload.key = "LR_" .. rollID .. "_" .. rollID
+	payload.type = FeatureModule.LootRolls
+	payload.isLink = true
+	payload.quantity = 0
+
+	if lootRollsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
+		if itemInfo and itemInfo.texture then
+			payload.icon = itemInfo.texture
+		elseif dropInfo.itemHyperlink and dropInfo.itemHyperlink ~= "" then
+			payload.icon = LootRolls._lootRollsAdapter.GetItemInfoIcon(dropInfo.itemHyperlink) or DefaultIcons.LOOTROLLS
+		else
+			payload.icon = DefaultIcons.LOOTROLLS
+		end
+	end
+
+	if itemInfo and itemInfo.quality then
+		payload.quality = itemInfo.quality
+	else
+		payload.quality = (dropInfo.itemHyperlink and dropInfo.itemHyperlink ~= "")
+				and LootRolls._lootRollsAdapter.GetItemInfoQuality(dropInfo.itemHyperlink)
+			or ItemQualEnum.Uncommon
+	end
+
+	local link = dropInfo.itemHyperlink
+	payload.textFn = function(_, truncatedLink)
+		if not truncatedLink or truncatedLink == "" then
+			return link
+		end
+		return truncatedLink
+	end
+
+	if state == "allPassed" or state == "resolved" then
+		payload.secondaryText = G_RLF.L["All Passed"]
+	else
+		payload.secondaryText = G_RLF.L["LootRolls_WaitingForRolls"]
+		local remaining = GetRemainingPendingSeconds(dropInfo)
+		if remaining then
+			payload.showForSeconds = remaining
+		end
+	end
+
+	payload.customTooltipFn = function()
+		if G_RLF.TooltipBuilders and G_RLF.TooltipBuilders.LootRolls then
+			G_RLF.TooltipBuilders:LootRolls(dropInfo, nil, state)
+		end
+	end
+
+	local cached = LootRolls._buttonValidityCache[dropKey]
+	if cached then
+		payload.buttonValidity = {
+			canNeed = cached.canNeed,
+			canGreed = cached.canGreed,
+			canTransmog = cached.canTransmog,
+			canDisenchant = cached.canDisenchant,
+			canPass = cached.canPass,
+		}
+	end
+
+	local dropEntry = LootRolls._dropStates[dropKey]
+	if dropEntry and dropEntry.playerSelection then
+		payload.playerSelection = dropEntry.playerSelection
+	end
+
+	payload.encounterID = rollID
+	payload.lootListID = rollID
+	payload.rollState = state
+
+	payload.IsEnabled = function()
+		return LootRolls:IsEnabled()
+	end
+
+	return payload
+end
+
+--- Submit a Classic roll action via ClassicRollOnLoot.
+---@param rollID number
+---@param rollTypeName string  "NEED"|"GREED"|"DISENCHANT"|"PASS"
+function LootRolls:SubmitClassicRoll(rollID, rollTypeName)
+	local dropKey = rollID .. "_" .. rollID
+
+	local classicMap = { NEED = 1, GREED = 2, DISENCHANT = 3, PASS = 0 }
+	local rollType = classicMap[rollTypeName]
+	if rollType == nil then
+		LogWarn("SubmitClassicRoll: invalid rollTypeName", addonName, self.moduleName, rollTypeName)
+		return
+	end
+
+	LogDebug("SubmitClassicRoll", addonName, self.moduleName, rollID, rollTypeName, rollType)
+	local ok, err = LootRolls._lootRollsAdapter.ClassicRollOnLoot(rollID, rollType)
+	if not ok then
+		LogWarn("ClassicRollOnLoot failed", addonName, self.moduleName, rollTypeName, err)
+		return
+	end
+
+	local entry = LootRolls._dropStates[dropKey]
+	if entry then
+		entry.playerSelection = rollTypeName
+		LogDebug("Classic player selection recorded", addonName, self.moduleName, dropKey, rollTypeName)
+
+		local cachedDropInfo = entry._dropInfo
+		if cachedDropInfo then
+			self:DispatchClassicPayload(rollID, cachedDropInfo, entry.state or "pending", nil)
+		end
+	end
+end
+
+-- ── Roll submit actions (Retail + Classic routing) ────────────────────────────
+
+--- Routes a roll action to Classic or Retail path based on drop state.
+local function submitRollAction(encounterID, lootListID, rollTypeName)
+	local dropKey = encounterID .. "_" .. lootListID
+	local entry = LootRolls._dropStates[dropKey]
+
+	if entry and entry._isClassic then
+		local classicTypeName = rollTypeName == "TRANSMOG" and "DISENCHANT" or rollTypeName
+		LootRolls:SubmitClassicRoll(lootListID, classicTypeName)
+		return
+	end
+
+	-- Retail path.
+	if not LootRolls._lootRollsAdapter.DecodeRollType then
+		LogWarn("DecodeRollType not available", addonName, LootRolls.moduleName)
+		return
+	end
+	local rollType, decodeErr = LootRolls._lootRollsAdapter.DecodeRollType(rollTypeName)
+	if not rollType then
+		LogWarn("submitRollAction: invalid rollType", addonName, LootRolls.moduleName, rollTypeName, decodeErr)
+		return
+	end
+
+	if not LootRolls._lootRollsAdapter.SubmitLootRoll then
+		LogWarn("SubmitLootRoll not available", addonName, LootRolls.moduleName)
+		return
+	end
+	local ok, submitErr = LootRolls._lootRollsAdapter.SubmitLootRoll(lootListID, rollType)
+	if not ok then
+		LogWarn("SubmitLootRoll failed", addonName, LootRolls.moduleName, rollTypeName, submitErr)
+		return
+	end
+
+	if entry then
+		entry.playerSelection = rollTypeName
+		LogDebug("Player selection recorded", addonName, LootRolls.moduleName, dropKey, rollTypeName)
+		local currentDropInfo = LootRolls._lootRollsAdapter.GetSortedInfoForDrop(encounterID, lootListID)
+		if currentDropInfo then
+			LootRolls:DispatchPayload(encounterID, lootListID, currentDropInfo, entry.state or "pending")
+		end
+	end
+end
+
+function LootRolls:SubmitNeed(encounterID, lootListID)
+	submitRollAction(encounterID, lootListID, "NEED")
+end
+
+function LootRolls:SubmitGreed(encounterID, lootListID)
+	submitRollAction(encounterID, lootListID, "GREED")
+end
+
+function LootRolls:SubmitTransmog(encounterID, lootListID)
+	submitRollAction(encounterID, lootListID, "TRANSMOG")
+end
+
+function LootRolls:SubmitPass(encounterID, lootListID)
+	submitRollAction(encounterID, lootListID, "PASS")
+end
+
+function LootRolls:SubmitDisenchant(encounterID, lootListID)
+	submitRollAction(encounterID, lootListID, "DISENCHANT")
+end
+
+return LootRolls

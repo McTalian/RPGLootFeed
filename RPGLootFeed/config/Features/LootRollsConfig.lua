@@ -74,6 +74,38 @@ function G_RLF.BuildLootRollsArgs(frameId, order)
 						end,
 						order = 0.5,
 					},
+					enableLootRollActions = {
+						type = "toggle",
+						name = G_RLF.L["Enable Loot Roll Actions"],
+						desc = G_RLF.L["EnableLootRollActionsDesc"],
+						width = "double",
+						get = function()
+							return fc().enableLootRollActions
+						end,
+						set = function(_, value)
+							fc().enableLootRollActions = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
+						end,
+						order = 3,
+					},
+					disableLootRollFrame = {
+						type = "toggle",
+						name = G_RLF.L["Disable Built-in Roll Frame"],
+						desc = G_RLF.L["DisableLootRollFrameDesc"],
+						width = "double",
+						-- Only enabled when enableLootRollActions is true
+						disabled = function()
+							return not fc().enableLootRollActions
+						end,
+						get = function()
+							return fc().disableLootRollFrame
+						end,
+						set = function(_, value)
+							fc().disableLootRollFrame = value
+							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
+						end,
+						order = 4,
+					},
 				},
 			},
 		},

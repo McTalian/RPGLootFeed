@@ -225,6 +225,15 @@ function G_RLF.LootElementBase:fromPayload(payload)
 	-- ── Backwards compatibility: keep itemCount for modules not yet migrated ──
 	element.itemCount = payload.itemCount
 
+	-- ── LootRolls action button fields ───────────────────────────────────────
+	-- These are used by RLF_LootRollsButtonsMixin to render and submit roll
+	-- actions from the row UI.
+	element.encounterID = payload.encounterID
+	element.lootListID = payload.lootListID
+	element.rollState = payload.rollState
+	element.buttonValidity = payload.buttonValidity
+	element.playerSelection = payload.playerSelection
+
 	return element
 end
 

@@ -14,6 +14,7 @@ G_RLF.defaults.global.blizzOverrides = {
 	enableAutoLoot = false,
 	disableBlizzLootToasts = false,
 	disableBlizzMoneyAlerts = false,
+	disableGroupLootHistoryFrame = false,
 	bossBannerConfig = G_RLF.DisableBossBanner.ENABLED,
 }
 
@@ -74,6 +75,22 @@ G_RLF.options.args.blizz = {
 						G_RLF.db.global.blizzOverrides.disableBlizzMoneyAlerts = value
 					end,
 					order = 4,
+				},
+				disableGroupLootHistoryFrame = {
+					type = "toggle",
+					name = G_RLF.L["Disable Group Loot History"],
+					desc = G_RLF.L["DisableGroupLootHistoryDesc"],
+					width = "full",
+					hidden = function()
+						return not G_RLF:IsRetail()
+					end,
+					get = function(info, value)
+						return G_RLF.db.global.blizzOverrides.disableGroupLootHistoryFrame
+					end,
+					set = function(info, value)
+						G_RLF.db.global.blizzOverrides.disableGroupLootHistoryFrame = value
+					end,
+					order = 4.5,
 				},
 				bossBanner = {
 					type = "select",

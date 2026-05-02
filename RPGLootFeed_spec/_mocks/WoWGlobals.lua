@@ -155,6 +155,20 @@ wowGlobals.MoneyWonAlertSystem = {}
 wowGlobals.MoneyWonAlertSystem.AddAlert = stub(_G.MoneyWonAlertSystem, "AddAlert")
 --#endregion
 
+--#region:GroupLootHistoryFrame
+---@diagnostic disable-next-line: missing-fields
+_G.GroupLootHistoryFrame = {}
+wowGlobals.GroupLootHistoryFrame = {}
+wowGlobals.GroupLootHistoryFrame.OnShow = stub(_G.GroupLootHistoryFrame, "OnShow")
+--#endregion
+
+--#region:GroupLootFrame
+---@diagnostic disable-next-line: missing-fields
+_G.GroupLootFrame = {}
+wowGlobals.GroupLootFrame = {}
+wowGlobals.GroupLootFrame.OnShow = stub(_G.GroupLootFrame, "OnShow")
+--#endregion
+
 --#region:UIParent
 ---@diagnostic disable-next-line: missing-fields
 _G.UIParent = {

@@ -345,6 +345,152 @@ G_RLF.WoWAPI.LootRolls = {
 	CreateItemFromItemLink = function(itemLink)
 		return Item:CreateFromItemLink(itemLink)
 	end,
+
+	-- ── Classic-only methods ──────────────────────────────────────────────────
+
+	--- Returns true when the START_LOOT_ROLL event is available (Classic clients).
+	--- Used by OnEnable to decide which event path to register.
+	HasStartLootRollEvent = function()
+		if G_RLF:IsRetail() then
+			return false
+		end
+		-- START_LOOT_ROLL exists on all Classic flavors (Vanilla, TBC, Wrath, Cata).
+		-- We detect it by checking for GetLootRollItemInfo which is always present
+		-- alongside START_LOOT_ROLL on Classic clients.
+		return GetLootRollItemInfo ~= nil
+	end,
+
+	--- Wraps GetLootRollItemInfo (Classic) per-item roll data.
+	--- Returns table { texture, name, count, quality, canNeed, canGreed,
+	--- canDisenchant, itemLink } or nil when rollID is invalid/expired.
+	---@param rollID number
+	---@return table|nil
+	GetClassicRollItemInfo = function(rollID)
+		if G_RLF:IsRetail() then
+			return nil
+		end
+		if not GetLootRollItemInfo then
+			return nil
+		end
+		local texture, name, count, quality, canNeed, canGreed, canDisenchant = GetLootRollItemInfo(rollID)
+		if not texture then
+			return nil
+		end
+		local itemLink = GetLootRollItemLink and GetLootRollItemLink(rollID) or nil
+		return {
+			texture = texture,
+			name = name,
+			count = count or 1,
+			quality = quality,
+			canNeed = canNeed,
+			canGreed = canGreed,
+			canDisenchant = canDisenchant,
+			itemLink = itemLink,
+		}
+	end,
+
+	--- Wraps RollOnLoot (Classic) to submit a roll choice.
+	---@param rollID number
+	---@param rollType number  0=Pass, 1=Need, 2=Greed, 3=Disenchant
+	---@return boolean, string|nil
+	ClassicRollOnLoot = function(rollID, rollType)
+		if G_RLF:IsRetail() then
+			return false, "ClassicRollOnLoot not available on Retail"
+		end
+		if not RollOnLoot then
+			return false, "RollOnLoot not available"
+		end
+		if type(rollType) ~= "number" then
+			return false, "invalid rollType: expected number, got " .. type(rollType)
+		end
+		RollOnLoot(rollID, rollType)
+		return true
+	end,
+
+	--- Decodes Classic roll type number to human-readable label string.
+	---@param rollType number
+	---@return string|nil, string|nil
+	DecodeClassicRollType = function(rollType)
+		if type(rollType) ~= "number" then
+			return nil, "invalid rollType: expected number, got " .. type(rollType)
+		end
+		-- On Retail: type 3 is TRANSMOG
+		-- On Classic: type 3 is DISENCHANT
+		local isRetail = G_RLF:IsRetail()
+		local labels
+		if isRetail then
+			labels = { [0] = "PASS", [1] = "NEED", [2] = "GREED", [3] = "TRANSMOG" }
+		else
+			labels = { [0] = "PASS", [1] = "NEED", [2] = "GREED", [3] = "DISENCHANT" }
+		end
+		local label = labels[rollType]
+		if label == nil then
+			return nil, "unknown roll type: " .. tostring(rollType)
+		end
+		return label
+	end,
+	--- Gets button validity state for a loot roll.
+	---@param rollID number
+	---@return table { canNeed, canGreed, canTransmog, canPass, itemLink }
+	GetRollButtonValidity = function(rollID)
+		if not C_LootHistory then
+			-- Classic path — handled by GetClassicRollItemInfo instead.
+			return nil
+		end
+		-- Retail: GetLootRollItemInfo signature (13 values):
+		-- texture, name, count, quality, bindOnPickUp,
+		-- canNeed, canGreed, canDisenchant,
+		-- reasonNeed, reasonGreed, reasonDisenchant, deSkillRequired,
+		-- canTransmog
+		local _texture, _name, _count, _quality, _bindOnPickUp, canNeed, canGreed, _canDisenchant, _reasonNeed, _reasonGreed, _reasonDisenchant, _deSkillRequired, canTransmog =
+			GetLootRollItemInfo(rollID)
+
+		-- If the API returned nothing the roll frame may not be active yet.
+		-- Return nil so the caller can decide to skip caching rather than
+		-- storing a table of all-false values.
+		if canNeed == nil and canGreed == nil and canTransmog == nil then
+			return nil
+		end
+
+		return {
+			canNeed = canNeed or false,
+			canGreed = canGreed or false,
+			canTransmog = canTransmog or false,
+			canPass = true,
+		}
+	end,
+
+	--- Wraps RollOnLoot to submit a roll choice.
+	---@param rollID number
+	---@param rollType number  0=Pass, 1=Need, 2=Greed, 3=Transmog
+	---@return boolean, string|nil
+	SubmitLootRoll = function(rollID, rollType)
+		if not C_LootHistory then
+			return false, "C_LootHistory not available (Classic client?)"
+		end
+		if type(rollType) ~= "number" then
+			return false, "invalid rollType: expected number, got " .. type(rollType)
+		end
+		RollOnLoot(rollID, rollType)
+		return true
+	end,
+
+	--- Decodes roll type name string to numeric roll type.
+	---@param rollTypeName string  "NEED"|"GREED"|"TRANSMOG"|"PASS"
+	---@return number|nil, string|nil
+	DecodeRollType = function(rollTypeName)
+		local typeMap = {
+			NEED = 1,
+			GREED = 2,
+			PASS = 0,
+			TRANSMOG = 4, -- TransmogButton id="4" in GroupLootFrame.xml
+		}
+		local rollType = typeMap[rollTypeName]
+		if rollType == nil then
+			return nil, "unknown roll type: " .. tostring(rollTypeName)
+		end
+		return rollType
+	end,
 }
 
 return G_RLF.WoWAPI

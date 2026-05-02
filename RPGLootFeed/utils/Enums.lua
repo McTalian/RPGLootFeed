@@ -86,6 +86,8 @@ G_RLF.FeatureModule = {
 ---@enum G_RLF.BlizzModule
 G_RLF.BlizzModule = {
 	BossBanner = "BossBanner",
+	GroupLootFrame = "GroupLootFrame",
+	LootHistoryFrame = "LootHistoryFrame",
 	LootToasts = "LootToasts",
 	MoneyAlerts = "MoneyAlerts",
 }

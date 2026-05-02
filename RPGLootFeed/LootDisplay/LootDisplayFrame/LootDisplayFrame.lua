@@ -300,7 +300,6 @@ end
 --- Called from SetClickThrough (combat start) and SetUpHoverEffect OnLeave.
 --- @param row RLF_LootDisplayRow
 function LootDisplayFrameMixin:ReleasePin(row)
-	G_RLF:LogDebug("[PIN] ReleasePin: key=" .. tostring(row.key) .. " isPinned=" .. tostring(row.isPinned), addonName)
 	if not row.isPinned then
 		return
 	end

@@ -4,7 +4,7 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
----@class RLF_LootDisplayRow: BackdropTemplate, RLF_RowAnimationMixin, RLF_RowTooltipMixin, RLF_RowTextMixin, RLF_RowBackdropMixin, RLF_RowScriptedEffectsMixin, RLF_RowIconMixin, RLF_RowUnitPortraitMixin
+---@class RLF_LootDisplayRow: BackdropTemplate, RLF_RowAnimationMixin, RLF_RowTooltipMixin, RLF_RowTextMixin, RLF_RowBackdropMixin, RLF_RowScriptedEffectsMixin, RLF_RowIconMixin, RLF_RowUnitPortraitMixin, RLF_LootRollsButtonsMixin
 ---@field key string
 ---@field frameType G_RLF.Frames
 ---@field amount number
@@ -213,6 +213,8 @@ function LootDisplayRowMixin:Reset()
 	self.ClickableButton:SetScript("OnLeave", nil)
 	self.ClickableButton:SetScript("OnMouseUp", nil)
 	self.ClickableButton:SetScript("OnEvent", nil)
+
+	self:ResetButtons()
 end
 
 --- Enable or disable mouse interaction on this row and its interactive children.
@@ -256,15 +258,6 @@ end
 --- Phase 2's FLIP repositioning when nearby rows exit.
 --- @param frame RLF_LootDisplayFrame
 function LootDisplayRowMixin:PinPosition(frame)
-	G_RLF:LogDebug(
-		"[PIN] PinPosition: key="
-			.. tostring(self.key)
-			.. " isPinned="
-			.. tostring(self.isPinned)
-			.. " pinOnHover="
-			.. tostring(G_RLF.db.global.interactions.pinOnHover),
-		addonName
-	)
 	if self.isPinned then
 		return
 	end
@@ -281,10 +274,6 @@ function LootDisplayRowMixin:PinPosition(frame)
 
 	self.isPinned = true
 	frame.hasPinnedRow = true
-	G_RLF:LogDebug(
-		"[PIN] PinPosition: PINNED key=" .. tostring(self.key) .. " offset=" .. tostring(self.pinnedFrameOffset),
-		addonName
-	)
 end
 
 function LootDisplayRowMixin:Styles()
@@ -414,6 +403,11 @@ function LootDisplayRowMixin:BootstrapFromElement(element)
 		self:UpdateItemCount()
 	end)
 	self:LogRow(self.logFn, text, true)
+
+	-- Loot roll action buttons: show/update when payload type is LootRolls.
+	if element.type == G_RLF.FeatureModule.LootRolls then
+		self:UpdateLootRollButtons(element)
+	end
 end
 
 function LootDisplayRowMixin:LogRow(logFn, text, new)
@@ -475,6 +469,11 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	if element.showForSeconds ~= nil and element.showForSeconds ~= self.showForSeconds then
 		self.showForSeconds = element.showForSeconds
 		self.hasElementFadeOverride = true
+		self:StyleExitAnimation()
+	elseif element.showForSeconds == nil and self.hasElementFadeOverride then
+		-- Element cleared the override — reset to the configured default.
+		self.showForSeconds = G_RLF.DbAccessor:Animations(self.frameType).exit.fadeOutDelay
+		self.hasElementFadeOverride = false
 		self:StyleExitAnimation()
 	end
 	-- Update existing entry
@@ -548,6 +547,11 @@ function LootDisplayRowMixin:UpdateQuantity(element)
 	end
 
 	self:LogRow(self.logFn, text, false)
+
+	-- Loot roll action buttons: update state after quantity update.
+	if self.type == G_RLF.FeatureModule.LootRolls then
+		self:UpdateLootRollButtons(element)
+	end
 
 	if self.pendingElement ~= nil then
 		self:UpdateQuantity(self.pendingElement)
