@@ -371,8 +371,8 @@ end
 
 --- Called from LootDisplayRow whenever the element payload is updated.
 function RLF_LootRollsButtonsMixin:UpdateLootRollButtons(payload)
-	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
-	if not lootRollsConfig.enableLootRollActions then
+	-- Only show buttons on action rows, not result rows
+	if not payload.isActionRow then
 		self:HideButtons()
 		return
 	end
@@ -391,7 +391,8 @@ function RLF_LootRollsButtonsMixin:UpdateLootRollButtons(payload)
 	self._lootRollEncounterID = payload.encounterID
 	self._lootRollLootListID = payload.lootListID
 	self._lootRollRollState = payload.rollState
-	self._lootRollDisableFrame = lootRollsConfig.disableLootRollFrame or false
+	local lootRollsActionsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRollActions") or {}
+	self._lootRollDisableFrame = lootRollsActionsConfig.disableLootRollFrame or false
 	self._lootRollsFeature = payload.lootRollsFeature
 
 	local validity = payload.buttonValidity

@@ -317,8 +317,8 @@ G_RLF.defaults = {
 						enableBlizzardTransmogSound = true,
 						enableIcon = true,
 					},
-					-- Loot Rolls: off by default; Retail-only feature.
-					lootRolls = {
+					-- Loot Rolls: split into separate config modules for actions and results.
+					lootRollActions = {
 						enabled = false,
 						backgroundOverride = {
 							enabled = false,
@@ -327,9 +327,18 @@ G_RLF.defaults = {
 							textureColor = { 0, 0, 0, 1 },
 						},
 						enableIcon = true,
-						enableLootRollActions = false,
 						disableLootRollFrame = false,
-						enableLootRollResults = true,
+					},
+					lootRollResults = {
+						enabled = true,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
+						enableIcon = true,
+						exitDelayOverride = 0,
 					},
 				},
 			},
@@ -596,8 +605,8 @@ G_RLF.defaults = {
 						enableBlizzardTransmogSound = true,
 						enableIcon = true,
 					},
-					-- Loot Rolls: off by default; Retail-only feature.
-					lootRolls = {
+					-- Loot Rolls: split into separate config modules for actions and results.
+					lootRollActions = {
 						enabled = false,
 						backgroundOverride = {
 							enabled = false,
@@ -606,9 +615,18 @@ G_RLF.defaults = {
 							textureColor = { 0, 0, 0, 1 },
 						},
 						enableIcon = true,
-						enableLootRollActions = false,
 						disableLootRollFrame = false,
-						enableLootRollResults = true,
+					},
+					lootRollResults = {
+						enabled = false,
+						backgroundOverride = {
+							enabled = false,
+							gradientStart = { 0.1, 0.1, 0.1, 0.8 },
+							gradientEnd = { 0.1, 0.1, 0.1, 0 },
+							textureColor = { 0, 0, 0, 1 },
+						},
+						enableIcon = true,
+						exitDelayOverride = 0,
 					},
 				},
 			},

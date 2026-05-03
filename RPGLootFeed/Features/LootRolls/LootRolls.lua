@@ -164,7 +164,7 @@ function LootRolls:BuildActionRowPayload(rollID, rollTime, itemLink, buttonValid
 		return nil
 	end
 
-	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
+	local lootRollsActionsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRollActions") or {}
 	local payload = {}
 
 	-- Action row key uses "LAR_" prefix to distinguish from result rows ("LR_").
@@ -175,7 +175,7 @@ function LootRolls:BuildActionRowPayload(rollID, rollTime, itemLink, buttonValid
 	payload.quantity = 0
 
 	-- Icon from item link cache; fall back to default LOOTROLLS icon.
-	if lootRollsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
+	if lootRollsActionsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
 		if itemLink and itemLink ~= "" then
 			payload.icon = LootRolls._lootRollsAdapter.GetItemInfoIcon(itemLink) or DefaultIcons.LOOTROLLS
 		else
@@ -282,12 +282,12 @@ function LootRolls:BuildPayload(encounterID, lootListID, dropInfo, state)
 
 	local itemHyperlink = dropInfo.itemHyperlink
 	local key = "LR_" .. encounterID .. "_" .. lootListID
-	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
+	local lootRollsResultsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRollResults") or {}
 
 	-- Result row feature gate: checked at dispatch time (second gate).
-	if lootRollsConfig.enableLootRollResults == false then
+	if lootRollsResultsConfig.enabled == false then
 		LogDebug(
-			"enableLootRollResults disabled — skipping result row",
+			"lootRollResults disabled — skipping result row",
 			addonName,
 			self.moduleName,
 			encounterID,
@@ -301,13 +301,14 @@ function LootRolls:BuildPayload(encounterID, lootListID, dropInfo, state)
 	payload.key = key
 	payload.type = FeatureModule.LootRolls
 	payload.isLink = true
+	payload.isActionRow = false
 	-- quantity = 0 — LootRolls rows are state machines, not stacking counts.
 	-- A non-nil amount lets UpdateQuantity proceed without deferring forever.
 	payload.quantity = 0
 
 	-- Icon: try to resolve from item info cache.  The item is usually cached by
 	-- the time roll results arrive; if not, the row renders without an icon.
-	if lootRollsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
+	if lootRollsResultsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
 		payload.icon = LootRolls._lootRollsAdapter.GetItemInfoIcon(itemHyperlink) or DefaultIcons.LOOTROLLS
 	end
 
@@ -440,7 +441,10 @@ function LootRolls:DispatchPayload(encounterID, lootListID, dropInfo, state)
 end
 
 function LootRolls:OnInitialize()
-	if G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("lootRolls") then
+	if
+		G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("lootRollActions")
+		or G_RLF.DbAccessor:IsFeatureNeededByAnyFrame("lootRollResults")
+	then
 		self:Enable()
 	else
 		self:Disable()
@@ -505,10 +509,10 @@ function LootRolls:LOOT_HISTORY_UPDATE_DROP(eventName, encounterID, lootListID)
 	LogInfo(eventName, "WOWEVENT", self.moduleName, encounterID, lootListID)
 
 	-- Result row feature gate: checked at state population time (first gate).
-	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
-	if lootRollsConfig.enableLootRollResults == false then
+	local lootRollsResultsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRollResults") or {}
+	if lootRollsResultsConfig.enabled == false then
 		LogDebug(
-			"enableLootRollResults disabled — skipping LOOT_HISTORY_UPDATE_DROP",
+			"lootRollResults disabled — skipping LOOT_HISTORY_UPDATE_DROP",
 			addonName,
 			self.moduleName,
 			encounterID,
@@ -740,16 +744,17 @@ function LootRolls:BuildClassicPayload(rollID, dropInfo, state, itemInfo)
 	end
 
 	local dropKey = rollID .. "_" .. rollID
-	local lootRollsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRolls") or {}
+	local lootRollsResultsConfig = G_RLF.DbAccessor:AnyFeatureConfig("lootRollResults") or {}
 
 	local payload = {}
 
 	payload.key = "LR_" .. rollID .. "_" .. rollID
 	payload.type = FeatureModule.LootRolls
 	payload.isLink = true
+	payload.isActionRow = false
 	payload.quantity = 0
 
-	if lootRollsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
+	if lootRollsResultsConfig.enableIcon and not G_RLF.db.global.misc.hideAllIcons then
 		if itemInfo and itemInfo.texture then
 			payload.icon = itemInfo.texture
 		elseif dropInfo.itemHyperlink and dropInfo.itemHyperlink ~= "" then

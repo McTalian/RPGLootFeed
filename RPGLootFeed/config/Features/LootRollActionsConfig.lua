@@ -4,21 +4,21 @@ local addonName, ns = ...
 ---@class G_RLF
 local G_RLF = ns
 
-local LootRollsConfig = {}
+local LootRollActionsConfig = {}
 
---- Build the AceConfig options group for Loot Rolls on the given frame.
+--- Build the AceConfig options group for Loot Roll Actions on the given frame.
 --- The feature is Retail-only; the toggle is hidden on Classic clients.
 --- @param frameId integer
 --- @param order number
 --- @return table
-function G_RLF.BuildLootRollsArgs(frameId, order)
+function G_RLF.BuildLootRollActionsArgs(frameId, order)
 	local function fc()
-		return G_RLF.db.global.frames[frameId].features.lootRolls
+		return G_RLF.db.global.frames[frameId].features.lootRollActions
 	end
 	return {
 		type = "group",
-		handler = LootRollsConfig,
-		name = G_RLF.L["Loot Rolls Config"],
+		handler = LootRollActionsConfig,
+		name = G_RLF.L["Loot Roll Actions Config"],
 		order = order,
 		-- Hide entirely on Classic; C_LootHistory is not available there.
 		hidden = function()
@@ -27,22 +27,22 @@ function G_RLF.BuildLootRollsArgs(frameId, order)
 		args = {
 			enabled = {
 				type = "toggle",
-				name = G_RLF.L["Enable Loot Rolls in Feed"],
-				desc = G_RLF.L["EnableLootRollsDesc"],
+				name = G_RLF.L["Enable Loot Roll Actions"],
+				desc = G_RLF.L["EnableLootRollActionsDesc"],
 				width = "double",
 				get = function()
 					return fc().enabled
 				end,
 				set = function(_, value)
 					fc().enabled = value
-					G_RLF.DbAccessor:UpdateFeatureModuleState("lootRolls")
+					G_RLF.DbAccessor:UpdateFeatureModuleState("lootRollActions")
 					G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 				end,
 				order = 1,
 			},
-			lootRollsOptions = {
+			lootRollActionsOptions = {
 				type = "group",
-				name = G_RLF.L["Loot Rolls Options"],
+				name = G_RLF.L["Loot Roll Actions Options"],
 				inline = true,
 				disabled = function()
 					return not fc().enabled
@@ -51,7 +51,7 @@ function G_RLF.BuildLootRollsArgs(frameId, order)
 				args = {
 					backgroundOverride = G_RLF.ConfigCommon.CreateFeatureBackgroundOverrideGroup({
 						frameId = frameId,
-						featureKey = "lootRolls",
+						featureKey = "lootRollActions",
 						order = 0.75,
 						isFeatureEnabled = function()
 							return fc().enabled
@@ -74,43 +74,11 @@ function G_RLF.BuildLootRollsArgs(frameId, order)
 						end,
 						order = 0.5,
 					},
-					enableLootRollActions = {
-						type = "toggle",
-						name = G_RLF.L["Enable Loot Roll Actions"],
-						desc = G_RLF.L["EnableLootRollActionsDesc"],
-						width = "double",
-						get = function()
-							return fc().enableLootRollActions
-						end,
-						set = function(_, value)
-							fc().enableLootRollActions = value
-							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
-						end,
-						order = 3,
-					},
-					enableLootRollResults = {
-						type = "toggle",
-						name = G_RLF.L["Enable Loot Roll Results"],
-						desc = G_RLF.L["EnableLootRollResultsDesc"],
-						width = "double",
-						get = function()
-							return fc().enableLootRollResults
-						end,
-						set = function(_, value)
-							fc().enableLootRollResults = value
-							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
-						end,
-						order = 5,
-					},
 					disableLootRollFrame = {
 						type = "toggle",
 						name = G_RLF.L["Disable Built-in Roll Frame"],
 						desc = G_RLF.L["DisableLootRollFrameDesc"],
 						width = "double",
-						-- Only enabled when enableLootRollActions is true
-						disabled = function()
-							return not fc().enableLootRollActions
-						end,
 						get = function()
 							return fc().disableLootRollFrame
 						end,
@@ -118,7 +86,7 @@ function G_RLF.BuildLootRollsArgs(frameId, order)
 							fc().disableLootRollFrame = value
 							G_RLF.LootDisplay:RefreshSampleRowsIfShown()
 						end,
-						order = 4,
+						order = 3,
 					},
 				},
 			},
@@ -126,4 +94,4 @@ function G_RLF.BuildLootRollsArgs(frameId, order)
 	}
 end
 
-return LootRollsConfig
+return LootRollActionsConfig

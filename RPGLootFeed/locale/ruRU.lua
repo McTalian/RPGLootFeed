@@ -39,6 +39,10 @@ end
 -- L["GroupLootFrameUnavailable"] = "GroupLootFrame was unavailable for > 30 seconds, Group Loot Roll frame could not be suppressed :("
 -- L["GroupLootHistoryFrameUnavailable"] = "GroupLootHistoryFrame was unavailable for > 30 seconds, Group Loot History could not be disabled :("
 -- L["Left to Right"] = "Left to Right"
+-- L["Loot Roll Actions Config"] = "Loot Roll Actions Config"
+-- L["Loot Roll Actions Options"] = "Loot Roll Actions Options"
+-- L["Loot Roll Results Config"] = "Loot Roll Results Config"
+-- L["Loot Roll Results Options"] = "Loot Roll Results Options"
 -- L["Loot Rolls"] = "Loot Rolls"
 -- L["Loot Rolls Config"] = "Loot Rolls Config"
 -- L["Loot Rolls Options"] = "Loot Rolls Options"
@@ -283,6 +287,8 @@ L["ShowMoneyIconDesc"] = "Показывать иконку перед сумм�
 --#endregion
 
 --#region 1.0.0 - 1.22.0
+-- L["Exit Delay Override"] = "Exit Delay Override"
+-- L["ExitDelayOverrideDesc"] = "How long result rows display before fading out (seconds). Set to 0 to use the frame's default exit delay."
 -- L["Ignore Item IDs"] = "Ignore Item IDs"
 -- L["IgnoreItemIDsDesc"] = "Enter a comma-separated list of item IDs to ignore in the Party Loot Feed"
 L["Abbreviate Total"] = "Сокращать общее количество"

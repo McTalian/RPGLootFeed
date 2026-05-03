@@ -12,5 +12,6 @@
     <Script file="ProfessionConfig.lua"/>
     <Script file="TravelPointsConfig.lua"/>
     <Script file="TransmogConfig.lua"/>
-    <Script file="LootRollsConfig.lua"/>
+    <Script file="LootRollActionsConfig.lua"/>
+    <Script file="LootRollResultsConfig.lua"/>
 </Ui>
